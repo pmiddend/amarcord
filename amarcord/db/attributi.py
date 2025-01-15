@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Callable
 from typing import Mapping
-from typing import Type
 
 from pint import UnitRegistry
 from pydantic import BaseModel
@@ -118,7 +117,8 @@ def schema_to_attributo_type(
             max_length=schema_array.maxItems,
         )
     assert isinstance(
-        schema_string, JSONSchemaString
+        schema_string,
+        JSONSchemaString,
     ), f"unknown schema type {schema_string}"
     if schema_string.enum is not None:
         return AttributoTypeChoice(schema_string.enum)
@@ -137,7 +137,7 @@ def datetime_from_attributo_int(d: int) -> datetime.datetime:
     # see
     # https://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
     return datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc).replace(
-        microsecond=d % 1000 * 1000
+        microsecond=d % 1000 * 1000,
     )
 
 
@@ -194,34 +194,34 @@ def attributo_type_to_schema(
     if isinstance(rp, AttributoTypeDecimal):
         minimum: float | None
         maximum: float | None
-        exclusiveMinimum: float | None
-        exclusiveMaximum: float | None
+        exclusiveMinimum: float | None  # noqa: N806
+        exclusiveMaximum: float | None  # noqa: N806
         if rp.range is not None:
             if rp.range.minimum is not None:
                 if rp.range.minimum_inclusive:
                     minimum = rp.range.minimum
-                    exclusiveMinimum = None
+                    exclusiveMinimum = None  # noqa: N806
                 else:
                     minimum = None
-                    exclusiveMinimum = rp.range.minimum
+                    exclusiveMinimum = rp.range.minimum  # noqa: N806
             else:
                 minimum = None
-                exclusiveMinimum = None
+                exclusiveMinimum = None  # noqa: N806
             if rp.range.maximum is not None:
                 if rp.range.maximum_inclusive:
                     maximum = rp.range.maximum
-                    exclusiveMaximum = None
+                    exclusiveMaximum = None  # noqa: N806
                 else:
                     maximum = None
-                    exclusiveMaximum = rp.range.maximum
+                    exclusiveMaximum = rp.range.maximum  # noqa: N806
             else:
                 maximum = None
-                exclusiveMaximum = None
+                exclusiveMaximum = None  # noqa: N806
         else:
             minimum = None
             maximum = None
-            exclusiveMinimum = None
-            exclusiveMaximum = None
+            exclusiveMinimum = None  # noqa: N806
+            exclusiveMaximum = None  # noqa: N806
         return JSONSchemaNumber(
             type="number",
             format="standard-unit" if rp.standard_unit else None,
@@ -260,7 +260,7 @@ _AttributoTypeConverter = Callable[
     AttributoValue,
 ]
 
-_conversion_matrix: dict[tuple[Type[Any], Type[Any]], _AttributoTypeConverter] = {}
+_conversion_matrix: dict[tuple[type[Any], type[Any]], _AttributoTypeConverter] = {}
 
 
 def convert_attributo_value(
@@ -273,7 +273,7 @@ def convert_attributo_value(
 
     if converter is None:
         raise Exception(
-            f"cannot convert from {before_type} to {after_type}: no converter found"
+            f"cannot convert from {before_type} to {after_type}: no converter found",
         )
 
     if value is None:
@@ -292,11 +292,11 @@ def _convert_int_to_int_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)"
+            + "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
-            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements",
         )
     return [v]
 
@@ -312,11 +312,11 @@ def _convert_double_to_double_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)"
+            + "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
-            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements",
         )
     return [v]
 
@@ -332,11 +332,11 @@ def _convert_string_to_string_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_STRING:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)"
+            + "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
-            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements",
         )
     return [v]
 
@@ -368,7 +368,7 @@ def _convert_int_to_double(
 
     if after_type.range is not None and not after_type.range.value_is_inside(vd):
         raise Exception(
-            f"cannot convert integer {v} to double because it's not in the range {after_type.range}"
+            f"cannot convert integer {v} to double because it's not in the range {after_type.range}",
         )
 
     return v
@@ -395,7 +395,7 @@ def _convert_double_to_boolean(
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeDecimal)
     assert isinstance(after_type, AttributoTypeBoolean)
-    assert isinstance(v, (float, int))
+    assert isinstance(v, float | int)
 
     return v != 0
 
@@ -426,7 +426,7 @@ def _convert_boolean_to_double(
     result = 1.0 if v else 0.0
     if after_type.range is not None and not after_type.range.value_is_inside(result):
         raise Exception(
-            f"cannot convert boolean {v} to double: resulting value {result} is not in range {after_type.range}"
+            f"cannot convert boolean {v} to double: resulting value {result} is not in range {after_type.range}",
         )
     return result
 
@@ -478,7 +478,7 @@ def _convert_double_to_int(
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeDecimal)
     assert isinstance(after_type, AttributoTypeInt)
-    assert isinstance(v, (int, float))
+    assert isinstance(v, float | int)
 
     return int(v)
 
@@ -491,7 +491,7 @@ def _convert_double_to_double(
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeDecimal)
     assert isinstance(after_type, AttributoTypeDecimal)
-    assert isinstance(v, (int, float))
+    assert isinstance(v, float | int)
 
     # If we ignore units, the range has to be correct afterwards as well
     if (
@@ -500,7 +500,7 @@ def _convert_double_to_double(
         and not after_type.range.value_is_inside(v)
     ):
         raise Exception(
-            f"cannot convert decimal number {v} because it's not in the range {after_type.range}"
+            f"cannot convert decimal number {v} because it's not in the range {after_type.range}",
         )
 
     # If we want to convert units, the range needs to fit after conversion.
@@ -514,11 +514,11 @@ def _convert_double_to_double(
             _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m
         )
         if after_type.range is not None and not after_type.range.value_is_inside(
-            magnitude_after  # pyright: ignore [reportUnknownArgumentType]
+            magnitude_after,  # pyright: ignore [reportUnknownArgumentType]
         ):
             raise Exception(
                 f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
-                + f"not in the range {after_type.range} "
+                + f"not in the range {after_type.range} ",
             )
         return _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m  # type: ignore
 
@@ -554,7 +554,7 @@ def _convert_string_to_choice(
     if v not in after_type.values:
         raise Exception(
             f'cannot convert string "{v}" to choice with choices '
-            + ",".join(after_type.values)
+            + ",".join(after_type.values),
         )
     return v
 
@@ -575,7 +575,10 @@ def _convert_string_to_double(
         raise Exception(f'cannot convert string "{v.strip()}" to float')
 
     return _convert_double_to_double(
-        AttributoTypeDecimal(), after_type, _conversion_flags, vi
+        AttributoTypeDecimal(),
+        after_type,
+        _conversion_flags,
+        vi,
     )
 
 
@@ -591,12 +594,12 @@ def _convert_list_to_list(
 
     if after_type.max_length is not None and len(value) > after_type.max_length:
         raise Exception(
-            f"cannot convert {before_type} to {after_type} because {value} has too many elements"
+            f"cannot convert {before_type} to {after_type} because {value} has too many elements",
         )
 
     if after_type.min_length is not None and len(value) < after_type.min_length:
         raise Exception(
-            f"cannot convert {before_type} to {after_type} because {value} has too little elements"
+            f"cannot convert {before_type} to {after_type} because {value} has too little elements",
         )
 
     if before_type.sub_type == after_type.sub_type:
@@ -612,7 +615,7 @@ def _convert_list_to_list(
                 result_float.append(float(v))
             except:
                 raise Exception(
-                    f'cannot convert element {i} of list from string "{v}" to number'
+                    f'cannot convert element {i} of list from string "{v}" to number',
                 )
         return result_float
     if (
@@ -625,12 +628,12 @@ def _convert_list_to_list(
                 result_bool.append(bool(v))
             except:
                 raise Exception(
-                    f'cannot convert element {i} of list from string "{v}" to bool'
+                    f'cannot convert element {i} of list from string "{v}" to bool',
                 )
         return result_bool
     if after_type.sub_type == ArrayAttributoType.ARRAY_STRING:
         result_str: list[str] = []
-        for i, v in enumerate(value):
+        for v in value:
             result_str.append(str(v))
         return result_str
     # Remaining conversion are: number -> bool and bool -> number which frankly don't make much sense
@@ -654,7 +657,7 @@ def _convert_choice_to_choice(
     if value not in after_type.values:
         raise Exception(
             f"cannot convert choice value, {value} is not in choices "
-            + ",".join(after_type.values)
+            + ",".join(after_type.values),
         )
 
     return value
@@ -666,11 +669,16 @@ _conversion_matrix.update(
         (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
         (AttributoTypeInt, AttributoTypeDecimal): _convert_int_to_double,
-        (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (AttributoTypeInt, AttributoTypeString): lambda _before, _after, _flags, v: str(  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+            v  # pyright: ignore[reportUnknownArgumentType]
+        ),
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
         # start string
-        (AttributoTypeString, AttributoTypeString): lambda before, after, flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (AttributoTypeString, AttributoTypeString): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
         (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
@@ -683,13 +691,16 @@ _conversion_matrix.update(
         (
             AttributoTypeDecimal,
             AttributoTypeString,
-        ): lambda before, after, flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         # start bool
-        (AttributoTypeBoolean, AttributoTypeBoolean): lambda before, after, flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (AttributoTypeBoolean, AttributoTypeBoolean): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeBoolean,
             AttributoTypeString,
-        ): lambda before, after, flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeString,
             AttributoTypeBoolean,
@@ -714,22 +725,25 @@ _conversion_matrix.update(
         (
             AttributoTypeChemical,
             AttributoTypeChemical,
-        ): lambda before, after, flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         # start datetime
         (
             AttributoTypeDateTime,
             AttributoTypeDateTime,
-        ): lambda before, after, flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeDateTime,
             AttributoTypeString,
-        ): lambda before, after, flags, v: datetime_to_attributo_string(  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-            v  # type: ignore
+        ): lambda _before, _after, _flags, v: datetime_to_attributo_string(  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+            v,  # type: ignore
         ),
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
-        (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-    }
+        (AttributoTypeChoice, AttributoTypeString): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    },
 )
 
 
@@ -796,10 +810,12 @@ def decimal_attributi_match(
     if run_value is None or data_set_value is None:
         return False
     assert isinstance(
-        run_value, (float, int)
+        run_value,
+        float | int,
     ), f"decimal run attributo is not int/float: {run_value}"
     assert isinstance(
-        data_set_value, (float, int)
+        data_set_value,
+        float | int,
     ), f"decimal data set attributo is not int/float: {data_set_value}"
     if run_value_type.tolerance:
         if run_value_type.tolerance_is_absolute:
@@ -809,28 +825,25 @@ def decimal_attributi_match(
                 abs_tol=run_value_type.tolerance,
             ):
                 return False
-        else:
-            if not math.isclose(
-                float(run_value),
-                float(data_set_value),
-                rel_tol=run_value_type.tolerance,
-            ):
-                return False
-    else:
-        # Use whatever math.isclose deems sensible for a float comparison.
-        if not math.isclose(float(run_value), float(data_set_value)):
+        elif not math.isclose(
+            float(run_value),
+            float(data_set_value),
+            rel_tol=run_value_type.tolerance,
+        ):
             return False
+    # Use whatever math.isclose deems sensible for a float comparison.
+    elif not math.isclose(float(run_value), float(data_set_value)):
+        return False
     return True
 
 
 def run_matches_dataset(
     attributi: Mapping[AttributoId, AttributoType],
     run_attributi: Mapping[
-        AttributoId, None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue
+        AttributoId,
+        None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
     ],
-    data_set_attributi: Mapping[
-        AttributoId, None | orm.DataSetHasAttributoValue | orm.DataSetHasAttributoValue
-    ],
+    data_set_attributi: Mapping[AttributoId, None | orm.DataSetHasAttributoValue],
 ) -> bool:
     for attributo_id, data_set_value in data_set_attributi.items():
         run_value_type = attributi[attributo_id]

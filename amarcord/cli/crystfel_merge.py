@@ -23,6 +23,11 @@ from typing import NoReturn
 from typing import TypeVar
 from urllib import request
 
+_R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
+_R_FREE_REGEX = re.compile(r"R free\s+(\S+)\s+(\S+)")
+_RMS_BOND_ANGLE_REGEX = re.compile(r"Rms BondAngle\s+(\S+)\s+(\S+)")
+_RMS_BOND_LENGTH_REGEX = re.compile(r"Rms BondLength\s+(\S+)\s+(\S+)")
+
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
 _HIGHRES_CUT_CCSTAR_THRESHOLD: Final = 0.5
@@ -56,22 +61,23 @@ def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str
         "CLIBD": f"{ccp4_path}/lib/data",
         "CLIBD_MON": f"{ccp4_path}/lib/data/monomers/",
         "CINCL": f"{ccp4_path}/include",
-        "CCP4_SCR": "/tmp",
+        "CCP4_SCR": "/tmp",  # noqa: S108
         "CCP4": str(ccp4_path),
         "PATH": f"{ccp4_path}/bin:{current_path}",
     }
     logger.info(f"running {args}")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             args,
             capture_output=True,
             input=input_,
             encoding="utf-8",
             env=ccp4_env,
+            check=False,
         )
         if result.returncode != 0:
             logger.exception(
-                f"calling {args} didn't work: {result.stderr}, stderr: {result.stdout}"
+                f"calling {args} didn't work: {result.stderr}, stderr: {result.stdout}",
             )
             raise Exception()
         return result.stdout
@@ -90,7 +96,10 @@ def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
 
 
 def uniqify(
-    ccp4_path: Path, rfree_mtz: Path, input_mtz: Path, resolution_cut: float
+    ccp4_path: Path,
+    rfree_mtz: Path,
+    input_mtz: Path,
+    resolution_cut: float,
 ) -> Path:
     ccp4_run(
         ccp4_path,
@@ -115,11 +124,11 @@ def uniqify(
     if len(input_mtz_rfree_labels) > 1:
         raise Exception(
             f'couldn\'t do refinement, there is more than one "free" in "{POINTLESS_MTZ}": '
-            + ", ".join(input_mtz_rfree_labels)
+            + ", ".join(input_mtz_rfree_labels),
         )
     if input_mtz_rfree_labels:
         logger.info(
-            f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call'
+            f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call',
         )
         ccp4_run(
             ccp4_path,
@@ -134,7 +143,7 @@ def uniqify(
         )
     else:
         logger.info(
-            f"Input MTZ doesn't contain RFree flags column (columns are {input_mtz_labels}), just copying"
+            f"Input MTZ doesn't contain RFree flags column (columns are {input_mtz_labels}), just copying",
         )
         shutil.copyfile(POINTLESS_MTZ, EXCLUSION_MTZ)
     xdata_lines = [
@@ -146,7 +155,8 @@ def uniqify(
     logger.info(f"xdata line is {xdata_lines[0]} ({len(xdata_line)} component(s))")
 
     mtzinfo_rfree_mtz = ccp4_run(
-        ccp4_path, [f"{ccp4_path}/bin/mtzinfo", str(rfree_mtz)]
+        ccp4_path,
+        [f"{ccp4_path}/bin/mtzinfo", str(rfree_mtz)],
     )
     rfree_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_rfree_mtz)
     rfree_mtz_rfree_labels = [
@@ -155,7 +165,7 @@ def uniqify(
     if not rfree_mtz_rfree_labels:
         raise Exception(
             f'couldn\'t find a "free" column in "{rfree_mtz}", columns are: '
-            + ",".join(rfree_mtz_labels)
+            + ",".join(rfree_mtz_labels),
         )
     rfree_mtz_column = rfree_mtz_rfree_labels[0]
     logger.info(f"using column {rfree_mtz_column} as free flag in {rfree_mtz}")
@@ -262,13 +272,11 @@ def parse_refmac_log(p: Path) -> RefinementFom:
     r_free: None | float = None
     rms_bond_length: None | float = None
     rms_bond_angle: None | float = None
-    R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
-    R_FREE_REGEX = re.compile(r"R free\s+(\S+)\s+(\S+)")
-    RMS_BOND_ANGLE_REGEX = re.compile(r"Rms BondAngle\s+(\S+)\s+(\S+)")
-    RMS_BOND_LENGTH_REGEX = re.compile(r"Rms BondLength\s+(\S+)\s+(\S+)")
 
     def extract_final_result(
-        regex: re.Pattern[str], this_line: str, previous_result: None | float
+        regex: re.Pattern[str],
+        this_line: str,
+        previous_result: None | float,
     ) -> None | float:
         regex_result = regex.search(this_line)
         if regex_result is not None:
@@ -280,13 +288,17 @@ def parse_refmac_log(p: Path) -> RefinementFom:
 
     with p.open("r") as f:
         for line in f:
-            r_work = extract_final_result(R_WORK_REGEX, line, r_work)
-            r_free = extract_final_result(R_FREE_REGEX, line, r_free)
+            r_work = extract_final_result(_R_WORK_REGEX, line, r_work)
+            r_free = extract_final_result(_R_FREE_REGEX, line, r_free)
             rms_bond_angle = extract_final_result(
-                RMS_BOND_ANGLE_REGEX, line, rms_bond_angle
+                _RMS_BOND_ANGLE_REGEX,
+                line,
+                rms_bond_angle,
             )
             rms_bond_length = extract_final_result(
-                RMS_BOND_LENGTH_REGEX, line, rms_bond_length
+                _RMS_BOND_LENGTH_REGEX,
+                line,
+                rms_bond_length,
             )
 
     if (
@@ -303,7 +315,7 @@ def parse_refmac_log(p: Path) -> RefinementFom:
         )
 
     raise Exception(
-        f"not all of the figures of merit are given: Rwork={r_work}, Rfree={r_free}, RMS bond length={rms_bond_length}, RMS bond angle={rms_bond_angle}"
+        f"not all of the figures of merit are given: Rwork={r_work}, Rfree={r_free}, RMS bond length={rms_bond_length}, RMS bond angle={rms_bond_angle}",
     )
 
 
@@ -359,16 +371,16 @@ def quick_refine(
         ],
     )
 
-    REFMAC_LOG_GLOB = "*refmac5_restr*.log"
-    refmac_log_files = list(Path("./").glob(REFMAC_LOG_GLOB))
+    refmac_log_glob = "*refmac5_restr*.log"
+    refmac_log_files = list(Path("./").glob(refmac_log_glob))
 
     if not refmac_log_files:
-        error = f"dimple ran successfully, but didn't produce file matching {REFMAC_LOG_GLOB}, please check the output"
+        error = f"dimple ran successfully, but didn't produce file matching {refmac_log_glob}, please check the output"
         raise Exception(error)
 
     if len(refmac_log_files) > 1:
         logging.info(
-            f"found multiple refmac log files: {refmac_log_files}, taking the first one"
+            f"found multiple refmac log files: {refmac_log_files}, taking the first one",
         )
 
     return RefinementResult(
@@ -380,7 +392,8 @@ def quick_refine(
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
+    format="%(asctime)-15s %(levelname)s %(message)s",
+    level=logging.INFO,
 )
 
 
@@ -411,7 +424,8 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     crystfel_path = Path(crystfel_path_str)
     if not crystfel_path.is_dir():
         exit_with_error(
-            None, f"CrystFEL path {crystfel_path} must be a valid directory"
+            None,
+            f"CrystFEL path {crystfel_path} must be a valid directory",
         )
 
     ccp4_path_str = j.get("ccp4-path")
@@ -422,7 +436,8 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     ccp4_path = Path(ccp4_path_str) if ccp4_path_str else None
     if ccp4_path and not ccp4_path.is_dir():
         exit_with_error(
-            None, f"ccp4 path {ccp4_path} must be a valid directory or empty"
+            None,
+            f"ccp4 path {ccp4_path} must be a valid directory or empty",
         )
 
     stream_files_raw = j.get("stream-files")
@@ -431,7 +446,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     if not isinstance(stream_files_raw, list):
         exit_with_error(None, f"stream-files not a list but {stream_files_raw}")
     for idx, sf in enumerate(
-        stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
+        stream_files_raw,  # pyright: ignore [reportUnknownArgumentType]
     ):
         if not isinstance(sf, str):
             exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
@@ -446,7 +461,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     if invalid_paths:
         logger.warning(
             "the following file(s) are not valid stream files: "
-            + ", ".join(str(f) for f in stream_files if not f.is_file())
+            + ", ".join(str(f) for f in stream_files if not f.is_file()),
         )
         if invalid_paths == set(stream_files):
             exit_with_error(None, "none of the input stream files is a valid file")
@@ -459,7 +474,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         point_group=j.get("point-group"),  # type: ignore
         ccp4_path=ccp4_path,
         hkl_file=Path(
-            j.get("hkl-file", "partialator.hkl")  # pyright: ignore [reportUnknownArgumentType]
+            j.get("hkl-file", "partialator.hkl"),  # pyright: ignore [reportUnknownArgumentType]
         ),
         partialator_additional=j.get("partialator-additional"),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
@@ -476,9 +491,8 @@ def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
     url = f"{args.api_url}/api/files/{file_id}"
     req = request.Request(url, method="GET")
     logger.info(f"requesting file on {url}")
-    with request.urlopen(req) as response:
-        with Path(name).open("wb") as output_file:
-            output_file.write(response.read())
+    with request.urlopen(req) as response, Path(name).open("wb") as output_file:
+        output_file.write(response.read())
     return Path(name)
 
 
@@ -514,18 +528,24 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 
 
 def write_output_json(
-    args: ParsedArgs, error: None | str, result: None | dict[str, Any]
+    args: ParsedArgs,
+    error: None | str,
+    result: None | dict[str, Any],
 ) -> None:
     try:
         result_json = json.dumps(
-            {"error": error, "result": result}, allow_nan=False, indent=2
+            {"error": error, "result": result},
+            allow_nan=False,
+            indent=2,
         ).encode("utf-8")
     except ValueError:
         result_json_with_nan = json.dumps(
-            {"error": error, "result": result}, allow_nan=True, indent=2
+            {"error": error, "result": result},
+            allow_nan=True,
+            indent=2,
         ).encode("utf-8")
         logger.info(
-            f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}"
+            f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}",
         )
         result_json = json.dumps(
             {
@@ -559,7 +579,7 @@ def first_group(output: str, regex: str) -> str:
     reg = re.compile(regex, re.MULTILINE).search(output)
     if reg is None:
         raise Exception(
-            f"regular expression...\n\n{regex}\n\n...matches nowhere in output:\n\n{output}"
+            f"regular expression...\n\n{regex}\n\n...matches nowhere in output:\n\n{output}",
         )
     return reg.group(1)
 
@@ -570,7 +590,7 @@ def first_group_as_float(output: str, regex: str) -> float:
         return float(result)
     except:
         raise Exception(
-            f'regular expression "{regex}" doesn\'t match a float value but {result}'
+            f'regular expression "{regex}" doesn\'t match a float value but {result}',
         )
 
 
@@ -580,7 +600,7 @@ def first_group_as_int(output: str, regex: str) -> int:
         return int(result)
     except:
         raise Exception(
-            f'regular expression "{regex}" doesn\'t match an int value but {result}'
+            f'regular expression "{regex}" doesn\'t match an int value but {result}',
         )
 
 
@@ -686,7 +706,7 @@ def run_compare_hkl_single_fom(
     search_term: str,
     highres: None | float,
     nshells: int,
-    may_fail: bool = False,
+    may_fail: bool = False,  # noqa: FBT002
     output_file: None | Path = None,
 ) -> None | float:
     compare_hkl_command_line_args = compare_hkl_args_to_list(
@@ -700,17 +720,18 @@ def run_compare_hkl_single_fom(
             shell_file=output_file,
             highres=highres,
             nshells=nshells,
-        )
+        ),
     )
     logging.info(
-        f"starting compare_hkl with command line: {compare_hkl_command_line_args}"
+        f"starting compare_hkl with command line: {compare_hkl_command_line_args}",
     )
     try:
-        compare_hkl_result = subprocess.run(
+        compare_hkl_result = subprocess.run(  # noqa: S603
             compare_hkl_command_line_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
 
         if compare_hkl_result.returncode != 0:
@@ -772,7 +793,7 @@ def read_shells_file(args: ParsedArgs, file_path: Path) -> list[CheckShellLine]:
                         d_a=float(split_line[8]),
                         min_1_nm=float(split_line[9]),
                         max_1_nm=float(split_line[10]),
-                    )
+                    ),
                 )
             except:
                 exit_with_error(
@@ -793,7 +814,8 @@ class CompareShellLine:
 
 
 def read_compare_shells_file(
-    args: ParsedArgs, file_path: Path
+    args: ParsedArgs,
+    file_path: Path,
 ) -> list[CompareShellLine]:
     with file_path.open("r", encoding="utf-8") as shells_file:
         result: list[CompareShellLine] = []
@@ -815,7 +837,7 @@ def read_compare_shells_file(
                         d_over_a=float(split_line[3]),
                         min_1_nm=float(split_line[4]),
                         max_1_nm=float(split_line[5]),
-                    )
+                    ),
                 )
             except:
                 exit_with_error(
@@ -829,11 +851,12 @@ def run_check_hkl(args: ParsedArgs, check_hkl_args: CheckHklArgs) -> str:
     check_hkl_command_line_args = check_hkl_args_to_list(check_hkl_args)
     logging.info(f"starting check_hkl with command line: {check_hkl_command_line_args}")
     try:
-        check_hkl_result = subprocess.run(
+        check_hkl_result = subprocess.run(  # noqa: S603
             check_hkl_command_line_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
 
         if check_hkl_result.returncode != 0:
@@ -860,16 +883,18 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             "--output-format=mtz",
         ]
         logging.info(f"starting get_hkl with command line: {cli_args}")
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             cli_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
 
         if result.returncode != 0:
             exit_with_error(
-                args, f"error running get_hkl, error code is {result.returncode}"
+                args,
+                f"error running get_hkl, error code is {result.returncode}",
             )
     except:
         exit_with_error(args, "error running get_hkl")
@@ -905,11 +930,11 @@ def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
 
                     if indexed_by is None:
                         logger.warning(
-                            f"{p}:{line_number}: chunk without indexed_by, start {start}, end {end}: {line}"
+                            f"{p}:{line_number}: chunk without indexed_by, start {start}, end {end}: {line}",
                         )
                     elif start is None:
                         logger.warning(
-                            f"{p}:{line_number}: chunk end without start, end {end}: {line}"
+                            f"{p}:{line_number}: chunk end without start, end {end}: {line}",
                         )
                     else:
                         yield Chunk(
@@ -923,7 +948,7 @@ def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
                 elif line.startswith(_INDEXED_BY_PREFIX):
                     if start is None:
                         logger.warning(
-                            f"{p}:{line_number}: indexed_by without chunk found: {line}"
+                            f"{p}:{line_number}: indexed_by without chunk found: {line}",
                         )
                     else:
                         indexed_by = line[len(_INDEXED_BY_PREFIX) :].strip()
@@ -933,7 +958,7 @@ T = TypeVar("T")
 
 
 def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
-    rng = Random(rng_seed)
+    rng = Random(rng_seed)  # noqa: S311
 
     result: list[T] = []
     for x in xs:
@@ -949,7 +974,9 @@ def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
 
 
 def write_random_chunks(
-    file_list: list[Path], max_chunks: int, target: BinaryIO
+    file_list: list[Path],
+    max_chunks: int,
+    target: BinaryIO,
 ) -> None:
     current_file_obj: None | BinaryIO = None
     try:
@@ -962,7 +989,7 @@ def write_random_chunks(
                 bytearray(
                     "".join(str(single_file) for single_file in file_list),
                     encoding="utf-8",
-                )
+                ),
             ),
         ):
             if chunk.file != current_file_path:
@@ -987,7 +1014,7 @@ def generate_output(args: ParsedArgs) -> None:
     os.chdir(merge_subdirectory)
 
     if args.random_cut_length is not None:
-        with NamedTemporaryFile(dir=os.getcwd()) as random_chunks_file:
+        with NamedTemporaryFile(dir=str(Path.cwd())) as random_chunks_file:
             with args.stream_files[0].open("r", encoding="utf-8") as first_file:
                 header = ""
                 for line in first_file:
@@ -1035,24 +1062,29 @@ def generate_output(args: ParsedArgs) -> None:
         r"Overall redundancy = ([0-9.]+) measurements/unique reflection",
     )
     completeness = first_group_as_float(
-        check_out, r"Overall completeness = ([0-9.]+) %"
+        check_out,
+        r"Overall completeness = ([0-9.]+) %",
     )
     measurements_total = first_group_as_int(
-        check_out, r"([0-9]+) measurements in total"
+        check_out,
+        r"([0-9]+) measurements in total",
     )
     reflections_total = first_group_as_int(check_out, r"([0-9]+) reflections in total")
     reflections_possible = first_group_as_int(
-        check_out, r"([0-9]+) reflections possible"
+        check_out,
+        r"([0-9]+) reflections possible",
     )
     discarded_reflections = first_group_as_int(
-        check_out, r"Discarded ([0-9]+) reflections"
+        check_out,
+        r"Discarded ([0-9]+) reflections",
     )
     one_over_d = re.compile(r"1/d goes from ([0-9.]+) to ([0-9.]+) nm\^-1").search(
-        check_out, re.MULTILINE
+        check_out,
+        re.MULTILINE,
     )
     if one_over_d is None:
         raise Exception(
-            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}'
+            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}',
         )
     one_over_d_from = 10.0 / float(one_over_d.group(1))
     one_over_d_to = 10.0 / float(one_over_d.group(2))
@@ -1103,7 +1135,8 @@ def generate_output(args: ParsedArgs) -> None:
     check_file = read_shells_file(args, CHECK_HKL_SHELL_FILE)
     if not check_file:
         exit_with_error(
-            args, f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines"
+            args,
+            f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines",
         )
 
     refinement_result: None | RefinementResult = None
@@ -1116,7 +1149,11 @@ def generate_output(args: ParsedArgs) -> None:
                 else None
             )
             refinement_result = quick_refine(
-                args.ccp4_path, mtz_path, highres_cut, pdb_file, restraints_cif_file
+                args.ccp4_path,
+                mtz_path,
+                highres_cut,
+                pdb_file,
+                restraints_cif_file,
             )
         except:
             logger.exception("couldn't complete refinement")
@@ -1133,7 +1170,7 @@ def generate_output(args: ParsedArgs) -> None:
                     "r_work": refinement_result.fom.r_work,
                     "rms_bond_angle": refinement_result.fom.rms_bond_angle,
                     "rms_bond_length": refinement_result.fom.rms_bond_length,
-                }
+                },
             ]
             if refinement_result is not None
             else []
@@ -1217,7 +1254,8 @@ def generate_output(args: ParsedArgs) -> None:
             ),
             "outer_shell": {
                 "resolution": read_compare_shells_file(
-                    args, ccstar_compare_shell_file(nshells)
+                    args,
+                    ccstar_compare_shell_file(nshells),
                 )[-1].d_over_a,
                 "ccstar": read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE)[
                     -1
@@ -1264,6 +1302,7 @@ def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
             read_compare_shells_file(args, CC_COMPARE_SHELL_FILE),
             read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE),
             read_shells_file(args, CHECK_HKL_SHELL_FILE),
+            strict=False,
         )
     ]
 
@@ -1282,7 +1321,7 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
         first_pass_ccstar_file = read_compare_shells_file(args, output_file)
         if not first_pass_ccstar_file:
             logger.warning(
-                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells"
+                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells",
             )
             return None
         highres_cut_line: None | CompareShellLine = None
@@ -1300,7 +1339,8 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     highres_cut_and_minimum_nref = calculate_ccstar_values(reasonable_nshell)
     if highres_cut_and_minimum_nref is None:
         exit_with_error(
-            args, f"Error in data: CC* shells file for {reasonable_nshell} shell(s)"
+            args,
+            f"Error in data: CC* shells file for {reasonable_nshell} shell(s)",
         )
     highres_cut, _ = highres_cut_and_minimum_nref
     return highres_cut, reasonable_nshell
@@ -1352,7 +1392,7 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
         for f in args.stream_files:
             partialator_command_line_args.extend(["-i", str(f)])
     logging.info(
-        f"starting partialator with command line: {partialator_command_line_args}"
+        f"starting partialator with command line: {partialator_command_line_args}",
     )
     try:
         if (
@@ -1362,7 +1402,7 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
         ):
             logger.info("All hkl files already present, not restarting partialator")
         else:
-            partialator = subprocess.run(partialator_command_line_args)
+            partialator = subprocess.run(partialator_command_line_args, check=False)  # noqa: S603
 
             if partialator.returncode != 0:
                 exit_with_error(

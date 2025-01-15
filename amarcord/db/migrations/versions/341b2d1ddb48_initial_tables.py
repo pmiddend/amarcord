@@ -1,4 +1,3 @@
-# pylint: disable=trailing-whitespace
 """initial tables
 
 Revision ID: 341b2d1ddb48
@@ -153,7 +152,9 @@ def upgrade() -> None:
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("modified", sa.DateTime(), nullable=False),
         sa.Column(
-            "contents", sa.LargeBinary().with_variant(LONGBLOB, "mysql"), nullable=False
+            "contents",
+            sa.LargeBinary().with_variant(LONGBLOB, "mysql"),
+            nullable=False,
         ),
         sa.Column("description", sa.String(length=255)),
     )
@@ -236,7 +237,9 @@ def upgrade() -> None:
             ForeignKey(_fk_identifier(chemical.c.id), ondelete="cascade"),
         ),
         sa.PrimaryKeyConstraint(
-            "beamtime_schedule_id", "chemical_id", name="BeamtimeScheduleHasChemical_pk"
+            "beamtime_schedule_id",
+            "chemical_id",
+            name="BeamtimeScheduleHasChemical_pk",
         ),
     )
 
@@ -253,7 +256,9 @@ def upgrade() -> None:
             sa.Integer,
             # If the attributo vanishes, delete the experiment type with it
             ForeignKey(
-                _fk_identifier(attributo.c.id), ondelete="cascade", onupdate="cascade"
+                _fk_identifier(attributo.c.id),
+                ondelete="cascade",
+                onupdate="cascade",
             ),
             nullable=False,
         ),
@@ -332,7 +337,6 @@ def upgrade() -> None:
             ForeignKey(_fk_identifier(beamtime.c.id), ondelete="cascade"),
             nullable=False,
         ),
-        # pylint: disable=not-callable
         sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("level", sa.Enum(EventLogLevel), nullable=False),
         sa.Column("source", sa.String(length=255), nullable=False),

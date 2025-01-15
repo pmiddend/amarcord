@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -58,17 +60,20 @@ def encode_orm_data_set_to_json(a: orm.DataSet, beamtime_id: BeamtimeId) -> Json
 
 
 @router.post(
-    "/api/data-sets/from-run", tags=["datasets"], response_model_exclude_defaults=True
+    "/api/data-sets/from-run",
+    tags=["datasets"],
+    response_model_exclude_defaults=True,
 )
 async def create_data_set_from_run(
-    input_: JsonCreateDataSetFromRun, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonCreateDataSetFromRun,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateDataSetFromRunOutput:
     async with session.begin():
         run = (
             await session.scalars(
                 select(orm.Run)
                 .where(orm.Run.id == input_.run_internal_id)
-                .options(selectinload(orm.Run.experiment_type))
+                .options(selectinload(orm.Run.experiment_type)),
             )
         ).one()
         new_data_set = orm.DataSet(experiment_type_id=run.experiment_type_id)
@@ -76,7 +81,7 @@ async def create_data_set_from_run(
             for run_attributo in run.attributo_values:
                 if run_attributo.attributo_id == et_attributo.attributo_id:
                     new_data_set.attributo_values.append(
-                        _run_has_attributo_to_data_set_has_attributo(run_attributo)
+                        _run_has_attributo_to_data_set_has_attributo(run_attributo),
                     )
         session.add(new_data_set)
         await session.flush()
@@ -86,14 +91,15 @@ async def create_data_set_from_run(
 
 @router.post("/api/data-sets", tags=["datasets"], response_model_exclude_defaults=True)
 async def create_data_set(
-    input_: JsonCreateDataSetInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonCreateDataSetInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateDataSetOutput:
     async with session.begin():
         experiment_type = (
             await session.scalars(
                 select(orm.ExperimentType)
                 .where(orm.ExperimentType.id == input_.experiment_type_id)
-                .options(selectinload(orm.ExperimentType.data_sets))
+                .options(selectinload(orm.ExperimentType.data_sets)),
             )
         ).one()
 
@@ -102,10 +108,10 @@ async def create_data_set(
             (
                 await session.scalars(
                     select(orm.Attributo).where(
-                        orm.Attributo.beamtime_id == beamtime_id
-                    )
+                        orm.Attributo.beamtime_id == beamtime_id,
+                    ),
                 )
-            ).all()
+            ).all(),
         )
         attributo_types: dict[AttributoId, AttributoType] = {
             AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
@@ -122,7 +128,7 @@ async def create_data_set(
             attributo_value = new_ds_attributi.get(a.id)
             if attributo_value is not None:
                 new_data_set.attributo_values.append(
-                    json_attributo_to_data_set_orm_attributo(attributo_value)
+                    json_attributo_to_data_set_orm_attributo(attributo_value),
                 )
             else:
                 # Boolean values can be omitted, other values can't. Booleans will be False if omitted
@@ -142,7 +148,7 @@ async def create_data_set(
                         datetime_value=None,
                         list_value=None,
                         chemical_value=None,
-                    )
+                    ),
                 )
         for et_ds in experiment_type.data_sets:
             et_ds_attributi_map = {
@@ -152,7 +158,9 @@ async def create_data_set(
                 dsa.attributo_id: dsa for dsa in new_data_set.attributo_values
             }
             if run_matches_dataset(
-                attributo_types, et_ds_attributi_map, new_ds_attributi_map
+                attributo_types,
+                et_ds_attributi_map,
+                new_ds_attributi_map,
             ):
                 raise HTTPException(
                     status_code=400,
@@ -171,7 +179,8 @@ async def create_data_set(
     response_model_exclude_defaults=True,
 )
 async def read_data_sets(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadDataSets:
     return JsonReadDataSets(
         data_sets=[
@@ -179,7 +188,7 @@ async def read_data_sets(
             for a in await session.scalars(
                 select(orm.DataSet, orm.ExperimentType)
                 .join(orm.DataSet.experiment_type)
-                .where(orm.ExperimentType.beamtime_id == beamtimeId)
+                .where(orm.ExperimentType.beamtime_id == beamtimeId),
             )
         ],
         chemicals=[
@@ -187,7 +196,7 @@ async def read_data_sets(
             for a in await session.scalars(
                 select(orm.Chemical)
                 .where(orm.Chemical.beamtime_id == beamtimeId)
-                .options(selectinload(orm.Chemical.files))
+                .options(selectinload(orm.Chemical.files)),
             )
         ],
         attributi=[
@@ -195,26 +204,29 @@ async def read_data_sets(
             for a in await session.scalars(
                 select(orm.Attributo).where(
                     (orm.Attributo.associated_table == AssociatedTable.RUN)
-                    & (orm.Attributo.beamtime_id == beamtimeId)
-                )
+                    & (orm.Attributo.beamtime_id == beamtimeId),
+                ),
             )
         ],
         experiment_types=[
             encode_experiment_type(a)
             for a in await session.scalars(
                 select(orm.ExperimentType).where(
-                    orm.ExperimentType.beamtime_id == beamtimeId
-                )
+                    orm.ExperimentType.beamtime_id == beamtimeId,
+                ),
             )
         ],
     )
 
 
 @router.delete(
-    "/api/data-sets", tags=["datasets"], response_model_exclude_defaults=True
+    "/api/data-sets",
+    tags=["datasets"],
+    response_model_exclude_defaults=True,
 )
 async def delete_data_set(
-    input_: JsonDeleteDataSetInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonDeleteDataSetInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteDataSetOutput:
     async with session.begin():
         await session.execute(delete(orm.DataSet).where(orm.DataSet.id == input_.id))

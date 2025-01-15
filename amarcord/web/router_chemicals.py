@@ -1,4 +1,5 @@
 import datetime
+from typing import Annotated
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -37,7 +38,8 @@ router = APIRouter()
 
 @router.post("/api/chemicals", tags=["chemicals"])
 async def create_chemical(
-    input_: JsonChemicalWithoutId, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonChemicalWithoutId,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateChemicalOutput:
     async with session.begin():
         beamtime_id = input_.beamtime_id
@@ -56,8 +58,8 @@ async def create_chemical(
                 await session.scalars(
                     select(orm.Attributo).where(
                         orm.Attributo.id.in_(a.attributo_id for a in input_.attributi)
-                        & (orm.Attributo.associated_table == AssociatedTable.CHEMICAL)
-                    )
+                        & (orm.Attributo.associated_table == AssociatedTable.CHEMICAL),
+                    ),
                 )
             )
         }
@@ -76,13 +78,13 @@ async def create_chemical(
                     detail=f"error validating attributi: {validation_result}",
                 )
             new_chemical.attributo_values.append(
-                json_attributo_to_chemical_orm_attributo(a)
+                json_attributo_to_chemical_orm_attributo(a),
             )
 
         new_chemical.files.extend(
             await session.scalars(
-                select(orm.File).where(orm.File.id.in_(input_.file_ids))
-            )
+                select(orm.File).where(orm.File.id.in_(input_.file_ids)),
+            ),
         )
         session.add(new_chemical)
         await session.commit()
@@ -92,14 +94,15 @@ async def create_chemical(
 
 @router.patch("/api/chemicals", tags=["chemicals"])
 async def update_chemical(
-    input_: JsonChemicalWithId, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonChemicalWithId,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateChemicalOutput:
     async with session.begin():
         existing_chemical = (
             await session.scalars(
                 select(orm.Chemical)
                 .where(orm.Chemical.id == input_.id)
-                .options(selectinload(orm.Chemical.files))
+                .options(selectinload(orm.Chemical.files)),
             )
         ).one()
 
@@ -118,8 +121,8 @@ async def update_chemical(
                             & (
                                 orm.Attributo.associated_table
                                 == AssociatedTable.CHEMICAL
-                            )
-                        )
+                            ),
+                        ),
                     )
                 )
             },
@@ -132,8 +135,8 @@ async def update_chemical(
 
         existing_chemical.files.extend(
             await session.scalars(
-                select(orm.File).where(orm.File.id.in_(input_.file_ids))
-            )
+                select(orm.File).where(orm.File.id.in_(input_.file_ids)),
+            ),
         )
         await session.commit()
 
@@ -142,7 +145,8 @@ async def update_chemical(
 
 @router.delete("/api/chemicals", tags=["chemicals"])
 async def delete_chemical(
-    input_: JsonDeleteChemicalInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonDeleteChemicalInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteChemicalOutput:
     async with session.begin():
         await session.execute(delete(orm.Chemical).where(orm.Chemical.id == input_.id))
@@ -201,7 +205,8 @@ def encode_chemical(a: orm.Chemical) -> JsonChemical:
     response_model_exclude_defaults=True,
 )
 async def read_chemicals(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadChemicals:
     return JsonReadChemicals(
         chemicals=[
@@ -209,7 +214,7 @@ async def read_chemicals(
             for a in await session.scalars(
                 select(orm.Chemical)
                 .where(orm.Chemical.beamtime_id == beamtimeId)
-                .options(selectinload(orm.Chemical.files))
+                .options(selectinload(orm.Chemical.files)),
             )
         ],
         attributi=[
@@ -217,8 +222,8 @@ async def read_chemicals(
             for a in await session.scalars(
                 select(orm.Attributo).where(
                     (orm.Attributo.associated_table == AssociatedTable.CHEMICAL)
-                    & (orm.Attributo.beamtime_id == beamtimeId)
-                )
+                    & (orm.Attributo.beamtime_id == beamtimeId),
+                ),
             )
         ],
     )
@@ -230,7 +235,7 @@ async def read_chemicals(
     response_model_exclude_defaults=True,
 )
 async def read_all_chemicals(
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadAllChemicals:
     return JsonReadAllChemicals(
         chemicals=[
@@ -238,21 +243,21 @@ async def read_all_chemicals(
             for a in await session.scalars(
                 select(orm.Chemical)
                 .order_by(orm.Chemical.name, orm.Chemical.beamtime_id.desc())
-                .options(selectinload(orm.Chemical.files))
+                .options(selectinload(orm.Chemical.files)),
             )
         ],
         beamtimes=[
             encode_beamtime(a)
             for a in await session.scalars(
-                select(orm.Beamtime).options(selectinload(orm.Beamtime.chemicals))
+                select(orm.Beamtime).options(selectinload(orm.Beamtime.chemicals)),
             )
         ],
         attributi_names=[
             JsonAttributoWithName(id=a.id, name=a.name)
             for a in await session.scalars(
                 select(orm.Attributo).where(
-                    orm.Attributo.associated_table == AssociatedTable.CHEMICAL
-                )
+                    orm.Attributo.associated_table == AssociatedTable.CHEMICAL,
+                ),
             )
         ],
     )
@@ -265,7 +270,7 @@ async def read_all_chemicals(
 )
 async def copy_chemical(
     copy_data: JsonCopyChemicalInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCopyChemicalOutput:
     async with session.begin():
         c: orm.Chemical = (
@@ -275,9 +280,9 @@ async def copy_chemical(
                 .options(selectinload(orm.Chemical.files))
                 .options(
                     selectinload(orm.Chemical.attributo_values).selectinload(
-                        orm.ChemicalHasAttributoValue.attributo
-                    )
-                )
+                        orm.ChemicalHasAttributoValue.attributo,
+                    ),
+                ),
             )
         ).one()
 
@@ -285,8 +290,8 @@ async def copy_chemical(
             a.name: a
             for a in await session.scalars(
                 select(orm.Attributo).where(
-                    orm.Attributo.beamtime_id == copy_data.target_beamtime_id
-                )
+                    orm.Attributo.beamtime_id == copy_data.target_beamtime_id,
+                ),
             )
         }
 
@@ -321,7 +326,7 @@ async def copy_chemical(
                         bool_value=a.bool_value,
                         datetime_value=a.datetime_value,
                         list_value=a.list_value,
-                    )
+                    ),
                 )
 
         for f in c.files:

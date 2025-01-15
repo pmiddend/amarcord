@@ -31,6 +31,7 @@ class JsonUpdateBeamtimeInput(BaseModel):
     comment: str
     start: int
     end: int
+    analysis_output_path: str
 
 
 class JsonBeamtimeOutput(BaseModel):
@@ -47,6 +48,7 @@ class JsonBeamtime(BaseModel):
     start: int
     end: int
     chemical_names: list[str]
+    analysis_output_path: str
 
 
 class JsonReadBeamtime(BaseModel):
@@ -57,7 +59,7 @@ class JsonEventInput(BaseModel):
     source: str
     text: str
     level: str
-    fileIds: list[int]
+    file_ids: list[int]
 
 
 class JsonFileOutput(BaseModel):
@@ -824,7 +826,7 @@ class JsonCreateAttributoOutput(BaseModel):
 
 
 class JsonUpdateAttributoConversionFlags(BaseModel):
-    ignoreUnits: bool
+    ignore_units: bool
 
 
 class JsonUpdateAttributoInput(BaseModel):

@@ -19,7 +19,8 @@ logger = structlog.stdlib.get_logger(__name__)
 
 
 def _ssh_command(
-    bt_info: BeamlineMetadata, additional_options: bool = True
+    bt_info: BeamlineMetadata,
+    additional_options: bool = True,  # noqa: FBT002
 ) -> list[str]:
     options: list[str] = ["/usr/bin/ssh"]
     if additional_options:
@@ -39,7 +40,7 @@ def _ssh_command(
                     "ConnectTimeout": "10",
                 }.items()
                 for inner in ["-o", f"{key}={value}"]
-            ]
+            ],
         )
     if bt_info.onlineAnalysis.userAccount is not None:
         options.extend(["-l", str(bt_info.onlineAnalysis.userAccount)])
@@ -104,7 +105,7 @@ def decode_job_list_result(decoded: str, stderr: bytes) -> list[Job]:
         parts = line.split(",", maxsplit=segment_count)
         if len(parts) < segment_count:
             raise Exception(
-                f'error listing jobs, line "{line}" doesn\'t have {segment_count} segments! stderr is {stderr!r}'
+                f'error listing jobs, line "{line}" doesn\'t have {segment_count} segments! stderr is {stderr!r}',
             )
         try:
             job_id = int(parts[0])
@@ -117,7 +118,7 @@ def decode_job_list_result(decoded: str, stderr: bytes) -> list[Job]:
             job_start = datetime.datetime.strptime(parts[2], date_format_spec)
         except:
             raise Exception(
-                f'line {line}: date {parts[2]} doesn\'t conform to format spec "{date_format_spec}"'
+                f'line {line}: date {parts[2]} doesn\'t conform to format spec "{date_format_spec}"',
             )
         result.append(Job(job_status, job_start, job_id, JobMetadata({})))
     return result
@@ -132,10 +133,11 @@ async def run_remote_list_jobs(
         beamline_metadata.onlineAnalysis.userAccount
     ), "Need a user account in the beamline metadata, but got none!"
     ssh_command_arg_list = _ssh_command(
-        beamline_metadata, additional_options=additional_options
+        beamline_metadata,
+        additional_options=additional_options,
     )
     ssh_command_arg_list.extend(
-        _squeue_command(beamline_metadata.onlineAnalysis.userAccount)
+        _squeue_command(beamline_metadata.onlineAnalysis.userAccount),
     )
 
     parent_logger.info("Executing " + str(ssh_command_arg_list))
@@ -163,7 +165,8 @@ async def run_remote_sbatch(
     additional_ssh_options: bool,
 ) -> int:
     ssh_command_arg_list = _ssh_command(
-        beamline_metadata, additional_options=additional_ssh_options
+        beamline_metadata,
+        additional_options=additional_ssh_options,
     )
     sbatch_command_arg_list = _sbatch_command_prefix(
         bt_info=beamline_metadata,
@@ -192,7 +195,7 @@ async def run_remote_sbatch(
     job_id_match = re.compile(r"Submitted batch job (\d+)\n").match(stdout_decoded)
     if job_id_match is None:
         raise Exception(
-            f'unexpected output: {stdout_decoded}, expected something like "Submitted batch job blabla"; stderr is {stderr_stream!r}'
+            f'unexpected output: {stdout_decoded}, expected something like "Submitted batch job blabla"; stderr is {stderr_stream!r}',
         )
     job_id_str = job_id_match.group(1)
     parent_logger.info(f"job ID is {job_id_str}")
@@ -200,7 +203,7 @@ async def run_remote_sbatch(
         job_id = int(job_id_str)
     except:
         raise Exception(
-            f'unexpected output (not an integer job ID): {stdout_decoded}, expected something like "Submitted batch job <integer>"; stderr is {stderr!r}'
+            f'unexpected output (not an integer job ID): {stdout_decoded}, expected something like "Submitted batch job <integer>"; stderr is {stderr!r}',
         )
     return job_id
 
@@ -221,15 +224,17 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
 
     async def list_jobs(self) -> Iterable[Job]:
         return await run_remote_list_jobs(
-            logger, self._metadata, self._additional_ssh_options
+            logger,
+            self._metadata,
+            self._additional_ssh_options,
         )
 
     async def start_job(
         self,
         working_directory: Path,
         script: str,
-        name: str,
-        time_limit: datetime.timedelta,
+        name: str,  # noqa: ARG002
+        time_limit: datetime.timedelta,  # noqa: ARG002
         environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,

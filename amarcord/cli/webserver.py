@@ -62,7 +62,8 @@ app.include_router(user_configuration_router)
 # Neat trick: mount this after the endpoints to have both static files under / (for example, /index.html) as well as API endpoints under /api/*
 # Credits to https://stackoverflow.com/questions/65419794/serve-static-files-from-root-in-fastapi
 real_static_folder = os.environ.get(
-    "AMARCORD_STATIC_PATH", os.getcwd() + "/frontend/output"
+    "AMARCORD_STATIC_PATH",
+    str(Path.cwd() / "frontend" / "output"),
 )
 if Path(real_static_folder).is_dir():
     app.mount(

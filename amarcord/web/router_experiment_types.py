@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -47,15 +49,17 @@ def encode_experiment_type(a: orm.ExperimentType) -> JsonExperimentType:
     response_model_exclude_defaults=True,
 )
 async def create_experiment_type(
-    input_: JsonCreateExperimentTypeInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonCreateExperimentTypeInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateExperimentTypeOutput:
     async with session.begin():
         new_experiment_type = orm.ExperimentType(
-            beamtime_id=input_.beamtime_id, name=input_.name
+            beamtime_id=input_.beamtime_id,
+            name=input_.name,
         )
         for a in input_.attributi:
             new_experiment_type.attributi.append(
-                orm.ExperimentHasAttributo(attributo_id=a.id, chemical_role=a.role)
+                orm.ExperimentHasAttributo(attributo_id=a.id, chemical_role=a.role),
             )
         session.add(new_experiment_type)
         await session.commit()
@@ -68,7 +72,8 @@ async def create_experiment_type(
     response_model_exclude_defaults=True,
 )
 async def change_current_run_experiment_type(
-    input_: JsonChangeRunExperimentType, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonChangeRunExperimentType,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonChangeRunExperimentTypeOutput:
     # There is no semantic yet for resetting an experiment type
     if input_.experiment_type_id is None:
@@ -78,8 +83,8 @@ async def change_current_run_experiment_type(
         experiment_type = (
             await session.scalars(
                 select(orm.ExperimentType).where(
-                    orm.ExperimentType.id == input_.experiment_type_id
-                )
+                    orm.ExperimentType.id == input_.experiment_type_id,
+                ),
             )
         ).one()
 
@@ -93,9 +98,9 @@ async def change_current_run_experiment_type(
                 .where(orm.Run.id == input_.run_internal_id)
                 .options(
                     selectinload(orm.Run.attributo_values).selectinload(
-                        orm.RunHasAttributoValue.attributo
-                    )
-                )
+                        orm.RunHasAttributoValue.attributo,
+                    ),
+                ),
             )
         ).one()
 
@@ -110,7 +115,7 @@ async def change_current_run_experiment_type(
         run.experiment_type_id = input_.experiment_type_id
 
         new_config = create_new_user_configuration(
-            await retrieve_latest_config(session, run.beamtime_id)
+            await retrieve_latest_config(session, run.beamtime_id),
         )
         new_config.current_experiment_type_id = input_.experiment_type_id
         session.add(new_config)
@@ -124,23 +129,24 @@ async def change_current_run_experiment_type(
     response_model_exclude_defaults=True,
 )
 async def read_experiment_types(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadExperimentTypes:
     attributi = list(
         (
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
     experiment_types = (
         await session.scalars(
             select(orm.ExperimentType)
             .where(orm.ExperimentType.beamtime_id == beamtimeId)
             .options(selectinload(orm.ExperimentType.attributi))
-            .options(selectinload(orm.ExperimentType.runs))
+            .options(selectinload(orm.ExperimentType.runs)),
         )
     ).all()
     current_config = await retrieve_latest_config(session, beamtimeId)
@@ -161,11 +167,12 @@ async def read_experiment_types(
 
 @router.delete("/api/experiment-types", tags=["experimenttypes"])
 async def delete_experiment_type(
-    input_: JsonDeleteExperimentType, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonDeleteExperimentType,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteExperimentTypeOutput:
     async with session.begin():
         await session.execute(
-            delete(orm.ExperimentType).where(orm.ExperimentType.id == input_.id)
+            delete(orm.ExperimentType).where(orm.ExperimentType.id == input_.id),
         )
         await session.commit()
 
@@ -178,26 +185,28 @@ async def delete_experiment_type(
     response_model_exclude_defaults=True,
 )
 async def copy_experiment_types(
-    input_: JsonCopyExperimentTypesInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonCopyExperimentTypesInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCopyExperimentTypesOutput:
     async with session.begin():
         this_beamtime_attributi: dict[str, orm.Attributo] = {
             a.name: a
             for a in await session.scalars(
                 select(orm.Attributo).where(
-                    orm.Attributo.beamtime_id == BeamtimeId(input_.to_beamtime)
-                )
+                    orm.Attributo.beamtime_id == BeamtimeId(input_.to_beamtime),
+                ),
             )
         }
 
         new_et_ids: list[int] = []
         for et in await session.scalars(
             select(orm.ExperimentType).where(
-                orm.ExperimentType.beamtime_id == input_.from_beamtime
-            )
+                orm.ExperimentType.beamtime_id == input_.from_beamtime,
+            ),
         ):
             new_et = orm.ExperimentType(
-                beamtime_id=BeamtimeId(input_.to_beamtime), name=et.name
+                beamtime_id=BeamtimeId(input_.to_beamtime),
+                name=et.name,
             )
             for a in et.attributi:
                 aname = (await a.awaitable_attrs.attributo).name
@@ -211,7 +220,7 @@ async def copy_experiment_types(
                     orm.ExperimentHasAttributo(
                         attributo_id=a_in_this_beamtime.id,
                         chemical_role=a.chemical_role,
-                    )
+                    ),
                 )
             session.add(new_et)
             await session.flush()

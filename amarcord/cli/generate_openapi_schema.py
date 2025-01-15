@@ -42,10 +42,10 @@ schema = get_openapi(
 
 try:
     schema["components"]["schemas"]["ValidationError"]["properties"]["loc"]["items"] = {
-        "type": "string"
+        "type": "string",
     }
 except KeyError:
     # This is fine, we might not have the type in here.
     pass
 
-print(json.dumps(schema))
+print(json.dumps(schema))  # noqa: T201

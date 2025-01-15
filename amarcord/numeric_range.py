@@ -18,28 +18,33 @@ class NumericRange:
 
     def value_is_inside(self, v: float) -> bool:
         if self.minimum is not None and (
-            v < self.minimum or v == self.minimum and not self.minimum_inclusive
+            v < self.minimum or (v == self.minimum and not self.minimum_inclusive)
         ):
             return False
-        if self.maximum is not None and (
-            v > self.maximum or v == self.maximum and not self.maximum_inclusive
-        ):
-            return False
-        return True
+        return not (
+            self.maximum is not None
+            and (v > self.maximum or (v == self.maximum and not self.maximum_inclusive))
+        )
 
 
 def random_from_range(r: NumericRange) -> float:
     left = r.minimum if r.minimum is not None else None
     right = r.maximum if r.maximum is not None else None
     if left is not None and right is not None:
-        return random.uniform(left, right)
+        return random.uniform(left, right)  # noqa: S311
     if left is None and right is None:
-        return random.uniform(-10000, 10000)
+        return random.uniform(-10000, 10000)  # noqa: S311
     if left is not None and right is None:
-        return random.uniform(left, left + 10000)
+        return random.uniform(left, left + 10000)  # noqa: S311
     # mypy doesn't get it! Maybe some day.
-    return random.uniform(right - 10000, right)  # type: ignore
+    assert right is not None
+    return random.uniform(right - 10000, right)  # noqa: S311
 
 
 def empty_range() -> NumericRange:
-    return NumericRange(None, False, None, False)
+    return NumericRange(
+        minimum=None,
+        minimum_inclusive=False,
+        maximum=None,
+        maximum_inclusive=False,
+    )

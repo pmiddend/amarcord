@@ -12,10 +12,9 @@ try:
         return magic.from_buffer(b, mime=mime)  # type: ignore
 
 except ImportError:
-    # pylint: disable=unused-argument
-    def from_file(p: Path, mime: bool) -> str:
+
+    def from_file(p: Path, mime: bool) -> str:  # noqa: ARG001
         return HARDCODED_MAGIC_VALUE
 
-    # pylint: disable=unused-argument
-    def from_buffer(b: bytes, mime: bool) -> str:
+    def from_buffer(b: bytes, mime: bool) -> str:  # noqa: ARG001
         return HARDCODED_MAGIC_VALUE

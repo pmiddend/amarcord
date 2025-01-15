@@ -43,7 +43,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 partition="foo",
                 reservation="bar",
                 explicit_node=None,
-                token="blub",
+                token="blub",  # noqa: S106
                 user="user",
                 url=MAXWELL_SLURM_URL,
                 portal_token=None,
@@ -58,7 +58,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token=None,
                 user="user",
                 url=MAXWELL_SLURM_URL,
-                portal_token="blub",
+                portal_token="blub",  # noqa: S106
             ),
         ),
         (
@@ -67,7 +67,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 partition="foo",
                 reservation="bar",
                 explicit_node=None,
-                token="blub",
+                token="blub",  # noqa: S106
                 user="user",
                 url="https://myhost:80/foo",
                 portal_token=None,
@@ -79,7 +79,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 partition="foo",
                 reservation="bar",
                 explicit_node="foo",
-                token="blub",
+                token="blub",  # noqa: S106
                 user="user",
                 url="https://myhost:80/foo",
                 portal_token=None,

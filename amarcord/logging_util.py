@@ -20,21 +20,21 @@ def setup_structlog() -> None:
             TeeOutput(
                 processors=[structlog.dev.ConsoleRenderer(colors=False)],
                 logger_factory=structlog.PrintLoggerFactory(
-                    open(  # pylint: disable=consider-using-with
+                    open(  # noqa: SIM115, PTH123
                         f"{os.environ.get('LOG_OUTPUT_FILE_PREFIX', 'output')}.txt",
                         "a",
                         encoding="utf-8",
-                    )
+                    ),
                 ),
             ),
             TeeOutput(
                 processors=[JSONRenderer(sort_keys=True)],
                 logger_factory=structlog.PrintLoggerFactory(
-                    open(  # pylint: disable=consider-using-with
+                    open(  # noqa: SIM115, PTH123
                         f"{os.environ.get('LOG_OUTPUT_FILE_PREFIX', 'output')}.json",
                         "a",
                         encoding="utf-8",
-                    )
+                    ),
                 ),
             ),
         ),

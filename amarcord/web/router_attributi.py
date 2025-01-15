@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
@@ -89,11 +91,13 @@ def encode_attributo(a: orm.Attributo) -> JsonAttributo:
 
 
 @router.post(
-    "/api/attributi/schema", tags=["attributi"], response_model_exclude_defaults=True
+    "/api/attributi/schema",
+    tags=["attributi"],
+    response_model_exclude_defaults=True,
 )
 async def create_attributi_from_schema(
     input_: JsonCreateAttributiFromSchemaInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateAttributiFromSchemaOutput:
     logger.info("ingesting attributi schema")
 
@@ -104,13 +108,11 @@ async def create_attributi_from_schema(
             session,
             beamtime_id,
             preexisting_attributi_by_name={
-                a.name: schema_union_to_attributo_type(
-                    parse_schema_type((a.json_schema))
-                )
+                a.name: schema_union_to_attributo_type(parse_schema_type(a.json_schema))
                 for a in await session.scalars(
                     select(orm.Attributo).where(
-                        orm.Attributo.beamtime_id == input_.beamtime_id
-                    )
+                        orm.Attributo.beamtime_id == input_.beamtime_id,
+                    ),
                 )
             },
             attributi_schema={
@@ -121,13 +123,14 @@ async def create_attributi_from_schema(
         )
         await session.commit()
         return JsonCreateAttributiFromSchemaOutput(
-            created_attributi=len(input_.attributi_schema)
+            created_attributi=len(input_.attributi_schema),
         )
 
 
 @router.post("/api/attributi", tags=["attributi"], response_model_exclude_defaults=True)
 async def create_attributo(
-    input_: JsonCreateAttributoInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonCreateAttributoInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateAttributoOutput:
     async with session.begin():
         new_attributo = orm.Attributo(
@@ -148,8 +151,8 @@ async def create_attributo(
                         schema_integer=input_.attributo_type_integer,
                         schema_array=input_.attributo_type_array,
                         schema_string=input_.attributo_type_string,
-                    )
-                )
+                    ),
+                ),
             ),
         )
         session.add(new_attributo)
@@ -159,15 +162,18 @@ async def create_attributo(
 
 
 @router.patch(
-    "/api/attributi", tags=["attributi"], response_model_exclude_defaults=True
+    "/api/attributi",
+    tags=["attributi"],
+    response_model_exclude_defaults=True,
 )
 async def update_attributo(
-    input_: JsonUpdateAttributoInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateAttributoInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateAttributoOutput:
     async with session.begin():
         attributo = (
             await session.scalars(
-                select(orm.Attributo).where(orm.Attributo.id == input_.attributo.id)
+                select(orm.Attributo).where(orm.Attributo.id == input_.attributo.id),
             )
         ).one()
         attributo.name = input_.attributo.name
@@ -175,7 +181,7 @@ async def update_attributo(
         attributo.group = input_.attributo.group
         attributo.associated_table = input_.attributo.associated_table
         before_type = schema_union_to_attributo_type(
-            parse_schema_type(attributo.json_schema)
+            parse_schema_type(attributo.json_schema),
         )
         after_type = schema_to_attributo_type(
             schema_number=input_.attributo.attributo_type_number,
@@ -185,11 +191,11 @@ async def update_attributo(
             schema_string=input_.attributo.attributo_type_string,
         )
         attributo.json_schema = coparse_schema_type(
-            attributo_type_to_schema(after_type)
+            attributo_type_to_schema(after_type),
         )
 
         conversion_flags = AttributoConversionFlags(
-            ignore_units=input_.conversion_flags.ignoreUnits
+            ignore_units=input_.conversion_flags.ignore_units,
         )
         entities: list[
             orm.ChemicalHasAttributoValue
@@ -199,23 +205,23 @@ async def update_attributo(
         entities.extend(
             await session.scalars(
                 select(orm.ChemicalHasAttributoValue).where(
-                    orm.ChemicalHasAttributoValue.attributo_id == attributo.id
-                )
-            )
+                    orm.ChemicalHasAttributoValue.attributo_id == attributo.id,
+                ),
+            ),
         )
         entities.extend(
             await session.scalars(
                 select(orm.RunHasAttributoValue).where(
-                    orm.RunHasAttributoValue.attributo_id == attributo.id
-                )
-            )
+                    orm.RunHasAttributoValue.attributo_id == attributo.id,
+                ),
+            ),
         )
         entities.extend(
             await session.scalars(
                 select(orm.DataSetHasAttributoValue).where(
-                    orm.DataSetHasAttributoValue.attributo_id == attributo.id
-                )
-            )
+                    orm.DataSetHasAttributoValue.attributo_id == attributo.id,
+                ),
+            ),
         )
         for chemical_value in entities:
             update_orm_entity_has_attributo_value(
@@ -233,14 +239,17 @@ async def update_attributo(
 
 
 @router.delete(
-    "/api/attributi", tags=["attributi"], response_model_exclude_defaults=True
+    "/api/attributi",
+    tags=["attributi"],
+    response_model_exclude_defaults=True,
 )
 async def delete_attributo(
-    input_: JsonDeleteAttributoInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonDeleteAttributoInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteAttributoOutput:
     async with session.begin():
         await session.execute(
-            delete(orm.Attributo).where(orm.Attributo.id == input_.id)
+            delete(orm.Attributo).where(orm.Attributo.id == input_.id),
         )
         await session.commit()
         return JsonDeleteAttributoOutput(id=input_.id)
@@ -252,13 +261,14 @@ async def delete_attributo(
     response_model_exclude_defaults=True,
 )
 async def read_attributi(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadAttributi:
     return JsonReadAttributi(
         attributi=[
             encode_attributo(a)
             for a in await session.scalars(
-                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtimeId)
+                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtimeId),
             )
-        ]
+        ],
     )

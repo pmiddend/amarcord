@@ -16,14 +16,20 @@ async def check_standard_unit(
 
     if unit_input == "":
         return JsonCheckStandardUnitOutput(
-            input=unit_input, error="Unit empty", normalized=None
+            input=unit_input,
+            error="Unit empty",
+            normalized=None,
         )
 
     try:
         return JsonCheckStandardUnitOutput(
-            input=unit_input, error=None, normalized=f"{_UNIT_REGISTRY(unit_input):P}"
+            input=unit_input,
+            error=None,
+            normalized=f"{_UNIT_REGISTRY(unit_input):P}",
         )
     except:
         return JsonCheckStandardUnitOutput(
-            input=unit_input, error="Invalid unit", normalized=None
+            input=unit_input,
+            error="Invalid unit",
+            normalized=None,
         )

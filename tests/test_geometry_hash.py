@@ -14,7 +14,7 @@ clen = 0.1986
 
 photon_energy = 12000 ;12050
 mask1_file = {mask1_file}
-        """
+        """,
         )
 
     masks = crystfel_geometry_retrieve_masks(main_geometry_file)
@@ -34,7 +34,7 @@ clen = 0.1986
 
 photon_energy = 12000 ;12050
 mask1_file = {mask1_file}
-        """
+        """,
         )
 
     with mask1_file.open("w", encoding="utf-8") as f:

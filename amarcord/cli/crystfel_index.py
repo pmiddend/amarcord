@@ -40,6 +40,13 @@ from typing import NoReturn
 from typing import TypeVar
 from urllib import request
 
+_X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
+_Y_TRANSLATION_REGEX_INPUT = r"y-translation ([+-]?[0-9.]+) mm"
+_MILLEPEDE_SUCCEDED_INPUT = "Millepede succeeded"
+_X_TRANSLATION_REGEX = re.compile(_X_TRANSLATION_REGEX_INPUT)
+_Y_TRANSLATION_REGEX = re.compile(_Y_TRANSLATION_REGEX_INPUT)
+_MILLE_BIN_GLOB = "mille-data*.bin"
+_POLL_SLEEP_S = 5.0
 _SLURM_JOB_STATUS_RUNNING = (
     "PENDING",
     "RUNNING",
@@ -57,7 +64,7 @@ METADATA_KEY_ASAPO_ENDPOINT = "endpoint"
 
 METADATA_KEY_ASAPO = "asapo"
 
-METADATA_KEY_ASAPO_TOKEN_PATH = "beamtimeTokenPath"
+METADATA_KEY_ASAPO_TOKEN_PATH = "beamtimeTokenPath"  # noqa: S105
 
 METADATA_KEY_BEAMTIME_ID = "beamtimeId"
 METADATA_KEY_CORE_PATH = "corePath"
@@ -95,7 +102,7 @@ def sha256_file_bytes(p: Path) -> bytes:
 def crystfel_geometry_hash(p: Path) -> str:
     return sha256_combination(
         [sha256_file_bytes(p)]
-        + [sha256_file_bytes(mask) for mask in crystfel_geometry_retrieve_masks(p)]
+        + [sha256_file_bytes(mask) for mask in crystfel_geometry_retrieve_masks(p)],
     )
 
 
@@ -164,10 +171,11 @@ INDEXAMAJIG_JOBS_PER_JOB_ARRAY: Final = 1000
 
 # For an extensive intro on this primary/secondary business, see the manual
 JOB_STYLE: Final = os.environ.get(
-    OFF_INDEX_ENVIRON_JOB_STYLE, OFF_INDEX_ENVIRON_JOB_STYLE_PRIMARY
+    OFF_INDEX_ENVIRON_JOB_STYLE,
+    OFF_INDEX_ENVIRON_JOB_STYLE_PRIMARY,
 )
 _INDEXING_RE: Final = re.compile(
-    r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals.*"
+    r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals.*",
 )
 
 # The FPS killer monitors the indexing frame rate and kills jobs if
@@ -209,7 +217,7 @@ class FpsKiller:
 
 
 @contextmanager
-def set_directory(path: str):
+def set_directory(path: str) -> Generator[None, Any, None]:
     origin = Path().absolute()
     try:
         os.chdir(path)
@@ -233,7 +241,7 @@ class CrystFELCellFile:
 
 
 _cell_description_regex = re.compile(
-    r"(triclinic|monoclinic|orthorhombic|tetragonal|rhombohedral|hexagonal|cubic)\s+([PABCIFRH])\s+([abc?*])\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)"
+    r"(triclinic|monoclinic|orthorhombic|tetragonal|rhombohedral|hexagonal|cubic)\s+([PABCIFRH])\s+([abc?*])\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)",
 )
 
 
@@ -340,7 +348,7 @@ class OnlineArgs:
 
 def write_error_json(args: PrimaryArgs | OnlineArgs, error: str) -> None:
     logger.info(
-        f"contacting AMARCORD at {args.amarcord_api_url} to send erroneous status: {error}"
+        f"contacting AMARCORD at {args.amarcord_api_url} to send erroneous status: {error}",
     )
     req = request.Request(
         f"{args.amarcord_api_url}/api/indexing/{args.amarcord_indexing_result_id}/finish-with-error",
@@ -374,12 +382,12 @@ class IndexingFom:
     unit_cell_histograms_id: None | int = None
 
 
-def add_indexing_fom(l: IndexingFom, r: IndexingFom) -> IndexingFom:
+def add_indexing_fom(line: IndexingFom, r: IndexingFom) -> IndexingFom:
     return IndexingFom(
-        frames=l.frames + r.frames,
-        hits=l.hits + r.hits,
-        indexed_frames=l.indexed_frames + r.indexed_frames,
-        indexed_crystals=l.indexed_crystals + r.indexed_crystals,
+        frames=line.frames + r.frames,
+        hits=line.hits + r.hits,
+        indexed_frames=line.indexed_frames + r.indexed_frames,
+        indexed_crystals=line.indexed_crystals + r.indexed_crystals,
     )
 
 
@@ -389,7 +397,9 @@ def exit_with_error(args: PrimaryArgs | OnlineArgs, error: str) -> NoReturn:
 
 
 def write_status_still_running(
-    args: PrimaryArgs | OnlineArgs, geometry_hash: str, line: IndexingFom
+    args: PrimaryArgs | OnlineArgs,
+    geometry_hash: str,
+    line: IndexingFom,
 ) -> None:
     if args.amarcord_api_url is None:
         return
@@ -414,7 +424,7 @@ def write_status_still_running(
     status_dict_without_log = dict(status_dict)
     status_dict_without_log.pop("latest_log")
     logger.info(
-        f"contacting AMARCORD at {request_url} to send status: {status_dict_without_log}"
+        f"contacting AMARCORD at {request_url} to send status: {status_dict_without_log}",
     )
     req = request.Request(
         request_url,
@@ -462,7 +472,7 @@ def write_status_success(
     status_dict_without_log = dict(status_dict)
     status_dict_without_log.pop("latest_log")
     logger.info(
-        f"contacting AMARCORD at {request_url} to send final status: {status_dict_without_log}"
+        f"contacting AMARCORD at {request_url} to send final status: {status_dict_without_log}",
     )
     req = request.Request(
         request_url,
@@ -479,13 +489,12 @@ def write_status_success(
 
 
 def db_execute_timed(
-    db: sqlite3.Connection, statement: str, args: None | tuple[Any, ...]
+    db: sqlite3.Connection,
+    statement: str,
+    args: None | tuple[Any, ...],
 ) -> Any:
     before = time()
-    if args is None:
-        result = db.execute(statement)
-    else:
-        result = db.execute(statement, args)
+    result = db.execute(statement) if args is None else db.execute(statement, args)
     after = time()
     if OFF_INDEX_ENVIRON_PERFORMANCE_METRICS in os.environ:
         logger.info(f"query {statement}: {after - before}s")
@@ -504,7 +513,7 @@ def clean_intermediate_files(job_id: int) -> None:
             for bin_file in millepede_files_dir.glob("*.bin"):
                 bin_file.unlink()
             millepede_files_dir.rmdir()
-    except:
+    except:  # noqa: S110
         pass
 
 
@@ -564,20 +573,22 @@ def cancel_job_slurm(args: PrimaryArgs, job_id: JobArraySlurm) -> None:
 
 
 @contextmanager
-def temp_fifo():
+def temp_fifo() -> Generator[str, Any, None]:
     """Context Manager for creating named pipes with temporary names."""
-    tmpdir = tempfile.mkdtemp()
-    filename = os.path.join(tmpdir, "fifo")  # Temporary filename
-    os.mkfifo(filename)  # Create FIFO
+    tmpdir = Path(tempfile.mkdtemp())
+    filename = tmpdir / "fifo"  # Temporary filename
+    os.mkfifo(str(filename))  # Create FIFO
     try:
-        yield filename
+        yield str(filename)
     finally:
-        os.unlink(filename)  # Remove file
-        os.rmdir(tmpdir)  # Remove directory
+        filename.unlink()
+        tmpdir.rmdir()  # Remove directory
 
 
 def initialize_db(
-    args: PrimaryArgs, geometry_hash: str, db: sqlite3.Connection
+    args: PrimaryArgs,
+    geometry_hash: str,
+    db: sqlite3.Connection,
 ) -> set[int]:
     with NamedTemporaryFile() as input_files_file:
         for input_file in args.input_files:
@@ -596,26 +607,27 @@ def initialize_db(
                 output_file.name,
             ]
             logger.info("list_events args: " + " ".join(list_events_args))
-            result = subprocess.run(list_events_args, check=True)
+            result = subprocess.run(list_events_args, check=True)  # noqa: S603
             logger.info(f"list events completed: {result}")
             # This used to be a FIFO, but due to a bug that wasn't
             # diagnosed completely, for now it's a regular file. Which
             # is a bummer, because with a FIFO you could do parallel
             # processing, but whatever.
-            with open(output_file.name, "r", encoding="utf-8") as fifo_file_obj:
+            with Path(output_file.name).open(encoding="utf-8") as fifo_file_obj:
                 logger.info(f"opened list files: {output_file}")
                 job_array_id = 0
                 indexamajig_job_id = 0
                 job_array_ids: set[int] = {0}
                 logger.info(
-                    f"start adding indexamajig jobs to DB ({IMAGES_PER_JOB} images per job)"
+                    f"start adding indexamajig jobs to DB ({IMAGES_PER_JOB} images per job)",
                 )
                 for event_batch in batched(
-                    (x.strip() for x in fifo_file_obj), IMAGES_PER_JOB
+                    (x.strip() for x in fifo_file_obj),
+                    IMAGES_PER_JOB,
                 ):
                     if indexamajig_job_id % 50 == 0:
                         logger.info(
-                            f"{indexamajig_job_id} indexamajig jobs added so far..."
+                            f"{indexamajig_job_id} indexamajig jobs added so far...",
                         )
                         write_status_still_running(
                             args,
@@ -631,7 +643,8 @@ def initialize_db(
                         )
                     images_total = 0
                     with Path(f"job-{indexamajig_job_id}.lst").open(
-                        "w", encoding="utf-8"
+                        "w",
+                        encoding="utf-8",
                     ) as input_file:
                         for event_line in event_batch:
                             input_file.write(f"{event_line}\n")
@@ -661,12 +674,14 @@ def start_job_array_local(
     job_array_id: int,
     environment: dict[str, str],
 ) -> JobArrayLocal:
-    cwd = Path(os.getcwd())
+    cwd = Path.cwd()
     stdout_obj = (cwd / f"job-{job_array_id}-stdout.txt").open("w")
     stderr_obj = (cwd / f"job-{job_array_id}-stderr.txt").open("w")
-    # pylint: disable=consider-using-with
-    proc = subprocess.Popen(
-        [__file__], env=environment, stdout=stdout_obj, stderr=stderr_obj
+    proc = subprocess.Popen(  # noqa: S603
+        [__file__],
+        env=environment,
+        stdout=stdout_obj,
+        stderr=stderr_obj,
     )
     return JobArrayLocal(proc)
 
@@ -683,7 +698,7 @@ def start_job_array_slurm(
         "SELECT COUNT(*) FROM IndexamajigJob WHERE job_array_id = ?",
         (job_array_id,),
     ).fetchone()[0]
-    cwd = Path(os.getcwd())
+    cwd = Path.cwd()
     request_json = {
         "job": {
             "partition": args.slurm_partition_to_use,
@@ -708,7 +723,7 @@ def start_job_array_slurm(
 
     logger.info(
         "starting job array, stderr will land in "
-        + str(str(cwd / f"job-{job_array_id}-%a-stderr.txt"))
+        + str(str(cwd / f"job-{job_array_id}-%a-stderr.txt")),
     )
     try:
         with request.urlopen(req) as response:
@@ -721,7 +736,7 @@ def start_job_array_slurm(
             return JobArraySlurm(job_id)
     except urllib.error.HTTPError as e:
         logger.exception(
-            f"HTTP error sending job for {job_array_id}: {e.fp.read().decode('utf-8')}"
+            f"HTTP error sending job for {job_array_id}: {e.fp.read().decode('utf-8')}",
         )
         raise
     except:
@@ -741,7 +756,7 @@ def start_job_array(
         "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
         OFF_INDEX_ENVIRON_JOB_STYLE: OFF_INDEX_ENVIRON_JOB_STYLE_SECONDARY,
         OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID: str(
-            args.amarcord_indexing_result_id
+            args.amarcord_indexing_result_id,
         ),
         OFF_INDEX_ENVIRON_SECONDARY_JOB_ARRAY_ID: str(job_array_id),
         OFF_INDEX_ENVIRON_GEOMETRY_FILE: str(args.geometry_file),
@@ -769,7 +784,8 @@ def get_all_local_job_stati(job_array_pid: JobArrayLocal) -> list[str]:
 
 
 def get_all_job_stati(
-    args: PrimaryArgs, job_array_workload_manager_id: JobArray
+    args: PrimaryArgs,
+    job_array_workload_manager_id: JobArray,
 ) -> list[str]:
     if isinstance(job_array_workload_manager_id, JobArraySlurm):
         return get_all_slurm_job_stati(args, job_array_workload_manager_id)
@@ -777,10 +793,13 @@ def get_all_job_stati(
 
 
 def get_all_slurm_job_stati(
-    args: PrimaryArgs, job_array_id: JobArraySlurm
+    args: PrimaryArgs,
+    job_array_id: JobArraySlurm,
 ) -> list[str]:
     req = request.Request(
-        f"{MAXWELL_URL}/jobs", method="GET", headers=args.maxwell_headers
+        f"{MAXWELL_URL}/jobs",
+        method="GET",
+        headers=args.maxwell_headers,
     )
     with request.urlopen(req) as response:
         response_content_raw = response.read().decode("utf-8")
@@ -788,10 +807,8 @@ def get_all_slurm_job_stati(
         result = []
         for job in response_content_json["jobs"]:
             if (
-                job["array_job_id"] > 0
-                and job["array_job_id"] == job_array_id.job_id
-                or job["job_id"] == job_array_id.job_id
-            ):
+                job["array_job_id"] > 0 and job["array_job_id"] == job_array_id.job_id
+            ) or job["job_id"] == job_array_id.job_id:
                 result.append(job["job_state"])
         return result
 
@@ -810,7 +827,11 @@ def run_job_array(
     job_array_id: int,
 ) -> JobArrayFailure | IndexingFom:
     job_array_workload_manager_id = start_job_array(
-        args, db, cell_file, script_file_contents, job_array_id
+        args,
+        db,
+        cell_file,
+        script_file_contents,
+        job_array_id,
     )
 
     all_indexamajig_job_ids = set(
@@ -824,7 +845,6 @@ def run_job_array(
 
     cooldown_iterations: None | int = None
     previous_images_processed: None | int = None
-    POLL_SLEEP_S = 5.0
 
     def retrieve_foms_for_this_job() -> IndexingFom:
         (
@@ -886,7 +906,7 @@ def run_job_array(
                     str(s)
                     for s in (all_indexamajig_job_ids - successful_indexamajig_job_ids)
                 )
-                + ", listing the stati"
+                + ", listing the stati",
             )
             have_running_jobs = False
             for job_id, state in db_execute_timed(
@@ -901,7 +921,7 @@ def run_job_array(
                 cooldown_iterations is None or cooldown_iterations < 2
             ):
                 logger.info(
-                    f"giving running jobs some time to finish (iterations {cooldown_iterations})"
+                    f"giving running jobs some time to finish (iterations {cooldown_iterations})",
                 )
                 cooldown_iterations = (
                     0 if cooldown_iterations is None else cooldown_iterations + 1
@@ -923,7 +943,8 @@ def run_job_array(
 
         if previous_images_processed is not None:
             images_per_second = max(
-                1, (images_processed_so_far - previous_images_processed) / POLL_SLEEP_S
+                1,
+                (images_processed_so_far - previous_images_processed) / _POLL_SLEEP_S,
             )
             images_to_go = images_total - images_processed_so_far
             seconds_to_go = round(images_to_go / images_per_second)
@@ -945,7 +966,7 @@ def run_job_array(
                 + f"{images_per_second}fps, {hits} hits (hr {hits / max(1, images_processed_so_far) * 100:.2f}%), "
                 + f"{indexed_frames} indexed (ir {indexed_frames / max(1, hits) * 100:.2f}%), {indexed_crystals} crystals "
                 + f" - ends {end_time.strftime('%d-%b-%Y %H:%M:%S')} ({seconds_to_go}s to go), "
-                + f"{running_jobs}/{len(workload_manager_running)} running jobs in DB/SLURM"
+                + f"{running_jobs}/{len(workload_manager_running)} running jobs in DB/SLURM",
             )
             write_status_still_running(
                 args,
@@ -961,7 +982,7 @@ def run_job_array(
             )
         else:
             logger.info(
-                f"no images processed so far, {running_jobs} running jobs in DB"
+                f"no images processed so far, {running_jobs} running jobs in DB",
             )
             write_status_still_running(
                 args,
@@ -976,7 +997,7 @@ def run_job_array(
                 ),
             )
 
-        sleep(POLL_SLEEP_S)
+        sleep(_POLL_SLEEP_S)
 
 
 def parse_secondary_args() -> SecondaryArgs:
@@ -984,13 +1005,13 @@ def parse_secondary_args() -> SecondaryArgs:
         use_slurm=os.environ[OFF_INDEX_ENVIRON_USE_SLURM] == "True",
         amarcord_api_url=os.environ.get(OFF_INDEX_ENVIRON_AMARCORD_API_URL),
         amarcord_indexing_result_id=int(
-            os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID]
+            os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID],
         ),
         job_array_id=int(os.environ[OFF_INDEX_ENVIRON_SECONDARY_JOB_ARRAY_ID]),
         crystfel_path=Path(os.environ[OFF_INDEX_ENVIRON_CRYSTFEL_PATH]),
         geometry_file=Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE]),
         indexamajig_params=shlex.split(
-            os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS]
+            os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS],
         ),
         use_auto_geom_refinement=(
             "--mille" in os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS]
@@ -1008,36 +1029,31 @@ def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
     success = False
     x_translation_mm: None | float = None
     y_translation_mm: None | float = None
-    X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
-    Y_TRANSLATION_REGEX_INPUT = r"y-translation ([+-]?[0-9.]+) mm"
-    MILLEPEDE_SUCCEDED_INPUT = "Millepede succeeded"
-    x_translation_regex = re.compile(X_TRANSLATION_REGEX_INPUT)
-    y_translation_regex = re.compile(Y_TRANSLATION_REGEX_INPUT)
 
-    for l in stdout.split("\n"):
+    for line in stdout.split("\n"):
         if not success:
-            if MILLEPEDE_SUCCEDED_INPUT in l:
+            if _MILLEPEDE_SUCCEDED_INPUT in line:
                 success = True
             continue
 
-        x_match = x_translation_regex.search(l)
+        x_match = _X_TRANSLATION_REGEX.search(line)
         if x_match is not None:
             x_translation_mm = float(x_match.group(1))
-        y_match = y_translation_regex.search(l)
+        y_match = _Y_TRANSLATION_REGEX.search(line)
         if y_match is not None:
             y_translation_mm = float(y_match.group(1))
 
     if not success:
-        error_message = "no line matching " + MILLEPEDE_SUCCEDED_INPUT
+        error_message = "no line matching " + _MILLEPEDE_SUCCEDED_INPUT
         logger.warning(f"parsing millepede output failed: {error_message}:\n{stdout}")
         return error_message
 
     if x_translation_mm is None:
-        error_message = "no line matching " + X_TRANSLATION_REGEX_INPUT
+        error_message = "no line matching " + _X_TRANSLATION_REGEX_INPUT
         logger.warning(f"parsing millepede output failed: {error_message}:\n{stdout}")
         return error_message
     if y_translation_mm is None:
-        error_message = "no line matching " + Y_TRANSLATION_REGEX_INPUT
+        error_message = "no line matching " + _Y_TRANSLATION_REGEX_INPUT
         logger.warning(f"parsing millepede output failed: {error_message}:\n{stdout}")
         return error_message
     return x_translation_mm, y_translation_mm
@@ -1070,89 +1086,87 @@ def run_align_detector(
     mille_files_dir: Path,
     geometry_file_destination: Path,
 ) -> None | tuple[float, float]:
-    with TemporaryDirectory() as tempdir:
-        with set_directory(tempdir):
-            align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
-            if not Path(align_detector_binary).is_file():
-                logger.error(
-                    f"error running align_detector: binary {align_detector_binary} doesn't exist"
-                )
-                return None
-            mille_bin_files: list[Path] = []
-
-            if not mille_files_dir.is_dir():
-                logger.info(
-                    f"directory {mille_files_dir} does not exist - so we don't have any millepede output? listing files in cwd:"
-                )
-                for f in Path(".").iterdir():
-                    logger.info(f"file {f}")
-                logger.info("listing done")
-                return None
-
-            logger.info(f"iterating over directories in files in {mille_files_dir}")
-
-            MILLE_BIN_GLOB = "mille-data*.bin"
-            for mille_bin_dir in mille_files_dir.iterdir():
-                mille_bin_files.extend(mille_bin_dir.glob(MILLE_BIN_GLOB))
-            if not mille_bin_files:
-                logger.info(
-                    f"haven't found any files in directories below {mille_files_dir}; this might be just fine, I'll search for .bin files in the base directory"
-                )
-            mille_bin_files.extend(mille_files_dir.glob(MILLE_BIN_GLOB))
-
-            if not mille_bin_files:
-                logger.info(f"found no files matching {MILLE_BIN_GLOB}")
-                return None
-            logger.info(f"found some files matching {MILLE_BIN_GLOB}")
-
-            # Outputting all args, including the .bin files, is way too much log spam.
-            align_detector_args_prefix: list[str] = [
-                align_detector_binary,
-                "-i",
-                str(args.geometry_file),
-                "-o",
-                str(geometry_file_destination),
-                "--level=0",
-            ]
-            align_detector_args: list[str] = align_detector_args_prefix + [
-                str(f) for f in mille_bin_files
-            ]
-            logger.info(
-                f"found files matching {MILLE_BIN_GLOB}, running "
-                + " ".join(align_detector_args_prefix)
-                + " $bin_files"
+    with TemporaryDirectory() as tempdir, set_directory(tempdir):
+        align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
+        if not Path(align_detector_binary).is_file():
+            logger.error(
+                f"error running align_detector: binary {align_detector_binary} doesn't exist",
             )
-            try:
-                align_detector_environ = os.environ.copy()
-                align_detector_environ["PATH"] = (
-                    f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
-                )
-                completed_process = subprocess.run(
-                    align_detector_args,
-                    check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    encoding="utf-8",
-                    env=align_detector_environ,
-                )
-                logger.info(
-                    f"completed align_detector call, return code {completed_process.returncode}"
-                )
-                detector_shift = parse_millepede_output(completed_process.stdout)
-                if isinstance(detector_shift, str):
-                    logger.error(
-                        f"error running align_detector: output didn't parse correctly: {detector_shift}"
-                    )
-                    return None
+            return None
+        mille_bin_files: list[Path] = []
 
-                logger.info(
-                    f"parsing millepede output succeeded, detector shift: {detector_shift}"
-                )
+        if not mille_files_dir.is_dir():
+            logger.info(
+                f"directory {mille_files_dir} does not exist - so we don't have any millepede output? listing files in cwd:",
+            )
+            for f in Path().iterdir():
+                logger.info(f"file {f}")
+            logger.info("listing done")
+            return None
 
-                return detector_shift
-            except Exception:
-                logger.exception("error running align_detector")
+        logger.info(f"iterating over directories in files in {mille_files_dir}")
+
+        for mille_bin_dir in mille_files_dir.iterdir():
+            mille_bin_files.extend(mille_bin_dir.glob(_MILLE_BIN_GLOB))
+        if not mille_bin_files:
+            logger.info(
+                f"haven't found any files in directories below {mille_files_dir}; this might be just fine, I'll search for .bin files in the base directory",
+            )
+        mille_bin_files.extend(mille_files_dir.glob(_MILLE_BIN_GLOB))
+
+        if not mille_bin_files:
+            logger.info(f"found no files matching {_MILLE_BIN_GLOB}")
+            return None
+        logger.info(f"found some files matching {_MILLE_BIN_GLOB}")
+
+        # Outputting all args, including the .bin files, is way too much log spam.
+        align_detector_args_prefix: list[str] = [
+            align_detector_binary,
+            "-i",
+            str(args.geometry_file),
+            "-o",
+            str(geometry_file_destination),
+            "--level=0",
+        ]
+        align_detector_args: list[str] = align_detector_args_prefix + [
+            str(f) for f in mille_bin_files
+        ]
+        logger.info(
+            f"found files matching {_MILLE_BIN_GLOB}, running "
+            + " ".join(align_detector_args_prefix)
+            + " $bin_files",
+        )
+        try:
+            align_detector_environ = os.environ.copy()
+            align_detector_environ["PATH"] = (
+                f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+            )
+            completed_process = subprocess.run(  # noqa: S603
+                align_detector_args,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                encoding="utf-8",
+                env=align_detector_environ,
+            )
+            logger.info(
+                f"completed align_detector call, return code {completed_process.returncode}",
+            )
+            detector_shift = parse_millepede_output(completed_process.stdout)
+            if isinstance(detector_shift, str):
+                logger.error(
+                    f"error running align_detector: output didn't parse correctly: {detector_shift}",
+                )
                 return None
+
+            logger.info(
+                f"parsing millepede output succeeded, detector shift: {detector_shift}",
+            )
+
+            return detector_shift
+        except Exception:
+            logger.exception("error running align_detector")
+            return None
 
 
 @dataclass(frozen=True)
@@ -1164,7 +1178,8 @@ class BeamtimeMetadata:
 
 def read_beamtime_metadata(args: OnlineArgs) -> BeamtimeMetadata:
     beamtime_json_path, beamtime_json = determine_beamtime_json(
-        args, Path(".").resolve()
+        args,
+        Path().cwd(),
     )
     beamtime_id = beamtime_json.get(METADATA_KEY_BEAMTIME_ID)
     if beamtime_id is None:
@@ -1181,7 +1196,8 @@ def read_beamtime_metadata(args: OnlineArgs) -> BeamtimeMetadata:
     asapo = beamtime_json.get(METADATA_KEY_ASAPO)
     if asapo is None:
         exit_with_error(
-            args, f'Couldn\'t find "{METADATA_KEY_ASAPO}" in beamtime metadata json'
+            args,
+            f'Couldn\'t find "{METADATA_KEY_ASAPO}" in beamtime metadata json',
         )
     asapo_token_raw = asapo.get(METADATA_KEY_ASAPO_TOKEN_PATH)
     if asapo_token_raw is None:
@@ -1197,12 +1213,14 @@ def read_beamtime_metadata(args: OnlineArgs) -> BeamtimeMetadata:
         )
     try:
         with (beamtime_json_path.parent / asapo_token_raw).open(
-            "r", encoding="utf-8"
+            "r",
+            encoding="utf-8",
         ) as f:
             asapo_token_content = f.read().strip()
     except Exception as e:
         exit_with_error(
-            args, f"tried to read asapo token from {asapo_token_raw}, but failed: {e}"
+            args,
+            f"tried to read asapo token from {asapo_token_raw}, but failed: {e}",
         )
     return BeamtimeMetadata(
         asapo_token=asapo_token_content,
@@ -1215,14 +1233,14 @@ def run_online(args: OnlineArgs) -> None:
     logger.info(f"running in online mode, arguments: {args}")
 
     if args.geometry_file is None:
-        resolved_geometry = find_geometry(Path(".").resolve())
+        resolved_geometry = find_geometry(Path().cwd())
     else:
         resolved_geometry = args.geometry_file
 
     if resolved_geometry is None:
         exit_with_error(
             args,
-            f"did not find any geometry file relative to current dir {Path('.').resolve()}, exiting.",
+            f"did not find any geometry file relative to current dir {Path().cwd()}, exiting.",
         )
 
     args = replace(args, geometry_file=resolved_geometry)
@@ -1235,7 +1253,8 @@ def run_online(args: OnlineArgs) -> None:
 
     if not args.crystfel_path.is_dir():
         exit_with_error(
-            args, f"crystfel path {args.crystfel_path} doesn't exist, exiting."
+            args,
+            f"crystfel path {args.crystfel_path} doesn't exist, exiting.",
         )
 
     try:
@@ -1258,7 +1277,8 @@ def run_online(args: OnlineArgs) -> None:
         parsed_cell_description = parse_cell_description(args.cell_description)
         if parsed_cell_description is None:
             exit_with_error(
-                args, f"cell description {args.cell_description} is invalid"
+                args,
+                f"cell description {args.cell_description} is invalid",
             )
         cell_file = Path(f"{args.amarcord_indexing_result_id}.cell")
         write_cell_file(parsed_cell_description, cell_file)
@@ -1278,7 +1298,8 @@ def run_online(args: OnlineArgs) -> None:
         str(cpu_count_weighted),
         "-o",
         str(args.stream_file),
-    ] + args.indexamajig_params
+        *args.indexamajig_params,
+    ]
     if _DESY_TEMP_DIR.is_dir():
         cmd_line.append(f"--temp-dir={_DESY_TEMP_DIR}")
     if cell_file is not None:
@@ -1302,7 +1323,7 @@ def run_online(args: OnlineArgs) -> None:
             f"--asapo-stream={args.external_run_id}",
             "--asapo-wait-for-stream",
             "--asapo-group=online",
-        ]
+        ],
     )
     logger.info(f"indexamajig command line: {shlex.join(cmd_line)}")
     early_exit = False
@@ -1310,110 +1331,113 @@ def run_online(args: OnlineArgs) -> None:
     indexamajig_environ["PATH"] = (
         f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
     )
-    with Path("stderr.txt").open("w", encoding="utf-8") as stderr_file:
-        with subprocess.Popen(
+    with (
+        Path("stderr.txt").open("w", encoding="utf-8") as stderr_file,
+        subprocess.Popen(  # noqa: S603
             cmd_line,
             stdout=stderr_file,
             stderr=subprocess.PIPE,
             encoding="utf-8",
             bufsize=1,
             env=indexamajig_environ,
-        ) as proc:
-            logger.info("process started, reading lines")
+        ) as proc,
+    ):
+        logger.info("process started, reading lines")
+        write_status_still_running(
+            args,
+            geometry_hash,
+            IndexingFom(
+                frames=0,
+                hits=0,
+                indexed_frames=0,
+                indexed_crystals=0,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
+            ),
+        )
+        images = 0
+        hits = 0
+        indexable = 0
+        crystals = 0
+        previous_time: None | float = None
+        fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
+        start_time = time()
+        while True:
+            assert proc.stderr is not None
+            line = proc.stderr.readline()
+            if not line:
+                break
+            this_time = time()
+            logger.info(line)
+            match = _INDEXING_RE.search(line)
+            if match is None:
+                continue
+            try:
+                new_images = int(match.group(1))
+                if previous_time is None:
+                    previous_time = this_time
+                else:
+                    image_diff = new_images - images
+                    fps = image_diff / (this_time - previous_time)
+
+                    fps_killer.add_new_fps(fps)
+
+                    avg_fps = fps_killer.avg_fps()
+
+                    if fps < _FPS_KILLER_THRESHOLD:
+                        logger.warning(
+                            f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}",
+                        )
+
+                    if (
+                        avg_fps is not None
+                        and avg_fps < _FPS_KILLER_THRESHOLD
+                        and this_time - start_time > 30
+                    ):
+                        logger.warning(
+                            f"fps too low and fps killer is on: {avg_fps}, killing process",
+                        )
+                        proc.send_signal(signal.SIGUSR1)
+                        early_exit = True
+                        break
+                images = new_images
+                hits = int(match.group(2))
+                indexable = int(match.group(3))
+                crystals = int(match.group(4))
+            except:
+                logger.warning(f"indexing log line, but invalid format: {line}")
+                continue
+            previous_time = this_time
+            logger.info(f"{images} image(s)")
+
             write_status_still_running(
                 args,
                 geometry_hash,
                 IndexingFom(
-                    frames=0,
-                    hits=0,
-                    indexed_frames=0,
-                    indexed_crystals=0,
+                    frames=images,
+                    hits=hits,
+                    indexed_frames=indexable,
+                    indexed_crystals=crystals,
                     detector_shift_x_mm=None,
                     detector_shift_y_mm=None,
                 ),
             )
-            images = 0
-            hits = 0
-            indexable = 0
-            crystals = 0
-            previous_time: None | float = None
-            fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
-            start_time = time()
-            while True:
-                assert proc.stderr is not None
-                line = proc.stderr.readline()
-                if not line:
-                    break
-                this_time = time()
-                logger.info(line)
-                match = _INDEXING_RE.search(line)
-                if match is None:
-                    continue
-                try:
-                    new_images = int(match.group(1))
-                    if previous_time is None:
-                        previous_time = this_time
-                    else:
-                        image_diff = new_images - images
-                        fps = image_diff / (this_time - previous_time)
 
-                        fps_killer.add_new_fps(fps)
-
-                        avg_fps = fps_killer.avg_fps()
-
-                        if fps < _FPS_KILLER_THRESHOLD:
-                            logger.warning(
-                                f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}"
-                            )
-
-                        if (
-                            avg_fps is not None
-                            and avg_fps < _FPS_KILLER_THRESHOLD
-                            and this_time - start_time > 30
-                        ):
-                            logger.warning(
-                                f"fps too low and fps killer is on: {avg_fps}, killing process"
-                            )
-                            proc.send_signal(signal.SIGUSR1)
-                            early_exit = True
-                            break
-                    images = new_images
-                    hits = int(match.group(2))
-                    indexable = int(match.group(3))
-                    crystals = int(match.group(4))
-                except:
-                    logger.warning(f"indexing log line, but invalid format: {line}")
-                    continue
-                previous_time = this_time
-                logger.info(f"{images} image(s)")
-
-                write_status_still_running(
-                    args,
-                    geometry_hash,
-                    IndexingFom(
-                        frames=images,
-                        hits=hits,
-                        indexed_frames=indexable,
-                        indexed_crystals=crystals,
-                        detector_shift_x_mm=None,
-                        detector_shift_y_mm=None,
-                    ),
-                )
-
-            proc.wait()
-            if not early_exit and proc.returncode != 0:
-                exit_with_error(
-                    args, f"indexamajig process return code is {proc.returncode}"
-                )
-
-            final_fom = IndexingFom(
-                frames=images,
-                hits=hits,
-                indexed_frames=indexable,
-                indexed_crystals=crystals,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
+        proc.wait()
+        if not early_exit and proc.returncode != 0:
+            exit_with_error(
+                args,
+                f"indexamajig process return code is {proc.returncode}",
             )
+
+        final_fom = IndexingFom(
+            frames=images,
+            hits=hits,
+            indexed_frames=indexable,
+            indexed_crystals=crystals,
+            detector_shift_x_mm=None,
+            detector_shift_y_mm=None,
+        )
     logger.info("process completed")
 
     if args.use_auto_geom_refinement:
@@ -1422,7 +1446,7 @@ def run_online(args: OnlineArgs) -> None:
         detector_shifts = run_align_detector(
             args,
             mille_files_dir=Path(
-                f"{args.amarcord_indexing_result_id}-millepede-files"
+                f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
@@ -1438,7 +1462,9 @@ def run_online(args: OnlineArgs) -> None:
         logger.info("generating histograms")
         try:
             graphs_output = generate_graphs(
-                args.gnuplot_path, args.amarcord_indexing_result_id, args.stream_file
+                args.gnuplot_path,
+                args.amarcord_indexing_result_id,
+                args.stream_file,
             )
         except:
             logger.exception("could not generate graphs")
@@ -1451,7 +1477,7 @@ def run_online(args: OnlineArgs) -> None:
         )
     else:
         logger.info(
-            f"not generating histograms, not enough indexed frames: {final_fom.indexed_frames}"
+            f"not generating histograms, not enough indexed frames: {final_fom.indexed_frames}",
         )
         graphs_output = None
 
@@ -1496,14 +1522,15 @@ def run_secondary(args: SecondaryArgs) -> None:
         f"--geometry={args.geometry_file}",
         "-j",
         str(cpu_count_weighted),
-    ] + args.indexamajig_params
+        *args.indexamajig_params,
+    ]
     if _DESY_TEMP_DIR.is_dir():
         cmd_line.append(f"--temp-dir={_DESY_TEMP_DIR}")
     if args.cell_file is not None:
         cmd_line.append(f"--pdb={args.cell_file}")
     if args.use_auto_geom_refinement:
         mille_dir = Path(f"{args.amarcord_indexing_result_id}-millepede-files") / str(
-            job_id
+            job_id,
         )
         logging.info(f"creating mille dir {mille_dir}")
         mille_dir.mkdir(exist_ok=True, parents=True)
@@ -1524,7 +1551,7 @@ def run_secondary(args: SecondaryArgs) -> None:
     indexamajig_environ["PATH"] = (
         f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
     )
-    with subprocess.Popen(
+    with subprocess.Popen(  # noqa: S603
         cmd_line,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -1558,7 +1585,7 @@ def run_secondary(args: SecondaryArgs) -> None:
 
                     if fps < 2 and _FPS_KILLER_OFFLINE:
                         logger.warning(
-                            f"fps too low and fps killer is on: {fps}, killing process"
+                            f"fps too low and fps killer is on: {fps}, killing process",
                         )
                         proc.send_signal(signal.SIGUSR1)
                         early_exit = True
@@ -1600,7 +1627,8 @@ def run_secondary(args: SecondaryArgs) -> None:
 
 
 def find_searching_upwards(
-    f: Path, finder: Callable[[Path], None | Path]
+    f: Path,
+    finder: Callable[[Path], None | Path],
 ) -> None | Path:
     if not f.is_file() and not f.is_dir():
         logger.error(f"base path used to find a directory; path was: {f}")
@@ -1631,7 +1659,7 @@ def find_geometry(f: Path) -> None | Path:
 
 def write_gnuplot_script(target: IO[bytes]) -> None:
     target.write(
-        """
+        b"""
 # Set the output to a PNG file
 set terminal pngcairo size 1800,1100 enhanced font 'Verdana,10'
 set output myoutput
@@ -1742,7 +1770,7 @@ set style fill solid border lt 6
 plot inputfile using (bin(column(6), bin_width)):(1.0) smooth freq with boxes notitle
 
 unset multiplot
-        """.encode("utf-8")
+        """,
     )
 
 
@@ -1752,19 +1780,21 @@ class GraphOutput:
 
 
 def generate_graphs(
-    gnuplot_path: None | Path, indexing_result_id: int, stream_file: Path
+    gnuplot_path: None | Path,
+    indexing_result_id: int,
+    stream_file: Path,
 ) -> GraphOutput:
     cell_description_file_path = Path(
-        f"{indexing_result_id}-cell-description-for-gnuplot.txt"
+        f"{indexing_result_id}-cell-description-for-gnuplot.txt",
     )
 
     with cell_description_file_path.open("wb+") as cell_description_file:
-        with subprocess.Popen(
-            ["grep", "Cell parameters", str(stream_file)],
+        with subprocess.Popen(  # noqa: S603
+            ["grep", "Cell parameters", str(stream_file)],  # noqa: S607
             stdout=subprocess.PIPE,
         ) as grep_process:
-            subprocess.run(
-                ["awk", "{print($3, $4, $5, $7, $8, $9)}"],
+            subprocess.run(  # noqa: S603
+                ["awk", "{print($3, $4, $5, $7, $8, $9)}"],  # noqa: S607
                 stdin=grep_process.stdout,
                 stdout=cell_description_file,
                 check=True,
@@ -1788,7 +1818,7 @@ def generate_graphs(
                 str(gnuplot_script_path),
             ]
             logger.info(f"gnuplot arguments: {gnuplot_args}")
-            subprocess.check_output(gnuplot_args)
+            subprocess.check_output(gnuplot_args)  # noqa: S603
 
         run_gnuplot(f"{indexing_result_id}.png")
 
@@ -1796,8 +1826,9 @@ def generate_graphs(
 
 
 def determine_crystfel_version(crystfel_path: Path) -> str:
-    output = subprocess.check_output(
-        [f"{crystfel_path}/bin/indexamajig", "--version"], encoding="utf-8"
+    output = subprocess.check_output(  # noqa: S603
+        [f"{crystfel_path}/bin/indexamajig", "--version"],
+        encoding="utf-8",
     )
 
     return output.split("\n", maxsplit=1)[0].replace("CrystFEL: ", "")
@@ -1903,7 +1934,7 @@ def run_primary(args: PrimaryArgs) -> None:
               indexed_crystals INTEGER,
               error_log TEXT
             )
-            """
+            """,
         )
         db.execute("CREATE INDEX job_state_index ON IndexamajigJob (state)")
         db.execute("CREATE INDEX job_array_id_index ON IndexamajigJob (job_array_id)")
@@ -1953,17 +1984,17 @@ def run_primary(args: PrimaryArgs) -> None:
         logger.info(f"job array {job_array_id} successful!")
 
     logger.info(
-        "all job arrays finished - whole job finished, concatenating stream files"
+        "all job arrays finished - whole job finished, concatenating stream files",
     )
 
     with args.stream_file.open("wb") as concatenated_output:
-        for job_array_id, job_id in db.execute(
-            "SELECT job_array_id, job_id FROM IndexamajigJob"
+        for _job_array_id, job_id in db.execute(
+            "SELECT job_array_id, job_id FROM IndexamajigJob",
         ):
-            job_stream_file = f"job-{job_id}.stream"
-            with open(job_stream_file, "rb") as single_stream:
+            job_stream_file = Path(f"job-{job_id}.stream")
+            with job_stream_file.open("rb") as single_stream:
                 shutil.copyfileobj(single_stream, concatenated_output)
-            os.unlink(job_stream_file)
+            job_stream_file.unlink()
             # This is a little spammy
             # logger.info(f"stream file for job {job_id} appended to {args.stream_file}")
 
@@ -1973,7 +2004,7 @@ def run_primary(args: PrimaryArgs) -> None:
         detector_shifts = run_align_detector(
             args,
             mille_files_dir=Path(
-                f"{args.amarcord_indexing_result_id}-millepede-files"
+                f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
@@ -1988,7 +2019,9 @@ def run_primary(args: PrimaryArgs) -> None:
     logger.info("generating histograms")
     try:
         graphs_output = generate_graphs(
-            args.gnuplot_path, args.amarcord_indexing_result_id, args.stream_file
+            args.gnuplot_path,
+            args.amarcord_indexing_result_id,
+            args.stream_file,
         )
     except:
         logger.exception("could not generate graphs")
@@ -2024,12 +2057,12 @@ def run_primary(args: PrimaryArgs) -> None:
 def parse_primary_args() -> PrimaryArgs:
     glob_list: list[str] = json.loads(os.environ[OFF_INDEX_ENVIRON_INPUT_FILE_GLOBS])
     amarcord_indexing_result_id = int(
-        os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID]
+        os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID],
     )
     use_slurm = os.environ[OFF_INDEX_ENVIRON_USE_SLURM] == "True"
     indexamajig_params = os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS]
     gnuplot_path = os.environ[OFF_INDEX_ENVIRON_GNUPLOT_PATH]
-    input_files = list(Path(p) for glob_ in glob_list for p in glob.glob(glob_))
+    input_files = list(Path(p) for glob_ in glob_list for p in glob.glob(glob_))  # noqa: PTH207
     master_files = [x for x in input_files if "_master.nx5" in x.name]
     return PrimaryArgs(
         use_slurm=use_slurm,
@@ -2042,7 +2075,7 @@ def parse_primary_args() -> PrimaryArgs:
         # A little hack here: if we have a file "master", and possibly
         # other data files (to which master links to), then just take
         # the master file. Otherwise, consider all files
-        input_files=input_files if not master_files else master_files,
+        input_files=master_files if master_files else input_files,
         geometry_file=(
             Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE])
             if OFF_INDEX_ENVIRON_GEOMETRY_FILE in os.environ
@@ -2068,7 +2101,7 @@ def parse_primary_args() -> PrimaryArgs:
 
 def parse_online_args() -> OnlineArgs:
     amarcord_indexing_result_id = int(
-        os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID]
+        os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID],
     )
     use_slurm = os.environ[OFF_INDEX_ENVIRON_USE_SLURM] == "True"
     gnuplot_path = os.environ[OFF_INDEX_ENVIRON_GNUPLOT_PATH]
@@ -2080,7 +2113,7 @@ def parse_online_args() -> OnlineArgs:
         amarcord_api_url=os.environ.get(OFF_INDEX_ENVIRON_AMARCORD_API_URL),
         asapo_source=os.environ[ON_INDEX_ENVIRON_ASAPO_SOURCE],
         cpu_count_multiplier=float(
-            os.environ[ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER]
+            os.environ[ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER],
         ),
         geometry_file=(
             Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE])
@@ -2093,7 +2126,7 @@ def parse_online_args() -> OnlineArgs:
         amarcord_indexing_result_id=amarcord_indexing_result_id,
         crystfel_path=Path(os.environ[OFF_INDEX_ENVIRON_CRYSTFEL_PATH]),
         indexamajig_params=shlex.split(
-            os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS]
+            os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS],
         ),
         external_run_id=int(os.environ[OFF_INDEX_ENVIRON_RUN_ID]),
         gnuplot_path=Path(gnuplot_path) if gnuplot_path else None,

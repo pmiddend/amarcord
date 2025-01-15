@@ -1,3 +1,4 @@
+from typing import Annotated
 from typing import Final
 
 import structlog
@@ -45,8 +46,8 @@ def encode_user_configuration(c: orm.UserConfiguration) -> JsonUserConfig:
     response_model_exclude_defaults=True,
 )
 async def read_indexing_parameters(
-    beamtimeId: BeamtimeId,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonIndexingParameters:
     async with session.begin():
         user_configuration = await retrieve_latest_config(session, beamtimeId)
@@ -66,24 +67,29 @@ async def read_indexing_parameters(
     response_model_exclude_defaults=True,
 )
 async def read_user_configuration_single(
-    beamtimeId: BeamtimeId, key: str, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    key: str,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUserConfigurationSingleOutput:
     user_configuration = await retrieve_latest_config(session, beamtimeId)
     if key == USER_CONFIGURATION_AUTO_PILOT:
         return JsonUserConfigurationSingleOutput(
-            value_bool=user_configuration.auto_pilot, value_int=None
+            value_bool=user_configuration.auto_pilot,
+            value_int=None,
         )
     if key == USER_CONFIGURATION_ONLINE_CRYSTFEL:
         return JsonUserConfigurationSingleOutput(
-            value_bool=user_configuration.use_online_crystfel, value_int=None
+            value_bool=user_configuration.use_online_crystfel,
+            value_int=None,
         )
     if key == USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID:
         return JsonUserConfigurationSingleOutput(
-            value_int=user_configuration.current_experiment_type_id, value_bool=None
+            value_int=user_configuration.current_experiment_type_id,
+            value_bool=None,
         )
     raise Exception(
         f"Couldn't find config key {key}, only know "
-        + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES)
+        + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES),
     )
 
 
@@ -93,9 +99,9 @@ async def read_user_configuration_single(
     response_model_exclude_defaults=True,
 )
 async def update_online_indexing_parameters(
-    beamtimeId: BeamtimeId,
+    beamtimeId: BeamtimeId,  # noqa: N803
     parameters: JsonUpdateOnlineIndexingParametersInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateOnlineIndexingParametersOutput:
     async with session.begin():
         user_configuration = await retrieve_latest_config(session, beamtimeId)
@@ -123,10 +129,10 @@ async def update_online_indexing_parameters(
     response_model_exclude_defaults=True,
 )
 async def update_user_configuration_single(
-    beamtimeId: BeamtimeId,
+    beamtimeId: BeamtimeId,  # noqa: N803
     key: str,
     value: str,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUserConfigurationSingleOutput:
     async with session.begin():
         user_configuration = await retrieve_latest_config(session, beamtimeId)
@@ -137,7 +143,8 @@ async def update_user_configuration_single(
             new_config.auto_pilot = new_value
             await session.commit()
             return JsonUserConfigurationSingleOutput(
-                value_bool=new_value, value_int=None
+                value_bool=new_value,
+                value_int=None,
             )
         if key == USER_CONFIGURATION_ONLINE_CRYSTFEL:
             new_value = value == "True"
@@ -145,16 +152,18 @@ async def update_user_configuration_single(
             await session.commit()
 
             return JsonUserConfigurationSingleOutput(
-                value_bool=new_value, value_int=None
+                value_bool=new_value,
+                value_int=None,
             )
         if key == USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID:
             logger.info(f"setting current experiment type to {value}")
             new_config.current_experiment_type_id = int(value)
             await session.commit()
             return JsonUserConfigurationSingleOutput(
-                value_int=int(value), value_bool=None
+                value_int=int(value),
+                value_bool=None,
             )
         raise Exception(
             f"Couldn't find config key {key}, only know "
-            + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES)
+            + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES),
         )

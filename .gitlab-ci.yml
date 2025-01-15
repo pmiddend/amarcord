@@ -6,10 +6,6 @@ pyright:
   script:
     - nix develop --command basedpyright
 
-pylint:
-  script:
-    - nix develop --command pylint amarcord tests
-
 format:
   script:
     # ruff has two modes:

@@ -6,6 +6,5 @@ from typing import Union
 # Recursive types aren't supported in mypy, see
 # https://github.com/python/mypy/issues/731
 JSONArray: TypeAlias = Sequence["JSONValue"]  # type: ignore
-# pylint: disable=consider-alternative-union-syntax
 JSONValue: TypeAlias = Union[int, str, float, bool, None, "JSONDict", "JSONArray"]  # type: ignore
 JSONDict: TypeAlias = Mapping[str, JSONValue]  # type: ignore

@@ -740,6 +740,7 @@ type alias JsonBeamtime =
     , start : Int
     , end : Int
     , chemicalNames : List String
+    , analysisOutputPath : String
     }
 
 
@@ -1715,6 +1716,7 @@ type alias JsonUpdateBeamtimeInput =
     , comment : String
     , start : Int
     , end : Int
+    , analysisOutputPath : String
     }
 
 
@@ -2312,6 +2314,7 @@ encodeJsonBeamtimePairs model =
             , encode "start" Json.Encode.int model.start
             , encode "end" Json.Encode.int model.end
             , encode "chemical_names" (Json.Encode.list Json.Encode.string) model.chemicalNames
+            , encode "analysis_output_path" Json.Encode.string model.analysisOutputPath
             ]
     in
     pairs
@@ -3465,7 +3468,7 @@ encodeJsonEventInputPairs model =
             [ encode "source" Json.Encode.string model.source
             , encode "text" Json.Encode.string model.text
             , encode "level" Json.Encode.string model.level
-            , encode "fileIds" (Json.Encode.list Json.Encode.int) model.fileIds
+            , encode "file_ids" (Json.Encode.list Json.Encode.int) model.fileIds
             ]
     in
     pairs
@@ -5020,7 +5023,7 @@ encodeJsonUpdateAttributoConversionFlagsPairs : JsonUpdateAttributoConversionFla
 encodeJsonUpdateAttributoConversionFlagsPairs model =
     let
         pairs =
-            [ encode "ignoreUnits" Json.Encode.bool model.ignoreUnits
+            [ encode "ignore_units" Json.Encode.bool model.ignoreUnits
             ]
     in
     pairs
@@ -5089,6 +5092,7 @@ encodeJsonUpdateBeamtimeInputPairs model =
             , encode "comment" Json.Encode.string model.comment
             , encode "start" Json.Encode.int model.start
             , encode "end" Json.Encode.int model.end
+            , encode "analysis_output_path" Json.Encode.string model.analysisOutputPath
             ]
     in
     pairs
@@ -5717,6 +5721,7 @@ jsonBeamtimeDecoder =
         |> decode "start" Json.Decode.int 
         |> decode "end" Json.Decode.int 
         |> decode "chemical_names" (Json.Decode.list Json.Decode.string) 
+        |> decode "analysis_output_path" Json.Decode.string 
 
 
 jsonBeamtimeOutputDecoder : Json.Decode.Decoder JsonBeamtimeOutput
@@ -6128,7 +6133,7 @@ jsonEventInputDecoder =
         |> decode "source" Json.Decode.string 
         |> decode "text" Json.Decode.string 
         |> decode "level" Json.Decode.string 
-        |> decode "fileIds" (Json.Decode.list Json.Decode.int) 
+        |> decode "file_ids" (Json.Decode.list Json.Decode.int) 
 
 
 jsonEventTopLevelInputDecoder : Json.Decode.Decoder JsonEventTopLevelInput
@@ -6789,7 +6794,7 @@ jsonStopRunOutputDecoder =
 jsonUpdateAttributoConversionFlagsDecoder : Json.Decode.Decoder JsonUpdateAttributoConversionFlags
 jsonUpdateAttributoConversionFlagsDecoder =
     Json.Decode.succeed JsonUpdateAttributoConversionFlags
-        |> decode "ignoreUnits" Json.Decode.bool 
+        |> decode "ignore_units" Json.Decode.bool 
 
 
 jsonUpdateAttributoInputDecoder : Json.Decode.Decoder JsonUpdateAttributoInput
@@ -6816,6 +6821,7 @@ jsonUpdateBeamtimeInputDecoder =
         |> decode "comment" Json.Decode.string 
         |> decode "start" Json.Decode.int 
         |> decode "end" Json.Decode.int 
+        |> decode "analysis_output_path" Json.Decode.string 
 
 
 jsonUpdateBeamtimeScheduleInputDecoder : Json.Decode.Decoder JsonUpdateBeamtimeScheduleInput

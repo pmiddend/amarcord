@@ -42,6 +42,7 @@ logger = structlog.stdlib.get_logger(__name__)
     ],
 )
 def test_parse_cell_description(
-    input_string: str, cell_file: None | CrystFELCellFile
+    input_string: str,
+    cell_file: None | CrystFELCellFile,
 ) -> None:
     assert parse_cell_description(input_string) == cell_file

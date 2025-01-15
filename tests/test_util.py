@@ -52,7 +52,7 @@ def test_sha256_file() -> None:
             [
                 Path(__file__).parent / "test-file-no-newlines.txt",
                 Path(__file__).parent / "test-file-no-newlines.txt",
-            ]
+            ],
         )
         == "32ac0b1fc6f1b04aa5d8e1486afc3f3777c10784471f60143ef7616848e15db1"
     )
@@ -84,7 +84,9 @@ def test_remove_illegal_path_characters() -> None:
     [("apple", ["appel"], True), ("apple", ["mango"], False)],
 )
 def test_maybe_you_meant(
-    input_string: str, candidates: list[str], result: bool
+    input_string: str,
+    candidates: list[str],
+    result: bool,
 ) -> None:
     result_str = maybe_you_meant(input_string, candidates)
     assert (len(result_str) > 0) == result

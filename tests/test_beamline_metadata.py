@@ -14,7 +14,7 @@ from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
 
 def test_parse_beamline_metadata() -> None:
     metadata = parse_beamline_metadata(
-        Path(__file__).parent / "beamline_metadata" / "test-metadata.json"
+        Path(__file__).parent / "beamline_metadata" / "test-metadata.json",
     )
     assert metadata.beamtimeId == "11010000"
     assert len(metadata.onlineAnalysis.reservedNodes) == 2
@@ -29,18 +29,24 @@ def test_parse_beamline_metadata() -> None:
                 Job(
                     status=JobStatus.RUNNING,
                     started=datetime.datetime(
-                        year=2022, month=9, day=22, hour=9, minute=2, second=31
+                        year=2022,
+                        month=9,
+                        day=22,
+                        hour=9,
+                        minute=2,
+                        second=31,
                     ),
                     id=12697363,
                     metadata=JobMetadata({}),
-                )
+                ),
             ],
         ),
         ("HEADER_PLEASE_IGNORE\nabc,R,2022-09-22T09:02:31", None),
     ],
 )
 def test_decode_job_list_result(
-    input_lines: str, jobs_or_none: None | list[Job]
+    input_lines: str,
+    jobs_or_none: None | list[Job],
 ) -> None:
     if jobs_or_none is None:
         with pytest.raises(Exception):

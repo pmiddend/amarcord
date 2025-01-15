@@ -47,6 +47,7 @@ async def _main(args: Arguments) -> None:
             comment="",
             start=datetime.datetime.now(),
             end=datetime.datetime.now(),
+            analysis_output_path="/",
         )
         session.add(beamtime)
         await session.flush()
@@ -87,7 +88,7 @@ async def _main(args: Arguments) -> None:
                 ExperimentHasAttributo(
                     attributo_id=run_chemical_attributo.id,
                     chemical_role=ChemicalType.CRYSTAL,
-                )
+                ),
             ],
         )
         session.add(experiment_type)
@@ -108,7 +109,7 @@ async def _main(args: Arguments) -> None:
                     bool_value=None,
                     datetime_value=None,
                     list_value=None,
-                )
+                ),
             ],
         )
         session.add(chemical)
@@ -177,7 +178,7 @@ async def _main(args: Arguments) -> None:
                     datetime_value=None,
                     list_value=None,
                     chemical_value=chemical.id,
-                )
+                ),
             ],
         )
         session.add(data_set)

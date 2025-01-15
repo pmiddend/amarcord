@@ -66,13 +66,14 @@ def default_online_indexing_parameters() -> orm.IndexingParameters:
 
 
 async def retrieve_latest_config(
-    session: AsyncSession, beamtime_id: BeamtimeId
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
 ) -> orm.UserConfiguration:
     result = (
         await session.scalars(
             select(orm.UserConfiguration)
             .where(orm.UserConfiguration.beamtime_id == beamtime_id)
-            .order_by(orm.UserConfiguration.id.desc())
+            .order_by(orm.UserConfiguration.id.desc()),
         )
     ).first()
     return result if result is not None else default_user_configuration(beamtime_id)
@@ -92,13 +93,14 @@ def duplicate_run_attributo(a: orm.RunHasAttributoValue) -> orm.RunHasAttributoV
 
 
 async def retrieve_latest_run(
-    session: AsyncSession, beamtime_id: BeamtimeId
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
 ) -> None | orm.Run:
     return (
         await session.scalars(
             select(orm.Run)
             .where(orm.Run.beamtime_id == beamtime_id)
-            .order_by(orm.Run.started.desc())
+            .order_by(orm.Run.started.desc()),
         )
     ).first()
 
@@ -232,13 +234,14 @@ def update_orm_entity_has_attributo_value(
         assert isinstance(v, str), f"expected a string (choice), got {v}"
         chav.string_value = v
     elif isinstance(type_, AttributoTypeDecimal):
-        assert isinstance(v, (int, float)), f"expected a number, got {v}"
+        assert isinstance(v, float | int), f"expected a number, got {v}"
         chav.float_value = v
     elif isinstance(type_, AttributoTypeDateTime):
         assert isinstance(v, datetime.datetime), f"expected a datetime value, got {v}"
         chav.datetime_value = v
     elif isinstance(type_, AttributoTypeChemical) and not isinstance(
-        chav, orm.ChemicalHasAttributoValue
+        chav,
+        orm.ChemicalHasAttributoValue,
     ):
         assert isinstance(v, int), f"expected an int value (chemical), got {v}"
         chav.chemical_value = v
@@ -253,7 +256,8 @@ async def migrate(engine: AsyncEngine) -> None:
 
 
 def validate_json_attributo_return_error(
-    a: JsonAttributoValue, atype_raw: orm.Attributo
+    a: JsonAttributoValue,
+    atype_raw: orm.Attributo,
 ) -> None | str:
     atype = schema_dict_to_attributo_type(atype_raw.json_schema)
 
@@ -433,9 +437,9 @@ async def determine_run_indexing_metadata(
                 .where(orm.Chemical.id == attributo_value.chemical_value)
                 .options(
                     selectinload(orm.Chemical.attributo_values).selectinload(
-                        orm.ChemicalHasAttributoValue.attributo
-                    )
-                )
+                        orm.ChemicalHasAttributoValue.attributo,
+                    ),
+                ),
             )
         ).one()
         for attributo_value in r.attributo_values
@@ -473,7 +477,7 @@ async def determine_run_indexing_metadata(
         channel_chemical = crystal_chemicals[0]
         log_messages.append(
             "no chemicals with cell information found, taking the first chemical of type "
-            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})'
+            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})',
         )
 
     cell_description: None | CrystFELCellFile
@@ -492,7 +496,7 @@ async def determine_run_indexing_metadata(
     )
 
 
-def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:
+def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:  # noqa: FBT002
     return JsonBeamtime(
         id=bt.id,
         external_id=bt.external_id,
@@ -505,4 +509,5 @@ def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamti
         chemical_names=(
             [chemical.name for chemical in bt.chemicals] if with_chemicals else []
         ),
+        analysis_output_path=bt.analysis_output_path,
     )

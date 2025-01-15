@@ -10,6 +10,7 @@ alembic==1.13.1
     # via amarcord (pyproject.toml)
 anyio==4.8.0
     # via
+    #   amarcord (pyproject.toml)
     #   httpx
     #   starlette
     #   watchfiles
@@ -128,7 +129,7 @@ rich==13.9.4
     # via
     #   rich-toolkit
     #   typer
-rich-toolkit==0.12.0
+rich-toolkit==0.13.2
     # via fastapi-cli
 shellingham==1.5.4
     # via typer

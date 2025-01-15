@@ -14,12 +14,12 @@ class JSONSchemaNumber(BaseModel):
     minimum: float | None = None
     maximum: float | None = None
     # Note: camelCase here, but that's just because it's JSON schema (and I was too lazy to map this properly to a pydantic alias)
-    exclusiveMinimum: float | None = None
-    exclusiveMaximum: float | None = None
+    exclusiveMinimum: float | None = None  # noqa: N815
+    exclusiveMaximum: float | None = None  # noqa: N815
     suffix: str | None = None
     format: None | Literal["standard-unit"] = None
     tolerance: float | None = None
-    toleranceIsAbsolute: bool = False
+    toleranceIsAbsolute: bool = False  # noqa: N815
 
 
 class JSONSchemaString(BaseModel):
@@ -45,8 +45,8 @@ class JSONSchemaArray(BaseModel):
     # items: JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber = Field(
     #     discriminator="type"
     # )
-    minItems: int | None = None
-    maxItems: int | None = None
+    minItems: int | None = None  # noqa: N815
+    maxItems: int | None = None  # noqa: N815
 
 
 JSONSchemaUnion = (

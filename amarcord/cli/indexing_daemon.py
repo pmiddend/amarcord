@@ -5,7 +5,6 @@ import json
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional
 from typing import cast
 
 import aiohttp
@@ -48,7 +47,7 @@ INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR = (
 
 def _long_break_duration_seconds() -> float:
     return float(
-        os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5")
+        os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5"),
     )
 
 
@@ -58,32 +57,18 @@ _GLOBAL_JOB_TIME_LIMIT = timedelta(days=1)
 
 class Arguments(Tap):
     amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
-    # pylint: disable=consider-alternative-union-syntax
-    overwrite_interpreter: Optional[  # Rewrite the first (shebang) line of the indexing script to find the Python interpreter
-        str
-    ] = None
-    # pylint: disable=consider-alternative-union-syntax
-    amarcord_url_for_spawned_job: Optional[  # URL to give to jobs spawned by the daemon in order to contact AMARCORD for updates
-        str
-    ] = None
-    output_base_directory: Path  # Where to put the outputs of the jobs started (at DESY, this will be "processed/...")
+    overwrite_interpreter: str | None = None
+    amarcord_url_for_spawned_job: str | None = None
     crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
         Path
     )
-    # pylint: disable=consider-alternative-union-syntax
-    gnuplot_path: Optional[  # The path to the gnuplot binary, for histogram generation (if missing, no histograms will be generated)
-        Path
-    ] = None
-    # pylint: disable=consider-alternative-union-syntax
-    beamtime_id: Optional[int] = None  # Can be used to filter indexing jobs by beamtime
+    gnuplot_path: Path | None = None
+    beamtime_id: int | None = None  # Can be used to filter indexing jobs by beamtime
     workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
-    online_workload_manager_uri: Optional[  # Determines how and where online jobs are started; refer to the manual on how this URL should look like. If this is missing, the workload-manager-uri parameter will be used for online results as well.
-        str
-    ] = None
+    online_workload_manager_uri: str | None = None
     asapo_source: str  # The default source given to online indexing jobs
-    # pylint: disable=consider-alternative-union-syntax
     # fmt: off
-    cpu_count_multiplier: Optional[float] = (  # Constant to give a multiplier to the number of CPUs in started jobs
+    cpu_count_multiplier: float | None = (  # Constant to give a multiplier to the number of CPUs in started jobs
         None
     )
     # fmt: on
@@ -94,7 +79,8 @@ class Arguments(Tap):
 
 def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
     with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
-        "r", encoding="utf-8"
+        "r",
+        encoding="utf-8",
     ) as source_code_obj:
         source_code = source_code_obj.read()
         if overwrite_interpreter_str is not None:
@@ -110,8 +96,8 @@ async def start_offline_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting offline indexing job")
 
-    job_base_directory = determine_output_directory(
-        indexing_result.beamtime, args.output_base_directory, {}
+    job_base_directory = (
+        determine_output_directory(indexing_result.beamtime, {}) / "indexing-results"
     )
 
     output_base_name = _build_output_base_name(indexing_result)
@@ -119,7 +105,7 @@ async def start_offline_indexing_job(
 
     if not indexing_result.input_file_globs:
         bound_logger.error(
-            f"cannot start indexing job {indexing_result.id}: no input files"
+            f"cannot start indexing job {indexing_result.id}: no input files",
         )
         return DBIndexingResultDone(
             stream_file=stream_file,
@@ -129,7 +115,7 @@ async def start_offline_indexing_job(
 
     try:
         indexing_job_source_code = _get_indexing_job_source_code(
-            args.overwrite_interpreter
+            args.overwrite_interpreter,
         )
 
         job_environment: dict[str, str] = {
@@ -151,7 +137,7 @@ async def start_offline_indexing_job(
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_STREAM_FILE: str(stream_file),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID: str(
-                indexing_result.id
+                indexing_result.id,
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_API_URL: (
                 args.amarcord_url_for_spawned_job
@@ -159,7 +145,7 @@ async def start_offline_indexing_job(
                 else args.amarcord_url
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CRYSTFEL_PATH: str(
-                args.crystfel_path
+                args.crystfel_path,
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS: indexing_result.command_line,
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GNUPLOT_PATH: (
@@ -172,7 +158,7 @@ async def start_offline_indexing_job(
             ),
             # Offline-specific parameters
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_INPUT_FILE_GLOBS: json.dumps(
-                indexing_result.input_file_globs
+                indexing_result.input_file_globs,
             ),
         }
         # An explicit geometry file may be missing for a new job - it
@@ -200,7 +186,8 @@ async def start_offline_indexing_job(
             stderr=job_base_directory / f"{output_base_name}-stderr.txt",
         )
         bound_logger.info(
-            "job start successful", indexing_job_id=job_start_result.job_id
+            "job start successful",
+            indexing_job_id=job_start_result.job_id,
         )
         return DBIndexingResultRunning(
             stream_file=stream_file,
@@ -228,16 +215,14 @@ async def start_online_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting online indexing job")
 
-    job_base_directory = determine_output_directory(
-        indexing_result.beamtime, args.output_base_directory, {}
-    )
+    job_base_directory = determine_output_directory(indexing_result.beamtime, {})
 
     output_base_name = _build_output_base_name(indexing_result)
     stream_file = job_base_directory / f"{output_base_name}.stream"
 
     try:
         indexing_job_source_code = _get_indexing_job_source_code(
-            args.overwrite_interpreter
+            args.overwrite_interpreter,
         )
 
         job_environment: dict[str, str] = {
@@ -255,10 +240,10 @@ async def start_online_indexing_job(
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_STREAM_FILE: str(stream_file),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID: str(
-                indexing_result.id
+                indexing_result.id,
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CRYSTFEL_PATH: str(
-                args.crystfel_path
+                args.crystfel_path,
             ),
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_API_URL: (
                 args.amarcord_url
@@ -281,11 +266,11 @@ async def start_online_indexing_job(
                 else args.asapo_source
             ),
             amarcord.cli.crystfel_index.ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER: str(
-                args.cpu_count_multiplier if args.cpu_count_multiplier else 0.5
+                args.cpu_count_multiplier if args.cpu_count_multiplier else 0.5,
             ),
             # This we need to ask asapo for the correct stream.
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_RUN_ID: str(
-                indexing_result.run_external_id
+                indexing_result.run_external_id,
             ),
         }
         # An explicit geometry file may be missing for a new job - it
@@ -305,7 +290,8 @@ async def start_online_indexing_job(
             stderr=job_base_directory / f"{output_base_name}-stderr.txt",
         )
         bound_logger.info(
-            "job start successful", indexing_job_id=job_start_result.job_id
+            "job start successful",
+            indexing_job_id=job_start_result.job_id,
         )
         return DBIndexingResultRunning(
             stream_file=stream_file,
@@ -333,10 +319,10 @@ async def _start_new_jobs(
     # For online indexing, this is precisely not needed, of course.
     async with session.get(
         f"{args.amarcord_url}/api/indexing?status={DBJobStatus.QUEUED.value}&withFiles=True"
-        + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else "")
+        + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else ""),
     ) as response:
         indexing_results = JsonReadIndexingResultsOutput(
-            **await response.json()
+            **await response.json(),
         ).indexing_jobs
 
     if not indexing_results:
@@ -346,10 +332,10 @@ async def _start_new_jobs(
     # get the running ones.
     async with session.get(
         f"{args.amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
-        + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else "")
+        + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else ""),
     ) as response:
         number_of_running_jobs = len(
-            JsonReadIndexingResultsOutput(**await response.json()).indexing_jobs
+            JsonReadIndexingResultsOutput(**await response.json()).indexing_jobs,
         )
 
     max_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
@@ -359,7 +345,7 @@ async def _start_new_jobs(
 
     if indexing_results:
         logger.info(
-            f"there are {len(indexing_results)} job(s) to start, will start {max_jobs_to_start} (because of limit)"
+            f"there are {len(indexing_results)} job(s) to start, will start {max_jobs_to_start} (because of limit)",
         )
 
     number_of_started_jobs = 0
@@ -382,7 +368,10 @@ async def _start_new_jobs(
             )
             if indexing_result.is_online
             else await start_offline_indexing_job(
-                bound_logger, workload_manager, args, indexing_result
+                bound_logger,
+                workload_manager,
+                args,
+                indexing_result,
             )
         )
         number_of_started_jobs += 1
@@ -412,7 +401,7 @@ async def _start_new_jobs(
                 geometry_file="",
                 geometry_hash="",
                 job_started=datetime_to_attributo_int(
-                    datetime.datetime.now(tz=datetime.timezone.utc)
+                    datetime.datetime.now(tz=datetime.timezone.utc),
                 ),
                 # Initialize log with the empty string (None would have indicated "no change")
                 latest_log="",
@@ -424,20 +413,20 @@ async def _start_new_jobs(
             ) as update_response:
                 if update_response.status // 200 != 1:
                     bound_logger.error(
-                        f"didn't receive status 200 but {update_response.status}"
+                        f"didn't receive status 200 but {update_response.status}",
                     )
                 else:
                     bound_logger.info(
-                        f"new indexing job started, result: {update_response}"
+                        f"new indexing job started, result: {update_response}",
                     )
 
         bound_logger.info(
-            f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break"
+            f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break",
         )
         await asyncio.sleep(_long_break_duration_seconds())
         if number_of_started_jobs > max_jobs_to_start:
             logger.info(
-                f"not starting any more jobs, since we have a {args.max_parallel_offline_jobs} limit set"
+                f"not starting any more jobs, since we have a {args.max_parallel_offline_jobs} limit set",
             )
             break
     if number_of_started_jobs == 0:
@@ -464,10 +453,10 @@ async def _update_jobs(
 
     async with session.get(
         f"{amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
-        + (f"&beamtimeId={beamtime_id}" if beamtime_id is not None else "")
+        + (f"&beamtimeId={beamtime_id}" if beamtime_id is not None else ""),
     ) as response:
         indexing_results = JsonReadIndexingResultsOutput(
-            **await response.json()
+            **await response.json(),
         ).indexing_jobs
 
     for indexing_result in indexing_results:
@@ -495,7 +484,7 @@ async def _update_jobs(
             JobStatus.SUCCESSFUL,
         ):
             bound_logger.info(
-                f"job still running on workload manager, status {workload_job.status}"
+                f"job still running on workload manager, status {workload_job.status}",
             )
             # Running job, let it keep running
             continue
@@ -506,7 +495,7 @@ async def _update_jobs(
         else:
             job_error = f"job has finished on {workload_manager.name()} (status {workload_job.status}), but delivered no results"
             bound_logger.info(
-                f"finished because {workload_manager.name()} job status is {workload_job.status}"
+                f"finished because {workload_manager.name()} job status is {workload_job.status}",
             )
 
         async with session.post(
@@ -551,13 +540,13 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
     logger.info("starting CrystFEL indexing loop")
 
     workload_manager = create_workload_manager(
-        parse_workload_manager_config(args.workload_manager_uri)
+        parse_workload_manager_config(args.workload_manager_uri),
     )
     online_workload_manager = (
         workload_manager
         if args.online_workload_manager_uri is None
         else create_workload_manager(
-            parse_workload_manager_config(args.online_workload_manager_uri)
+            parse_workload_manager_config(args.online_workload_manager_uri),
         )
     )
 

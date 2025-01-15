@@ -192,7 +192,8 @@ async def update_attributi_from_json(
             await session.delete(existing_attributo)
     for new_attributo in new_attributi:
         validation_result = validate_json_attributo_return_error(
-            new_attributo, attributi_by_id[new_attributo.attributo_id]
+            new_attributo,
+            attributi_by_id[new_attributo.attributo_id],
         )
         if validation_result is not None:
             raise HTTPException(
@@ -201,15 +202,15 @@ async def update_attributi_from_json(
             )
         if isinstance(db_item, orm.Run):
             db_item.attributo_values.append(
-                json_attributo_to_run_orm_attributo(new_attributo)
+                json_attributo_to_run_orm_attributo(new_attributo),
             )
         elif isinstance(db_item, orm.Chemical):
             db_item.attributo_values.append(
-                json_attributo_to_chemical_orm_attributo(new_attributo)
+                json_attributo_to_chemical_orm_attributo(new_attributo),
             )
         else:
             db_item.attributo_values.append(
-                json_attributo_to_data_set_orm_attributo(new_attributo)
+                json_attributo_to_data_set_orm_attributo(new_attributo),
             )
 
 
@@ -236,7 +237,7 @@ async def safe_create_new_event(
                 source=source,
                 text=text,
                 created=datetime.datetime.now(datetime.timezone.utc),
-            )
+            ),
         )
     except:
         this_logger.exception("error writing event log")
@@ -357,7 +358,7 @@ def orm_encode_merge_result_to_json(
     mr: orm.MergeResult,
     run_id_formatter: None | Callable[[RunInternalId], int] = None,
 ) -> JsonMergeResult:
-    result = JsonMergeResult(
+    return JsonMergeResult(
         id=mr.id,
         created=datetime_to_attributo_int(mr.created),
         indexing_result_ids=[ir.id for ir in mr.indexing_results],
@@ -487,11 +488,12 @@ def orm_encode_merge_result_to_json(
             for rr in mr.refinement_results
         ],
     )
-    return result
 
 
 async def retrieve_runs_matching_data_set(
-    session: AsyncSession, data_set_id: int, beamtime_id: int
+    session: AsyncSession,
+    data_set_id: int,
+    beamtime_id: int,
 ) -> list[orm.Run]:
     data_set = (
         await session.scalars(select(orm.DataSet).where(orm.DataSet.id == data_set_id))
@@ -507,16 +509,17 @@ async def retrieve_runs_matching_data_set(
     attributi = list(
         (
             await session.scalars(
-                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id)
+                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id),
             )
-        ).all()
+        ).all(),
     )
     attributo_types: dict[AttributoId, AttributoType] = {
         AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
         for a in attributi
     }
     run_attributi_maps: dict[
-        int, dict[AttributoId, None | orm.RunHasAttributoValue]
+        int,
+        dict[AttributoId, None | orm.RunHasAttributoValue],
     ] = {r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in all_runs}
     data_set_attributi_map = {
         dsa.attributo_id: dsa for dsa in data_set.attributo_values
@@ -526,7 +529,9 @@ async def retrieve_runs_matching_data_set(
         for r in all_runs
         if r.experiment_type_id == data_set.experiment_type_id
         and run_matches_dataset(
-            attributo_types, run_attributi_maps[r.id], data_set_attributi_map
+            attributo_types,
+            run_attributi_maps[r.id],
+            data_set_attributi_map,
         )
     ]
 

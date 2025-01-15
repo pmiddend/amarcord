@@ -10,9 +10,9 @@ from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 from time import time
-from typing import Optional
 
 import aiohttp
+import anyio
 import structlog
 from structlog.stdlib import BoundLogger
 from tap import Tap
@@ -59,7 +59,7 @@ def _long_break_duration_seconds() -> float:
 
 def _short_break_duration_seconds() -> float:
     return float(
-        os.environ.get(MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR, "10")
+        os.environ.get(MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR, "10"),
     )
 
 
@@ -68,20 +68,10 @@ _ZOMBIE_TIME_SECONDS = 10
 
 class Arguments(Tap):
     workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
-    output_base_directory: Path  # Where to put the outputs of the jobs started (at DESY, this will be "processed/...")
     amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
-    # pylint: disable=consider-alternative-union-syntax
-    ccp4_path: Optional[  # Path to the ccp4 installation (if available); if this is given, we will use "dimple" and a given .pdb file to try an initial refinement
-        str
-    ] = None
-    # pylint: disable=consider-alternative-union-syntax
-    overwrite_interpreter: Optional[  # Rewrite the first (shebang) line of the indexing script to find the Python interpreter
-        str
-    ] = None
-    # pylint: disable=consider-alternative-union-syntax
-    amarcord_url_for_spawned_job: Optional[  # URL to give to jobs spawned by the daemon in order to contact AMARCORD for updates
-        str
-    ] = None
+    ccp4_path: str | None = None
+    overwrite_interpreter: str | None = None
+    amarcord_url_for_spawned_job: str | None = None
     crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
         Path
     )
@@ -118,7 +108,7 @@ def merge_parameters_to_crystfel_parameters(p: JsonMergeParameters) -> list[str]
     result.append(f"--model={p.merge_model.value}")
     if p.polarisation is not None:
         result.append(
-            f"--polarisation={p.polarisation.angle}deg{p.polarisation.percent}"
+            f"--polarisation={p.polarisation.angle}deg{p.polarisation.percent}",
         )
     if p.max_adu is not None:
         result.append(f"--max-adu={p.max_adu}")
@@ -159,14 +149,14 @@ async def start_merge_job(
     merge_result: JsonMergeJob,
 ) -> MergeJobStartError | MergeJobStartSuccess:
     parent_logger.info(
-        f"starting merge job, indexing results {[ir.id for ir in merge_result.indexing_results]}"
+        f"starting merge job, indexing results {[ir.id for ir in merge_result.indexing_results]}",
     )
 
     stream_files: list[str] = []
     for ir in merge_result.indexing_results:
         if ir.job_status != DBJobStatus.DONE:
             parent_logger.error(
-                f"Indexing result {ir.id} is not finished yet! Status is {ir.job_status}"
+                f"Indexing result {ir.id} is not finished yet! Status is {ir.job_status}",
             )
             return MergeJobStartError(
                 job_error=f"Indexing result {ir.id} is not finished yet! Status is {ir.job_status}",
@@ -217,14 +207,17 @@ async def start_merge_job(
         filename=make_cell_file_name(parsed_cell_description),
     )
     async with session.post(
-        f"{args.amarcord_url}/api/files", data=post_file_data
+        f"{args.amarcord_url}/api/files",
+        data=post_file_data,
     ) as cell_file_response:
         cell_file_id = JsonCreateFileOutput(**(await cell_file_response.json())).id
         parent_logger.info(f"cell file {cell_file_id} created")
 
     try:
-        with Path(inspect.getfile(amarcord.cli.crystfel_merge)).open(
-            "r", encoding="utf-8"
+        async with await anyio.open_file(
+            inspect.getfile(amarcord.cli.crystfel_merge),
+            "r",
+            encoding="utf-8",
         ) as merge_file:
             predefined_args = {
                 "stream-files": stream_files,
@@ -238,7 +231,7 @@ async def start_merge_job(
                 "point-group": merge_result.point_group,
                 "ccp4-path": args.ccp4_path,
                 "partialator-additional": shlex.join(
-                    merge_parameters_to_crystfel_parameters(merge_result.parameters)
+                    merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),
                 "crystfel-path": str(args.crystfel_path),
                 "pdb-file-id": pdb_file_id,
@@ -247,24 +240,27 @@ async def start_merge_job(
             }
             parent_logger.info(
                 "command line for this job is "
-                + " ".join(f"{k}={v}" for k, v in predefined_args.items())
+                + " ".join(f"{k}={v}" for k, v in predefined_args.items()),
             )
             predefined_args_b64 = b64encode(
-                json.dumps(predefined_args, allow_nan=False).encode("utf-8")
+                json.dumps(predefined_args, allow_nan=False).encode("utf-8"),
             ).decode("utf-8")
-            merge_file_contents = merge_file.read().replace(
+            merge_file_contents = (await merge_file.read()).replace(
                 "predefined_args: None | bytes = None",
                 f'predefined_args = "{predefined_args_b64}"',
             )
             if args.overwrite_interpreter is not None:
                 merge_file_contents = overwrite_interpreter(
-                    merge_file_contents, args.overwrite_interpreter
+                    merge_file_contents,
+                    args.overwrite_interpreter,
                 )
             beamtime = merge_result.indexing_results[0].beamtime
-            job_base_directory = determine_output_directory(
-                beamtime,
-                args.output_base_directory,
-                {},
+            job_base_directory = (
+                determine_output_directory(
+                    beamtime,
+                    {},
+                )
+                / "merge-results"
             )
             job_start_result = await workload_manager.start_job(
                 working_directory=job_base_directory,
@@ -285,7 +281,8 @@ async def start_merge_job(
     except JobStartError as e:
         logger.error(f"job start errored: {e}")
         return MergeJobStartError(
-            job_error=e.message, time=datetime.datetime.now(datetime.timezone.utc)
+            job_error=e.message,
+            time=datetime.datetime.now(datetime.timezone.utc),
         )
 
 
@@ -295,14 +292,18 @@ async def _start_new_jobs(
     args: Arguments,
 ) -> None:
     async with session.get(
-        f"{args.amarcord_url}/api/merging?status={DBJobStatus.QUEUED.value}"
+        f"{args.amarcord_url}/api/merging?status={DBJobStatus.QUEUED.value}",
     ) as response:
         merge_results = JsonReadMergeResultsOutput(**await response.json()).merge_jobs
 
     for merge_result in merge_results:
         bound_logger = logger.bind(merge_result_id=merge_result.id)
         start_result = await start_merge_job(
-            session, bound_logger, workload_manager, args, merge_result
+            session,
+            bound_logger,
+            workload_manager,
+            args,
+            merge_result,
         )
 
         if isinstance(start_result, MergeJobStartSuccess):
@@ -315,30 +316,31 @@ async def _start_new_jobs(
             ) as start_response:
                 if start_response.status // 200 != 1:
                     bound_logger.error(
-                        f"error starting merge job: {start_response.status}"
+                        f"error starting merge job: {start_response.status}",
                     )
                 else:
                     bound_logger.info(
-                        f"new merge job started request sent, result: {start_response}"
+                        f"new merge job started request sent, result: {start_response}",
                     )
         else:
             async with session.post(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
-                    error=start_result.job_error, result=None
+                    error=start_result.job_error,
+                    result=None,
                 ).dict(),
             ) as update_response:
                 if update_response.status // 200 != 1:
                     bound_logger.error(
-                        f"merge job finished erroneously: {update_response.status}"
+                        f"merge job finished erroneously: {update_response.status}",
                     )
                 else:
                     bound_logger.info(
-                        f"merge job finished with error sent, result: {update_response}"
+                        f"merge job finished with error sent, result: {update_response}",
                     )
 
         bound_logger.info(
-            f"new merge job submitted, taking a {_long_break_duration_seconds()}s break"
+            f"new merge job submitted, taking a {_long_break_duration_seconds()}s break",
         )
         await asyncio.sleep(_long_break_duration_seconds())
 
@@ -350,7 +352,7 @@ async def _update_jobs(
     zombie_job_times: dict[int, float],
 ) -> None:
     async with session.get(
-        f"{args.amarcord_url}/api/merging?status={DBJobStatus.RUNNING.value}"
+        f"{args.amarcord_url}/api/merging?status={DBJobStatus.RUNNING.value}",
     ) as response:
         merge_results = JsonReadMergeResultsOutput(**await response.json()).merge_jobs
 
@@ -360,7 +362,8 @@ async def _update_jobs(
         assert merge_result.job_id is not None
 
         bound_logger = logger.bind(
-            merge_job_id=merge_result.job_id, merge_result_id=merge_result.id
+            merge_job_id=merge_result.job_id,
+            merge_result_id=merge_result.id,
         )
 
         workload_job = jobs_on_workload_manager.get(merge_result.job_id)
@@ -380,7 +383,7 @@ async def _update_jobs(
         time_diff_s = time() - job_first_seen
         if time_diff_s < _ZOMBIE_TIME_SECONDS:
             bound_logger.info(
-                f"job is zombie for {time_diff_s}s, waiting {_ZOMBIE_TIME_SECONDS} to declare this thing done"
+                f"job is zombie for {time_diff_s}s, waiting {_ZOMBIE_TIME_SECONDS} to declare this thing done",
             )
             continue
 
@@ -390,7 +393,7 @@ async def _update_jobs(
         else:
             job_error = f"Job has finished on SLURM (status {workload_job.status.value}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
             bound_logger.info(
-                f"finished because SLURM REST job status is {workload_job.status.value}"
+                f"finished because SLURM REST job status is {workload_job.status.value}",
             )
 
         async with session.post(
@@ -399,7 +402,7 @@ async def _update_jobs(
         ) as finish_request:
             if finish_request.status // 200 != 1:
                 bound_logger.info(
-                    f"sent request to finish with error, failed: {finish_request.status}"
+                    f"sent request to finish with error, failed: {finish_request.status}",
                 )
             else:
                 bound_logger.error("sent request to finish with error")
@@ -428,7 +431,7 @@ async def merging_loop_iteration(
 async def _merging_loop(args: Arguments) -> None:  # pragma: no cover
     logger.info("starting CrystFEL merging loop")
     workload_manager = create_workload_manager(
-        parse_workload_manager_config(args.workload_manager_uri)
+        parse_workload_manager_config(args.workload_manager_uri),
     )
     # Why this? Well, uvicorn keeps closing the connection, although
     # we'd like to Keep-Alive it. See
@@ -441,7 +444,10 @@ async def _merging_loop(args: Arguments) -> None:  # pragma: no cover
     async with aiohttp.ClientSession(connector=connector) as session:
         while True:
             await merging_loop_iteration(
-                session, workload_manager, args, zombie_job_times
+                session,
+                workload_manager,
+                args,
+                zombie_job_times,
             )
 
 

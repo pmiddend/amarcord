@@ -53,7 +53,7 @@ async def create_file(
     file: UploadFile,
     description: Annotated[str, Form()],
     deduplicate: Annotated[str, Form()],
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateFileOutput:
     async with session.begin():
         file_name = file.filename if file.filename is not None else "nofilename"
@@ -68,8 +68,8 @@ async def create_file(
                     await session.scalars(
                         select(orm.File).where(
                             (orm.File.sha256 == sha256)
-                            & (orm.File.file_name == file_name)
-                        )
+                            & (orm.File.file_name == file_name),
+                        ),
                     )
                 ).first()
                 if existing_file:
@@ -114,7 +114,9 @@ async def create_file(
     response_model_exclude_defaults=True,
 )
 async def create_file_simple(
-    extension: str, request: Request, session: AsyncSession = Depends(get_orm_db)
+    extension: str,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateFileOutput:
     async with session.begin():
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
@@ -127,7 +129,9 @@ async def create_file_simple(
             file_name = f"{uuid.uuid4()}.{extension}"
 
             new_file = create_file_in_db(
-                temp_file, external_file_name=file_name, description=""
+                temp_file,
+                external_file_name=file_name,
+                description="",
             )
             session.add(new_file)
             await session.commit()
@@ -149,14 +153,15 @@ async def create_file_simple(
     response_model_exclude_defaults=True,
 )
 async def create_live_stream_snapshot(
-    beamtimeId: int, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateLiveStreamSnapshotOutput:
     async with session.begin():
         existing_live_stream = (
             await session.scalars(
                 select(orm.File).where(
-                    orm.File.file_name == live_stream_image_name(beamtimeId)
-                )
+                    orm.File.file_name == live_stream_image_name(beamtimeId),
+                ),
             )
         ).one()
         new_file_name = live_stream_image_name(beamtimeId) + "-copy"
@@ -177,7 +182,9 @@ async def create_live_stream_snapshot(
 
 @router.post("/api/live-stream/{beamtimeId}", response_model_exclude_defaults=True)
 async def update_live_stream(
-    file: UploadFile, beamtimeId: int, session: AsyncSession = Depends(get_orm_db)
+    file: UploadFile,
+    beamtimeId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateLiveStream:
     async with session.begin():
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
@@ -191,8 +198,8 @@ async def update_live_stream(
             existing_live_stream = (
                 await session.scalars(
                     select(orm.File).where(
-                        orm.File.file_name == live_stream_image_name(beamtimeId)
-                    )
+                        orm.File.file_name == live_stream_image_name(beamtimeId),
+                    ),
                 )
             ).one_or_none()
 
@@ -202,7 +209,9 @@ async def update_live_stream(
                 db_file = existing_live_stream
             else:
                 db_file = create_file_in_db(
-                    temp_file, image_file_name, "Live stream image"
+                    temp_file,
+                    image_file_name,
+                    "Live stream image",
                 )
                 session.add(db_file)
             await session.commit()
@@ -211,7 +220,8 @@ async def update_live_stream(
 
 @router.delete("/api/files", tags=["files"], response_model_exclude_defaults=True)
 async def delete_file(
-    input_: JsonDeleteFileInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonDeleteFileInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteFileOutput:
     async with session.begin():
         await session.execute(delete(orm.File).where(orm.File.id == input_.id))
@@ -231,9 +241,9 @@ def _do_content_disposition(mime_type: str, extension: str) -> bool:
 # This isn't really something the user should call. Rather, it's used in hyperlinks, so we don't include it in the schema.
 @router.get("/api/files/{fileId}", tags=["files"], include_in_schema=False)
 async def read_file(
-    fileId: int,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+    fileId: int,  # noqa: N803
     suggested_name: None | str = None,
-    session: AsyncSession = Depends(get_orm_db),
 ) -> StreamingResponse:
     file_ = (
         await session.scalars(select(orm.File).where(orm.File.id == fileId))
@@ -255,7 +265,7 @@ async def read_file(
         media_type=file_.type,
         headers=(
             {
-                "Content-Disposition": f'attachment; filename="{file_.file_name if suggested_name is None else suggested_name}"'
+                "Content-Disposition": f'attachment; filename="{file_.file_name if suggested_name is None else suggested_name}"',
             }
             if _do_content_disposition(file_.type, Path(file_.file_name).suffix[1:])
             else {}

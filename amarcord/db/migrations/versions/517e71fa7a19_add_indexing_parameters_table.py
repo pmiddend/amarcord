@@ -1123,8 +1123,8 @@ def upgrade() -> None:
     # We used to store raw file paths in an attributo instead of in a seprate table. Revert that here.
     connection.execute(
         delete(ATTRIBUTO_TABLE).where(
-            ATTRIBUTO_TABLE.c.name.in_(("raw_files", "raw_file_path"))
-        )
+            ATTRIBUTO_TABLE.c.name.in_(("raw_files", "raw_file_path")),
+        ),
     )
 
     for beamtime_id, run_external_id, started, run_internal_id in connection.execute(
@@ -1133,12 +1133,12 @@ def upgrade() -> None:
             RUN_TABLE.c.external_id,
             RUN_TABLE.c.started,
             RUN_TABLE.c.id,
-        )
+        ),
     ).fetchall():  # pragma: no cover
         beamtime = connection.execute(
             select(BEAMTIME_TABLE.c.external_id).where(
-                BEAMTIME_TABLE.c.id == beamtime_id
-            )
+                BEAMTIME_TABLE.c.id == beamtime_id,
+            ),
         ).fetchall()[0]
         beamtime_year = started.year
         if beamtime_id in (110, 111, 112):
@@ -1149,7 +1149,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         elif beamtime_id == 113:
             run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/{run_external_id}_master.nx5"
@@ -1158,7 +1158,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         elif beamtime_id == 114:
             run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/{run_external_id}_master.nx5"
@@ -1167,7 +1167,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         elif beamtime_id == 115:
             # This we just add as a test for the "source" parameter
@@ -1190,7 +1190,7 @@ def upgrade() -> None:
                         "run_id": run_internal_id,
                         "source": "raw",
                         "glob": f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/{run_external_id}_master.nx5",
-                    }
+                    },
                 ]
         elif beamtime_id == 116:
             run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5"
@@ -1199,7 +1199,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         elif beamtime_id in (120, 122):
             run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5"
@@ -1208,7 +1208,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         elif beamtime_id == 121:
             if run_external_id <= 7:
@@ -1221,7 +1221,7 @@ def upgrade() -> None:
                     "run_id": run_internal_id,
                     "source": "raw",
                     "glob": run_glob,
-                }
+                },
             ]
         else:
             beamtime_year = started.year
@@ -1231,7 +1231,7 @@ def upgrade() -> None:
             if beamtime_id == 119:
                 continue
             raise Exception(
-                f"{beamtime_id=}, {run_external_id=}, {started=}, {run_internal_id=} has no match"
+                f"{beamtime_id=}, {run_external_id=}, {started=}, {run_internal_id=} has no match",
             )
         connection.execute(RUN_HAS_FILES_TABLE.insert().values(values))  # type: ignore
 
@@ -1276,7 +1276,7 @@ def upgrade() -> None:
                     name="user_configuration_has_indexing_parameters",
                 ),
                 nullable=True,
-            )
+            ),
         )
 
     with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
@@ -1290,14 +1290,14 @@ def upgrade() -> None:
                     name="indexing_result_has_indexing_parameters",
                 ),
                 nullable=True,
-            )
+            ),
         )
         batch_op.add_column(sa.Column("geometry_file", sa.Text))
         batch_op.add_column(sa.Column("generated_geometry_file", sa.Text))
         batch_op.add_column(sa.Column("program_version", sa.String(length=255)))
         batch_op.add_column(sa.Column("geometry_hash", sa.String(length=255)))
         batch_op.add_column(
-            sa.Column("job_latest_log", sa.Text().with_variant(LONGTEXT, "mysql"))
+            sa.Column("job_latest_log", sa.Text().with_variant(LONGTEXT, "mysql")),
         )
         batch_op.add_column(sa.Column("job_started", sa.DateTime))
         batch_op.alter_column(
@@ -1318,7 +1318,7 @@ def upgrade() -> None:
                     name="indexing_result_unit_cell_histogram",
                 ),
                 nullable=True,
-            )
+            ),
         )
 
     # strange outliers
@@ -1339,21 +1339,21 @@ def upgrade() -> None:
         connection.execute(
             INDEXING_RESULT_TABLE.update()
             .where(INDEXING_RESULT_TABLE.c.id == ir_id)
-            .values({"job_error": "unknown error"})
+            .values({"job_error": "unknown error"}),
         )
     connection.execute(
         INDEXING_RESULT_TABLE.update()
         .where(INDEXING_RESULT_TABLE.c.stream_file.like("%11015449%"))
-        .values({"job_error": "not restaged yet"})
+        .values({"job_error": "not restaged yet"}),
     )
     # mock test beamtime
     connection.execute(
         INDEXING_RESULT_TABLE.update()
         .where(
             (INDEXING_RESULT_TABLE.c.run_id >= 13058)
-            & (INDEXING_RESULT_TABLE.c.run_id <= 13188)
+            & (INDEXING_RESULT_TABLE.c.run_id <= 13188),
         )
-        .values({"job_error": "unknown error"})
+        .values({"job_error": "unknown error"}),
     )
 
     for indexing_result_id, run_id, cell_description, job_error in connection.execute(
@@ -1362,7 +1362,7 @@ def upgrade() -> None:
             INDEXING_RESULT_TABLE.c.run_id,
             INDEXING_RESULT_TABLE.c.cell_description,
             INDEXING_RESULT_TABLE.c.job_error,
-        )
+        ),
     ).fetchall():  # pragma: no cover
         corresponding_parameters = None
         for run_with_parameters in RUN_RANGES_WITH_PARAMETERS:
@@ -1376,7 +1376,7 @@ def upgrade() -> None:
         if corresponding_parameters is None:
             if not job_error:
                 raise Exception(
-                    f"cannot find parameters for indexing result ID {indexing_result_id}, run {run_id} (and job error is empty)"
+                    f"cannot find parameters for indexing result ID {indexing_result_id}, run {run_id} (and job error is empty)",
                 )
             corresponding_parameters = {
                 "command_line": "",
@@ -1393,8 +1393,8 @@ def upgrade() -> None:
                     "command_line": corresponding_parameters["command_line"],
                     "geometry_file": corresponding_parameters["geometry_file"],
                     "source": "raw",
-                }
-            )
+                },
+            ),
         )
         # For some reason, at least for sqlite, this doesn't work. It returns an empty tuple.
         # online_parameters_id: int = prior_parameters_insert.inserted_primary_key[0]
@@ -1426,21 +1426,23 @@ def upgrade() -> None:
                         "hits": run_foms["hits"],
                         "indexed_frames": run_foms["indexed"],
                     }
-                )
-            )
+                ),
+            ),
         )
 
     for ir_id, indexing_parameters_id in connection.execute(
         select(
             INDEXING_RESULT_TABLE.c.id,
             INDEXING_RESULT_TABLE.c.indexing_parameters_id,
-        )
+        ),
     ).fetchall():
         assert indexing_parameters_id is not None, f"IR {ir_id} has no parameters yet"
 
     with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
         batch_op.alter_column(
-            "indexing_parameters_id", existing_type=sa.Integer, nullable=False
+            "indexing_parameters_id",
+            existing_type=sa.Integer,
+            nullable=False,
         )
         batch_op.drop_constraint("indexing_result_has_chemical_fk", "foreignkey")
         for col in (

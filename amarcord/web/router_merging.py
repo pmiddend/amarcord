@@ -1,4 +1,5 @@
 import datetime
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter
@@ -42,16 +43,16 @@ router = APIRouter()
     response_model_exclude_defaults=True,
 )
 async def merge_job_started(
-    mergeResultId: int,
+    mergeResultId: int,  # noqa: N803
     json_result: JsonMergeJobStartedInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonMergeJobStartedOutput:
     job_logger = logger.bind(merge_result_id=mergeResultId)
 
     async with session.begin():
         merge_result = (
             await session.scalars(
-                select(orm.MergeResult).where(orm.MergeResult.id == mergeResultId)
+                select(orm.MergeResult).where(orm.MergeResult.id == mergeResultId),
             )
         ).one()
         merge_result.job_id = json_result.job_id
@@ -60,7 +61,7 @@ async def merge_job_started(
         job_logger.info(f"merge result now has job id {json_result.job_id}, is running")
         await session.commit()
     return JsonMergeJobStartedOutput(
-        time=datetime_to_attributo_int(datetime.datetime.now(datetime.timezone.utc))
+        time=datetime_to_attributo_int(datetime.datetime.now(datetime.timezone.utc)),
     )
 
 
@@ -70,9 +71,9 @@ async def merge_job_started(
     response_model_exclude_defaults=True,
 )
 async def merge_job_finished(
-    mergeResultId: int,
+    mergeResultId: int,  # noqa: N803
     json_result: JsonMergeJobFinishedInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonMergeJobFinishOutput:
     job_logger = logger.bind(merge_result_id=mergeResultId)
 
@@ -85,10 +86,10 @@ async def merge_job_finished(
                 .where(orm.MergeResult.id == mergeResultId)
                 .options(
                     selectinload(orm.MergeResult.indexing_results).selectinload(
-                        orm.IndexingResult.run
-                    )
+                        orm.IndexingResult.run,
+                    ),
                 )
-                .options(selectinload(orm.MergeResult.refinement_results))
+                .options(selectinload(orm.MergeResult.refinement_results)),
             )
         ).one_or_none()
 
@@ -98,7 +99,7 @@ async def merge_job_finished(
 
         if current_merge_result_status.stopped is not None:
             job_logger.warning(
-                "merge result has a stopped date already; this might be fine though"
+                "merge result has a stopped date already; this might be fine though",
             )
             recent_log = ""
         else:
@@ -197,7 +198,7 @@ async def merge_job_finished(
                     redundancy=shell.redundancy,
                     snr=shell.snr,
                     mean_i=shell.mean_i,
-                )
+                ),
             )
 
         for rr in json_result.result.refinement_results:
@@ -210,7 +211,7 @@ async def merge_job_finished(
                     r_work=rr.r_work,
                     rms_bond_angle=rr.rms_bond_angle,
                     rms_bond_length=rr.rms_bond_length,
-                )
+                ),
             )
         return JsonMergeJobFinishOutput(result=True)
 
@@ -227,25 +228,20 @@ async def determine_point_group_from_indexing_results(
                 ir.run_id for ir in indexing_results_matching_params
             )
         )
-        & (orm.RunHasAttributoValue.chemical_value.is_not(None))
+        & (orm.RunHasAttributoValue.chemical_value.is_not(None)),
     )
     # attributi, plural, but there should be only one since names are hopefully unique
     point_group_chemical_attributi = (
         select(orm.Attributo.id)
         .where(
             (orm.Attributo.name == POINT_GROUP_ATTRIBUTO)
-            & (orm.Attributo.beamtime_id == beamtime_id)
+            & (orm.Attributo.beamtime_id == beamtime_id),
         )
         .scalar_subquery()
     )
     select_all_point_groups = select(orm.ChemicalHasAttributoValue.string_value).where(
-        (
-            (
-                orm.ChemicalHasAttributoValue.attributo_id
-                == point_group_chemical_attributi
-            )
-            & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs))
-        )
+        (orm.ChemicalHasAttributoValue.attributo_id == point_group_chemical_attributi)
+        & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs)),
     )
     point_groups = set(
         s.strip()
@@ -279,7 +275,7 @@ async def determine_point_group_from_indexing_results(
 )
 async def queue_merge_job(
     input_: JsonQueueMergeJobInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonQueueMergeJobOutput:
     logger.info("start creating merge result")
     async with session.begin():
@@ -293,7 +289,7 @@ async def queue_merge_job(
         merge_params = input_.merge_parameters
         data_set = (
             await session.scalars(
-                select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id)
+                select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id),
             )
         ).one_or_none()
         if data_set is None:
@@ -303,7 +299,9 @@ async def queue_merge_job(
             )
         beamtime_id = (await data_set.awaitable_attrs.experiment_type).beamtime_id
         runs_matching_ds = await retrieve_runs_matching_data_set(
-            session, input_.data_set_id, beamtime_id
+            session,
+            input_.data_set_id,
+            beamtime_id,
         )
         if not runs_matching_ds:
             raise HTTPException(
@@ -313,8 +311,8 @@ async def queue_merge_job(
         indexing_parameters = (
             await session.scalars(
                 select(orm.IndexingParameters).where(
-                    orm.IndexingParameters.id == input_.indexing_parameters_id
-                )
+                    orm.IndexingParameters.id == input_.indexing_parameters_id,
+                ),
             )
         ).one_or_none()
         if indexing_parameters is None:
@@ -327,10 +325,11 @@ async def queue_merge_job(
             for ir in await session.scalars(
                 select(orm.IndexingResult)
                 .where(orm.IndexingResult.run_id.in_(r.id for r in runs_matching_ds))
-                .options(selectinload(orm.IndexingResult.indexing_parameters))
+                .options(selectinload(orm.IndexingResult.indexing_parameters)),
             )
             if orm.are_indexing_parameters_equal(
-                ir.indexing_parameters, indexing_parameters
+                ir.indexing_parameters,
+                indexing_parameters,
             )
             and ir.job_status == DBJobStatus.DONE
             and ir.job_error is None
@@ -347,7 +346,9 @@ async def queue_merge_job(
             point_group = input_.merge_parameters.point_group
         else:
             point_group = await determine_point_group_from_indexing_results(
-                session, beamtime_id, indexing_results_matching_params
+                session,
+                beamtime_id,
+                indexing_results_matching_params,
             )
         # The cell description is easier to get than the point group,
         # since it's already in the indexing parameters, and all of
@@ -375,7 +376,7 @@ async def queue_merge_job(
         polarisation = merge_params.polarisation
         logger.info(
             "all checks passed, creating new merge result with indexing results "
-            + ", ".join(str(ir.id) for ir in indexing_results_matching_params)
+            + ", ".join(str(ir.id) for ir in indexing_results_matching_params),
         )
         new_merge_result = orm.MergeResult(
             created=datetime.datetime.now(datetime.timezone.utc),
@@ -429,7 +430,8 @@ async def queue_merge_job(
 
 
 async def _read_files_from_indexing_in_merge_result(
-    session: AsyncSession, mr: orm.MergeResult
+    session: AsyncSession,
+    mr: orm.MergeResult,
 ) -> list[orm.File]:
     result: list[orm.File] = []
     for indexing_result in mr.indexing_results:
@@ -439,7 +441,7 @@ async def _read_files_from_indexing_in_merge_result(
 
         if isinstance(indexing_metadata, str):
             raise Exception(
-                f"couldn't get indexing metadata for merge result {mr.id}, run {run.id} (external ID {run.external_id}): {indexing_metadata}"
+                f"couldn't get indexing metadata for merge result {mr.id}, run {run.id} (external ID {run.external_id}): {indexing_metadata}",
             )
 
         result.extend(await indexing_metadata.chemical.awaitable_attrs.files)
@@ -452,8 +454,8 @@ async def _read_files_from_indexing_in_merge_result(
     response_model_exclude_defaults=True,
 )
 async def read_merge_jobs(
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
     status: None | DBJobStatus = None,
-    session: AsyncSession = Depends(get_orm_db),
 ) -> JsonReadMergeResultsOutput:
     async def encode_single_merge_job(mr: orm.MergeResult) -> JsonMergeJob:
         assert mr.indexing_results
@@ -478,7 +480,7 @@ async def read_merge_jobs(
             ],
         )
 
-    result = JsonReadMergeResultsOutput(
+    return JsonReadMergeResultsOutput(
         merge_jobs=[
             await encode_single_merge_job(mr)
             for mr in await session.scalars(
@@ -486,25 +488,24 @@ async def read_merge_jobs(
                 .options(
                     selectinload(orm.MergeResult.indexing_results)
                     .selectinload(orm.IndexingResult.run)
-                    .selectinload(orm.Run.beamtime)
+                    .selectinload(orm.Run.beamtime),
                 )
                 .options(
                     selectinload(orm.MergeResult.indexing_results).selectinload(
-                        orm.IndexingResult.indexing_parameters
-                    )
+                        orm.IndexingResult.indexing_parameters,
+                    ),
                 )
                 .options(
                     selectinload(orm.MergeResult.indexing_results)
                     .selectinload(orm.IndexingResult.run)
                     .selectinload(orm.Run.attributo_values)
-                    .selectinload(orm.RunHasAttributoValue.attributo)
+                    .selectinload(orm.RunHasAttributoValue.attributo),
                 )
                 .where(
                     orm.MergeResult.job_status == status
                     if status is not None
-                    else true()
-                )
+                    else true(),
+                ),
             )
-        ]
+        ],
     )
-    return result

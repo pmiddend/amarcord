@@ -2,6 +2,7 @@ import datetime
 import os
 import re
 from dataclasses import dataclass
+from typing import Annotated
 from typing import Any
 from typing import Iterable
 from typing import Mapping
@@ -86,7 +87,8 @@ _SHIFT_RE = re.compile(r"(\d{2}):(\d{2})-(\d{2}):(\d{2})")
 
 
 def extract_runs_and_event_dates(
-    runs: Iterable[orm.Run], events: Iterable[orm.EventLog]
+    runs: Iterable[orm.Run],
+    events: Iterable[orm.EventLog],
 ) -> list[str]:
     set_of_dates: set[str] = set()
     for run in runs:
@@ -122,16 +124,17 @@ def indexing_fom_for_run(
     response_model_exclude_defaults=True,
 )
 async def start_run(
-    runExternalId: RunExternalId,
-    beamtimeId: BeamtimeId,
-    session: AsyncSession = Depends(get_orm_db),
+    runExternalId: RunExternalId,  # noqa: N803
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonStartRunOutput:
     async with session.begin():
         latest_config = await retrieve_latest_config(session, beamtimeId)
         experiment_type_id = latest_config.current_experiment_type_id
         if experiment_type_id is None:
             raise HTTPException(
-                status_code=400, detail="Cannot create run, no experiment type set!"
+                status_code=400,
+                detail="Cannot create run, no experiment type set!",
             )
         new_run = orm.Run(
             external_id=runExternalId,
@@ -149,7 +152,7 @@ async def start_run(
                         await latest_run_attributo.awaitable_attrs.attributo
                     ).group == ATTRIBUTO_GROUP_MANUAL:
                         new_run.attributo_values.append(
-                            duplicate_run_attributo(latest_run_attributo)
+                            duplicate_run_attributo(latest_run_attributo),
                         )
         session.add(new_run)
         await session.flush()
@@ -162,7 +165,8 @@ async def start_run(
     response_model_exclude_defaults=True,
 )
 async def stop_latest_run(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonStopRunOutput:
     async with session.begin():
         latest_run = await retrieve_latest_run(session, beamtimeId)
@@ -176,12 +180,14 @@ async def stop_latest_run(
 
 
 @router.post(
-    "/api/runs/{runExternalId}", tags=["runs"], response_model_exclude_defaults=True
+    "/api/runs/{runExternalId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
 )
 async def create_or_update_run(
-    runExternalId: RunExternalId,
+    runExternalId: RunExternalId,  # noqa: N803
     input_: JsonCreateOrUpdateRun,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateOrUpdateRunOutput:
     beamtime_id = input_.beamtime_id
     run_logger = logger.bind(run_external_id=runExternalId, beamtime_id=beamtime_id)
@@ -190,21 +196,22 @@ async def create_or_update_run(
     async with session.begin():
         latest_config = await retrieve_latest_config(session, beamtime_id)
         run_logger.info(
-            f"retrieved latest user config: {latest_config.use_online_crystfel}"
+            f"retrieved latest user config: {latest_config.use_online_crystfel}",
         )
         experiment_type_id = latest_config.current_experiment_type_id
         if experiment_type_id is None:
             run_logger.error("no experiment type set, cannot create run")
             raise HTTPException(
-                status_code=400, detail="Cannot create run, no experiment type set!"
+                status_code=400,
+                detail="Cannot create run, no experiment type set!",
             )
         run_logger.info(f"experiment type set to {experiment_type_id}")
         run_in_db = (
             await session.scalars(
                 select(orm.Run).where(
                     (orm.Run.external_id == runExternalId)
-                    & (orm.Run.beamtime_id == beamtime_id)
-                )
+                    & (orm.Run.beamtime_id == beamtime_id),
+                ),
             )
         ).one_or_none()
         run_was_created = run_in_db is None
@@ -235,8 +242,8 @@ async def create_or_update_run(
                                 input_attributo.attributo_id
                                 for input_attributo in input_.attributi
                             )
-                            & (orm.Attributo.associated_table == AssociatedTable.RUN)
-                        )
+                            & (orm.Attributo.associated_table == AssociatedTable.RUN),
+                        ),
                     )
                 )
             }
@@ -249,10 +256,11 @@ async def create_or_update_run(
                         detail=f"attributo with ID {new_attributo.attributo_id} not found in list of run attributi",
                     )
                 validation_result = validate_json_attributo_return_error(
-                    new_attributo, attributo_type
+                    new_attributo,
+                    attributo_type,
                 )
                 run_logger.info(
-                    f"validating type of {new_attributo.attributo_id}: type is {attributo_type.json_schema}: {validation_result}"
+                    f"validating type of {new_attributo.attributo_id}: type is {attributo_type.json_schema}: {validation_result}",
                 )
                 if validation_result is not None:
                     raise HTTPException(
@@ -260,7 +268,7 @@ async def create_or_update_run(
                         detail=f"error validating attributi: {validation_result}",
                     )
                 run_in_db.attributo_values.append(
-                    json_attributo_to_run_orm_attributo(new_attributo)
+                    json_attributo_to_run_orm_attributo(new_attributo),
                 )
                 attributo_ids_already_in_run.add(new_attributo.attributo_id)
             if latest_config.auto_pilot:
@@ -276,7 +284,7 @@ async def create_or_update_run(
                             == ATTRIBUTO_GROUP_MANUAL
                         ):
                             run_in_db.attributo_values.append(
-                                duplicate_run_attributo(latest_run_attributo)
+                                duplicate_run_attributo(latest_run_attributo),
                             )
             # For now, let's say files can only be added when creating the run, and only here.
             # This will have to change later though.
@@ -303,8 +311,8 @@ async def create_or_update_run(
                                 & (
                                     orm.Attributo.associated_table
                                     == AssociatedTable.RUN
-                                )
-                            )
+                                ),
+                            ),
                         )
                     )
                 },
@@ -330,14 +338,15 @@ async def create_or_update_run(
             indexing_result_id = None
         elif not latest_config.use_online_crystfel:
             run_logger.info(
-                "CrystFEL online deactivated (or never explicitly activated), not creating indexing job"
+                "CrystFEL online deactivated (or never explicitly activated), not creating indexing job",
             )
             indexing_result_id = None
         else:
             run_logger.info("adding CrystFEL online job")
 
             run_indexing_metadata = await determine_run_indexing_metadata(
-                session, run_in_db
+                session,
+                run_in_db,
             )
 
             if isinstance(run_indexing_metadata, str):
@@ -349,7 +358,7 @@ async def create_or_update_run(
                 )
 
             run_logger.info(
-                f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}"
+                f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}",
             )
             latest_user_config = await retrieve_latest_config(session, beamtime_id)
             current_online_indexing_parameters = await latest_user_config.awaitable_attrs.current_online_indexing_parameters
@@ -412,7 +421,8 @@ async def create_or_update_run(
 
 @router.patch("/api/runs", tags=["runs"], response_model_exclude_defaults=True)
 async def update_run(
-    input_: JsonUpdateRun, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateRun,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateRunOutput:
     async with session.begin():
         run_id = RunInternalId(input_.id)
@@ -431,8 +441,8 @@ async def update_run(
                             orm.Attributo.id.in_(
                                 a.attributo_id for a in input_.attributi
                             )
-                            & (orm.Attributo.associated_table == AssociatedTable.RUN)
-                        )
+                            & (orm.Attributo.associated_table == AssociatedTable.RUN),
+                        ),
                     )
                 )
             },
@@ -444,7 +454,8 @@ async def update_run(
 
 
 def encode_attributo_value(
-    attributo_id: int, attributo_value: AttributoValue
+    attributo_id: int,
+    attributo_value: AttributoValue,
 ) -> JsonAttributoValue:
     return JsonAttributoValue(
         attributo_id=attributo_id,
@@ -470,7 +481,7 @@ def encode_attributo_value(
         attributo_value_list_float=(  # pyright: ignore
             attributo_value
             if isinstance(attributo_value, list)
-            and (not attributo_value or isinstance(attributo_value[0], (int, float)))
+            and (not attributo_value or isinstance(attributo_value[0], float | int))
             else None
         ),
         attributo_value_list_bool=(  # pyright: ignore
@@ -506,7 +517,8 @@ def _to_dataclass(o: orm.RunHasAttributoValue) -> _RunHasAttributoValueToBeUsedI
 
 
 def _encode_dataclass(
-    id_: AttributoId, r: _RunHasAttributoValueToBeUsedInSet
+    id_: AttributoId,
+    r: _RunHasAttributoValueToBeUsedInSet,
 ) -> JsonAttributoValue:
     return JsonAttributoValue(
         attributo_id=id_,
@@ -525,7 +537,7 @@ def _encode_dataclass(
         ),
         attributo_value_list_float=(
             r.list_value
-            if r.list_value and isinstance(r.list_value[0], (float, int))
+            if r.list_value and isinstance(r.list_value[0], float | int)
             else None
         ),
         attributo_value_list_bool=(
@@ -536,7 +548,8 @@ def _encode_dataclass(
 
 @router.post("/api/runs-bulk", tags=["runs"], response_model_exclude_defaults=True)
 async def read_runs_bulk(
-    input_: JsonReadRunsBulkInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonReadRunsBulkInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadRunsBulkOutput:
     beamtime_id = input_.beamtime_id
     attributi = list(
@@ -544,15 +557,15 @@ async def read_runs_bulk(
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtime_id)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
     chemicals = (
         await session.scalars(
             select(orm.Chemical)
             .where(orm.Chemical.beamtime_id == beamtime_id)
-            .options(selectinload(orm.Chemical.files))
+            .options(selectinload(orm.Chemical.files)),
         )
     ).all()
     all_runs = (
@@ -561,8 +574,8 @@ async def read_runs_bulk(
                 # Important! Since we're using the external run ID for this request, we need to constrain the
                 # beamtime ID here, since two beamtimes will surely have overlapping run IDs
                 (orm.Run.external_id.in_(input_.external_run_ids))
-                & (orm.Run.beamtime_id == beamtime_id)
-            )
+                & (orm.Run.beamtime_id == beamtime_id),
+            ),
         )
     ).all()
     bulk_attributi: dict[AttributoId, set[_RunHasAttributoValueToBeUsedInSet]] = {
@@ -590,8 +603,8 @@ async def read_runs_bulk(
             for a in (
                 await session.scalars(
                     select(orm.ExperimentType).where(
-                        orm.ExperimentType.beamtime_id == beamtime_id
-                    )
+                        orm.ExperimentType.beamtime_id == beamtime_id,
+                    ),
                 )
             ).all()
         ],
@@ -601,14 +614,15 @@ async def read_runs_bulk(
 
 @router.patch("/api/runs-bulk", tags=["runs"], response_model_exclude_defaults=True)
 async def update_runs_bulk(
-    input_: JsonUpdateRunsBulkInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateRunsBulkInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateRunsBulkOutput:
     async with session.begin():
         for run in await session.scalars(
             select(orm.Run).where(
                 (orm.Run.beamtime_id == input_.beamtime_id)
-                & (orm.Run.external_id.in_(input_.external_run_ids))
-            )
+                & (orm.Run.external_id.in_(input_.external_run_ids)),
+            ),
         ):
             if input_.new_experiment_type_id is not None:
                 run.experiment_type_id = input_.new_experiment_type_id
@@ -627,8 +641,8 @@ async def update_runs_bulk(
                                     & (
                                         orm.Attributo.associated_table
                                         == AssociatedTable.RUN
-                                    )
-                                )
+                                    ),
+                                ),
                             )
                         )
                     },
@@ -637,25 +651,26 @@ async def update_runs_bulk(
 
 
 async def _find_schedule_entry(
-    session: AsyncSession, beamtime_id: BeamtimeId
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
 ) -> None | orm.BeamtimeSchedule:
     now = datetime.datetime.now(
-        ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))
+        ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin")),
     )
     minutes_since_midnight_now = now.hour * 60 + now.minute
     for schedule_entry in await session.scalars(
         select(orm.BeamtimeSchedule).where(
             (orm.BeamtimeSchedule.beamtime_id == beamtime_id)
-            & (orm.BeamtimeSchedule.date == now.strftime("%Y-%m-%d"))
-        )
+            & (orm.BeamtimeSchedule.date == now.strftime("%Y-%m-%d")),
+        ),
     ):
         entry_match = _SHIFT_RE.search(schedule_entry.shift)
         if entry_match is not None:
             minutes_since_midnight_from = int(entry_match.group(1)) * 60 + int(
-                entry_match.group(2)
+                entry_match.group(2),
             )
             minutes_since_midnight_to = int(entry_match.group(3)) * 60 + int(
-                entry_match.group(4)
+                entry_match.group(4),
             )
             if (
                 minutes_since_midnight_from
@@ -667,7 +682,9 @@ async def _find_schedule_entry(
 
 
 def encode_data_set_with_fom(
-    ds: orm.DataSet, fom: None | DBIndexingFOM, beamtime_id: BeamtimeId
+    ds: orm.DataSet,
+    fom: None | DBIndexingFOM,
+    beamtime_id: BeamtimeId,
 ) -> JsonDataSetWithFom:
     return JsonDataSetWithFom(
         data_set=encode_orm_data_set_to_json(ds, beamtime_id),
@@ -676,36 +693,37 @@ def encode_data_set_with_fom(
 
 
 @router.get(
-    "/api/runs/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True
+    "/api/runs/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
 )
 async def read_runs(
-    beamtimeId: BeamtimeId,
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
     date: None | str = None,
-    # pylint: disable=redefined-builtin
-    filter: None | str = None,
-    session: AsyncSession = Depends(get_orm_db),
+    filter: None | str = None,  # noqa: A002
 ) -> JsonReadRuns:
     attributi = list(
         (
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
     chemicals = (
         await session.scalars(
             select(orm.Chemical)
             .where(orm.Chemical.beamtime_id == beamtimeId)
-            .options(selectinload(orm.Chemical.files))
+            .options(selectinload(orm.Chemical.files)),
         )
     ).all()
     experiment_types = (
         await session.scalars(
             select(orm.ExperimentType).where(
-                orm.ExperimentType.beamtime_id == beamtimeId
-            )
+                orm.ExperimentType.beamtime_id == beamtimeId,
+            ),
         )
     ).all()
     all_runs = (
@@ -713,7 +731,7 @@ async def read_runs(
             select(orm.Run)
             .where(orm.Run.beamtime_id == beamtimeId)
             # Sort by inverse chronological order
-            .order_by(orm.Run.started.desc())
+            .order_by(orm.Run.started.desc()),
         )
     ).all()
     all_events = (
@@ -721,10 +739,10 @@ async def read_runs(
             select(orm.EventLog)
             .where(
                 (orm.EventLog.beamtime_id == beamtimeId)
-                & (orm.EventLog.level == EventLogLevel.USER)
+                & (orm.EventLog.level == EventLogLevel.USER),
             )
             .order_by(orm.EventLog.created.desc())
-            .options(selectinload(orm.EventLog.files))
+            .options(selectinload(orm.EventLog.files)),
         )
     ).all()
 
@@ -744,7 +762,7 @@ async def read_runs(
                     run=run,
                     chemical_names={s.name: s.id for s in chemicals},
                     attributo_name_to_id=attributo_name_to_id,
-                )
+                ),
             )
         ]
     except FilterParseError as e:
@@ -794,37 +812,37 @@ async def read_runs(
     response_model_exclude_defaults=True,
 )
 async def read_runs_overview(
-    beamtimeId: BeamtimeId,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadRunsOverview:
     attributi = list(
         (
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
     chemicals = (
         await session.scalars(
             select(orm.Chemical)
             .where(orm.Chemical.beamtime_id == beamtimeId)
-            .options(selectinload(orm.Chemical.files))
+            .options(selectinload(orm.Chemical.files)),
         )
     ).all()
     experiment_types = (
         await session.scalars(
             select(orm.ExperimentType).where(
-                orm.ExperimentType.beamtime_id == beamtimeId
-            )
+                orm.ExperimentType.beamtime_id == beamtimeId,
+            ),
         )
     ).all()
     data_sets = (
         await session.scalars(
             select(orm.DataSet, orm.ExperimentType)
             .join(orm.DataSet.experiment_type)
-            .where(orm.ExperimentType.beamtime_id == beamtimeId)
+            .where(orm.ExperimentType.beamtime_id == beamtimeId),
         )
     ).all()
     latest_run = (
@@ -836,9 +854,9 @@ async def read_runs_overview(
             .limit(1)
             .options(
                 selectinload(orm.Run.indexing_results).selectinload(
-                    orm.IndexingResult.indexing_parameters
-                )
-            )
+                    orm.IndexingResult.indexing_parameters,
+                ),
+            ),
         )
     ).one_or_none()
     events = (
@@ -846,10 +864,10 @@ async def read_runs_overview(
             select(orm.EventLog)
             .where(
                 (orm.EventLog.beamtime_id == beamtimeId)
-                & (orm.EventLog.level == EventLogLevel.USER)
+                & (orm.EventLog.level == EventLogLevel.USER),
             )
             .order_by(orm.EventLog.created.desc())
-            .options(selectinload(orm.EventLog.files))
+            .options(selectinload(orm.EventLog.files)),
         )
     ).all()
 
@@ -875,7 +893,9 @@ async def read_runs_overview(
             if latest_run is not None
             and ds.experiment_type_id == latest_run.experiment_type_id
             and run_matches_dataset(
-                attributo_types, run_attributi_map, data_set_attributi_maps[ds.id]
+                attributo_types,
+                run_attributi_map,
+                data_set_attributi_maps[ds.id],
             )
         ),
         None,
@@ -889,9 +909,9 @@ async def read_runs_overview(
                 select(orm.Run)
                 .where(
                     (orm.Run.beamtime_id == beamtimeId)
-                    & (orm.Run.experiment_type_id == latest_run.experiment_type_id)
+                    & (orm.Run.experiment_type_id == latest_run.experiment_type_id),
                 )
-                .options(selectinload(orm.Run.indexing_results))
+                .options(selectinload(orm.Run.indexing_results)),
             )
         ).all()
 
@@ -910,7 +930,7 @@ async def read_runs_overview(
             try:
                 max_ir = max(r.indexing_results, key=lambda ir: ir.indexed_frames)
                 foms_in_this_ds.append(fom_for_indexing_result(max_ir))
-            except:
+            except:  # noqa: S110
                 # No indexing results in this run. Fine.
                 pass
 
@@ -918,8 +938,8 @@ async def read_runs_overview(
     live_stream_file = (
         await session.scalars(
             select(orm.File).where(
-                orm.File.file_name == live_stream_image_name(beamtimeId)
-            )
+                orm.File.file_name == live_stream_image_name(beamtimeId),
+            ),
         )
     ).one_or_none()
     latest_indexing_results = [
@@ -941,7 +961,7 @@ async def read_runs_overview(
         latest_indexing_result = JsonRunAnalysisIndexingResult(
             run_id=latest_run.id,
             foms=encode_indexing_fom_to_json(
-                fom_for_indexing_result(latest_indexing_result_orm)
+                fom_for_indexing_result(latest_indexing_result_orm),
             ),
             frames=latest_indexing_result_orm.frames,
             total_frames=next(
@@ -1011,7 +1031,9 @@ async def read_runs_overview(
         experiment_types=[encode_experiment_type(a) for a in experiment_types],
         foms_for_this_data_set=(
             encode_data_set_with_fom(
-                data_set_for_latest_run, summary_from_foms(foms_in_this_ds), beamtimeId
+                data_set_for_latest_run,
+                summary_from_foms(foms_in_this_ds),
+                beamtimeId,
             )
             if data_set_for_latest_run
             else None
