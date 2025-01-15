@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 from typing import Iterable
 
+import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
@@ -613,29 +614,32 @@ async def read_analysis_results(
             orm.RunHasAttributoValue.attributo_id.in_(attributi_groups[attributo_id])
         ) & sub_base
 
-    compound_select = []
-    for aid, values in filter_by_id.items():
-        compound_select.append(
-            select(orm.DataSetHasAttributoValue.data_set_id)
-            .join(orm.Attributo)
-            # This beamtime ID works for now, but in principle, we
-            # want to select all attributi values for data sets
-            # where the _data set_ is in the beamtime, not the
-            # attributo. But that needs two joins:
-            #
-            # ds has attributo value -> ds
-            # ds -> experiment type
-            #
-            # ....and we're too lazy for that right now.
-            .where(
-                (
-                    orm.Attributo.beamtime_id == input_.beamtime_id
-                    if input_.beamtime_id is not None
-                    else true()
+    # This is a nasty special case: if we only have one data set, we
+    # don't display any attributo filters, and the user thus cannot
+    # really find any data sets. We hard-code this case here in a sort
+    # of performant manner hopefully
+    number_of_data_sets = await session.scalar(
+        select(sa.func.count())
+        .select_from(orm.DataSet)
+        .where(orm.DataSet.experiment_type_id.in_(et.id for et in experiment_types))
+    )
+    if number_of_data_sets == 1:
+        attributo_values = list(
+            await session.scalars(
+                select(orm.DataSetHasAttributoValue).where(
+                    orm.DataSetHasAttributoValue.data_set_id.in_(
+                        select(orm.DataSet.id).where(
+                            orm.DataSet.experiment_type_id.in_(
+                                et.id for et in experiment_types
+                            )
+                        )
+                    )
                 )
-                & ds_filter_clause_for_group(aid, values),
-            ),
+            )
         )
+        filter_by_id[attributo_values[0].attributo_id] = [
+            encode_data_set_attributo_value(attributo_values[0])
+        ]
 
     filtered_data_sets: Iterable[orm.DataSet]
     filtered_runs: Iterable[orm.Run]

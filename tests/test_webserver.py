@@ -1680,6 +1680,49 @@ def test_update_indexing_job(
     assert len(single_data_set_result.data_set.indexing_results) == 1
 
 
+def test_analysis_view_with_single_data_set_directly_returns_results(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_data_set_response = JsonCreateDataSetOutput(
+        **client.post(
+            "/api/data-sets",
+            json=JsonCreateDataSetInput(
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        # Good old Lyso!
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                ],
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_data_set_response.id > 0
+
+    analysis_response = JsonReadNewAnalysisOutput(
+        **client.post(
+            "/api/analysis/analysis-results",
+            json=JsonReadNewAnalysisInput(
+                # Here we specify no filters, this is special for this test!
+                attributi_filter=[],
+                beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
+            ).dict(),
+        ).json(),
+    )
+
+    assert len(analysis_response.filtered_data_sets) == 1
+
+
 def test_change_run_experiment_type(
     client: TestClient,
     beamtime_id: BeamtimeId,
