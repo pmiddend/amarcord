@@ -8,7 +8,7 @@ import Amarcord.Chemical exposing (chemicalTypeFromApi, chemicalTypeToString)
 import Amarcord.Html exposing (br_, div_, form_, h1_, h4_, h5_, input_, li_, onIntInput, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (forgetMsgInput, monthToNumericString)
-import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonBeamtime, JsonCopyExperimentTypesOutput, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadBeamtime, JsonReadExperimentTypes)
+import Api.Data exposing (AssociatedTable(..), ChemicalType(..), JsonAttributiIdAndRole, JsonBeamtime, JsonCopyExperimentTypesOutput, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadBeamtime, JsonReadExperimentTypes)
 import Api.Request.Beamtimes exposing (readBeamtimesApiBeamtimesGet)
 import Api.Request.Experimenttypes exposing (copyExperimentTypesApiCopyExperimentTypesPost, createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
 import Html exposing (Html, button, div, h4, input, label, option, select, table, td, text)
@@ -445,8 +445,11 @@ viewExperimentType model =
                         , case model.experimentTypes of
                             Success { attributi } ->
                                 let
+                                    runAttributi =
+                                        List.filter (\a -> a.associatedTable == AssociatedTableRun) attributi
+
                                     attributiCheckboxes =
-                                        List.map (viewAttributoCheckbox newExperimentType.attributi << convertAttributoFromApi) attributi
+                                        List.map (viewAttributoCheckbox newExperimentType.attributi << convertAttributoFromApi) runAttributi
 
                                     viewAttributoRoleRadio : Attributo AttributoType -> Html Msg
                                     viewAttributoRoleRadio a =
