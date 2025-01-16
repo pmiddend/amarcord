@@ -1,4 +1,4 @@
-module Amarcord.RunAttributiForm exposing (InitData, Model, Msg(..), init, update, view)
+module Amarcord.RunAttributiForm exposing (InitData, Model, Msg(..), ShowFileMode(..), init, update, view)
 
 import Amarcord.API.Requests exposing (RunExternalId(..), RunInternalId(..), runExternalIdToString, runInternalIdToInt)
 import Amarcord.AssociatedTable as AssociatedTable
@@ -7,13 +7,14 @@ import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithV
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
-import Amarcord.Html exposing (div_, h2_, input_, li_, onIntInput, p_, strongText)
+import Amarcord.Html exposing (div_, h2_, h5_, input_, li_, onIntInput, p_, strongText)
 import Amarcord.HttpError exposing (HttpError, send)
+import Amarcord.RunFilesForm as RunFilesForm
 import Amarcord.Util exposing (listContainsBy)
 import Api.Data exposing (ChemicalType(..), JsonAttributo, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Runs exposing (updateRunApiRunsPatch)
-import Html exposing (Html, button, div, form, label, option, select, text, ul)
-import Html.Attributes exposing (checked, class, disabled, for, selected, type_, value)
+import Html exposing (Html, a, button, div, form, label, option, p, select, text, ul)
+import Html.Attributes exposing (checked, class, disabled, for, href, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
 import List.Extra as ListExtra
@@ -25,6 +26,11 @@ import Time exposing (Posix, Zone, millisToPosix)
 
 type alias ChemicalList =
     List (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
+
+
+type ShowFileMode
+    = ShowFiles
+    | HideFiles
 
 
 type alias Model =
@@ -44,6 +50,7 @@ type alias Model =
     -- then jump to the latest one.
     , initiatedManually : Bool
     , showAllAttributi : Bool
+    , filesEdit : Maybe RunFilesForm.Model
     , zone : Zone
     , submitErrors : List String
     , runEditRequest : RemoteData HttpError JsonUpdateRunOutput
@@ -58,6 +65,7 @@ type Msg
     | ExperimentTypeIdChanged Int
     | ChangeShowAllAttributi Bool
     | UpdateRun JsonRun
+    | RunFilesFormMsg RunFilesForm.Msg
 
 
 type alias InitData =
@@ -68,8 +76,8 @@ type alias InitData =
     }
 
 
-init : InitData -> JsonRun -> ( Model, Cmd Msg )
-init { zone, attributi, chemicals, experimentTypes } latestRunReal =
+init : InitData -> ShowFileMode -> JsonRun -> ( Model, Cmd Msg )
+init { zone, attributi, chemicals, experimentTypes } showFileMode latestRunReal =
     ( { runId = RunInternalId latestRunReal.id
       , runExternalId = RunExternalId latestRunReal.externalId
       , started = millisToPosix latestRunReal.started
@@ -85,6 +93,13 @@ init { zone, attributi, chemicals, experimentTypes } latestRunReal =
       , attributi = List.map convertAttributoFromApi attributi
       , initiatedManually = False
       , showAllAttributi = False
+      , filesEdit =
+            case showFileMode of
+                ShowFiles ->
+                    Just (RunFilesForm.init latestRunReal)
+
+                _ ->
+                    Nothing
       , zone = zone
       , submitErrors = []
       , runEditRequest = NotAsked
@@ -94,7 +109,7 @@ init { zone, attributi, chemicals, experimentTypes } latestRunReal =
 
 
 view : Model -> Html Msg
-view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, submitErrors, runEditRequest, chemicals, experimentTypes } =
+view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, submitErrors, runEditRequest, chemicals, experimentTypes, filesEdit } =
     let
         matchesCurrentExperiment a x =
             case x of
@@ -187,6 +202,21 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
                 , value (String.fromInt experimentType.id)
                 ]
                 [ text experimentType.name ]
+
+        filesForm =
+            case filesEdit of
+                Nothing ->
+                    []
+
+                Just filesEditModel ->
+                    [ h5_ [ text "File paths" ]
+                    , p [ class "form-text" ]
+                        [ text "You can have more than one path (glob) for each source. A path can contain the usual "
+                        , a [ href "https://en.wikipedia.org/wiki/Glob_(programming)" ] [ text "globbing" ]
+                        , text " patterns to choose more than one file. For example, “/some/path/*.h5” will match all h5 files in the directory “/some/path”."
+                        ]
+                    , Html.map RunFilesFormMsg (RunFilesForm.view filesEditModel)
+                    ]
     in
     div_
         [ h2_ [ text ("Edit run " ++ runExternalIdToString runExternalId) ]
@@ -206,13 +236,25 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
                         , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                         ]
                     ]
-                :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrorsHtml ++ submitSuccess ++ buttons)
+                :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ filesForm ++ submitErrorsHtml ++ submitSuccess ++ buttons)
         ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        RunFilesFormMsg subMsg ->
+            case model.filesEdit of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just filesEditReal ->
+                    let
+                        newFilesEdit =
+                            RunFilesForm.update subMsg filesEditReal
+                    in
+                    ( { model | filesEdit = Just newFilesEdit }, Cmd.none )
+
         Submit ->
             case convertEditValues model.zone model.editableAttributi of
                 Err errorList ->
@@ -230,6 +272,7 @@ update msg model =
                             { id = runInternalIdToInt model.runId
                             , experimentTypeId = model.experimentTypeId
                             , attributi = attributoMapToListOfAttributi editedAttributi
+                            , files = Maybe.map RunFilesForm.retrieveFiles model.filesEdit
                             }
                         )
                     )

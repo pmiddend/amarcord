@@ -583,6 +583,7 @@ update msg model =
                                 , chemicals = List.map convertChemicalFromApi chemicals
                                 , experimentTypes = experimentTypes
                                 }
+                                RunAttributiForm.ShowFiles
                                 run
                     in
                     ( { model | runEditInfo = Just editInfo }

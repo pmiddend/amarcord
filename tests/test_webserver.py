@@ -134,6 +134,7 @@ from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonRefinementResult
+from amarcord.web.json_models import JsonRunFile
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateAttributoConversionFlags
@@ -566,7 +567,7 @@ def simple_run_id(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
                 # Important for our indexing job tests: we cannot start an offline indexing job without files (i.e. images).
-                files=["/tmp/test-input-file"],  # noqa: S108
+                files=[JsonRunFile(id=0, glob="/tmp/test-input-file", source="raw")],  # noqa: S108
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
@@ -1446,7 +1447,11 @@ def test_create_and_update_run_with_patch(
     update_run_raw_output = client.post(
         f"/api/runs/{external_run_id}",
         json=JsonCreateOrUpdateRun(
-            files=[],
+            # two files initially, so we can modify and add and see what happens
+            files=[
+                JsonRunFile(id=0, source="h5", glob="hehe"),
+                JsonRunFile(id=0, source="raw", glob="hoho"),
+            ],
             beamtime_id=beamtime_id,
             attributi=[
                 # we don't even mention the second run attributo here, since we're going to add it later and test if that works
@@ -1463,6 +1468,20 @@ def test_create_and_update_run_with_patch(
     # Create the run and check the result
     create_response = JsonCreateOrUpdateRunOutput(**update_run_raw_output)
     assert create_response.run_internal_id is not None
+    assert len(create_response.files) == 2
+
+    # this is arbitrary, it could also be files[1], but we have to assume something here
+    assert create_response.files[0].glob == "hehe"
+
+    new_files: list[JsonRunFile] = [
+        # modify the first file and add a new one - remove the second one implicitly by not including it here
+        JsonRunFile(
+            id=create_response.files[0].id,
+            glob=create_response.files[0].glob + "modified",
+            source=create_response.files[0].source,
+        ),
+        JsonRunFile(id=0, source="raw2", glob="oh"),
+    ]
 
     update_response = JsonUpdateRunOutput(
         **client.patch(
@@ -1476,11 +1495,15 @@ def test_create_and_update_run_with_patch(
                         attributo_value_str="some string",
                     ),
                 ],
+                files=new_files,
             ).dict(),
         ).json(),
     )
 
     assert update_response.result
+    assert len(update_response.files) == 2
+    assert update_response.files[0].glob == "hehemodified"
+    assert update_response.files[1].glob == "oh"
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
 
@@ -1498,6 +1521,8 @@ def test_create_and_update_run_with_patch(
     )
     assert cell_description_attributo is not None
     assert cell_description_attributo.attributo_value_str == "some string"
+    # check if we still have two files
+    assert len(read_runs_output.runs[0].files) == 2
 
 
 def test_create_and_stop_run(
@@ -2217,6 +2242,7 @@ def test_start_two_runs_and_enable_auto_pilot(
                     attributo_value_str=string_value,
                 ),
             ],
+            files=[],
         ).dict(),
     )
     assert update_run_result.status_code // 100 == 2
@@ -2320,6 +2346,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                     attributo_value_int=1337,
                 ),
             ],
+            files=[],
         ).dict(),
     )
     assert update_run_result.status_code // 100 == 2

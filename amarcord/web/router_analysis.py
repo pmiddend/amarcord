@@ -171,7 +171,7 @@ async def read_run_analysis(
                 external_id=run.external_id,
                 attributi=[encode_run_attributo_value(v) for v in run.attributo_values],
                 file_paths=[
-                    JsonRunFile(glob=rf.glob, source=rf.source)
+                    JsonRunFile(id=rf.id, glob=rf.glob, source=rf.source)
                     for rf in await run.awaitable_attrs.files
                 ],
             )

@@ -971,7 +971,7 @@ type alias JsonCreateLiveStreamSnapshotOutput =
 type alias JsonCreateOrUpdateRun =
     { beamtimeId : Int
     , attributi : List JsonAttributoValue
-    , files : List String
+    , files : Maybe ( List JsonRunFile )
     , started : Maybe Int
     , stopped : Maybe Int
     }
@@ -982,6 +982,7 @@ type alias JsonCreateOrUpdateRunOutput =
     , indexingResultId : Maybe Int
     , errorMessage : Maybe String
     , runInternalId : Maybe Int
+    , files : List JsonRunFile
     }
 
 
@@ -1653,7 +1654,7 @@ type alias JsonRun =
     , attributi : List JsonAttributoValue
     , started : Int
     , stopped : Maybe Int
-    , files : List JsonFileOutput
+    , files : List JsonRunFile
     , summary : JsonIndexingFom
     , experimentTypeId : Int
     }
@@ -1670,7 +1671,8 @@ type alias JsonRunAnalysisIndexingResult =
 
 
 type alias JsonRunFile =
-    { glob : String
+    { id : Int
+    , glob : String
     , source : String
     }
 
@@ -1747,11 +1749,13 @@ type alias JsonUpdateRun =
     { id : Int
     , experimentTypeId : Int
     , attributi : List JsonAttributoValue
+    , files : Maybe ( List JsonRunFile )
     }
 
 
 type alias JsonUpdateRunOutput =
     { result : Bool
+    , files : List JsonRunFile
     }
 
 
@@ -3040,7 +3044,7 @@ encodeJsonCreateOrUpdateRunPairs model =
         pairs =
             [ encode "beamtime_id" Json.Encode.int model.beamtimeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
-            , encode "files" (Json.Encode.list Json.Encode.string) model.files
+            , maybeEncode "files" (Json.Encode.list encodeJsonRunFile) model.files
             , maybeEncode "started" Json.Encode.int model.started
             , maybeEncode "stopped" Json.Encode.int model.stopped
             ]
@@ -3066,6 +3070,7 @@ encodeJsonCreateOrUpdateRunOutputPairs model =
             , maybeEncode "indexing_result_id" Json.Encode.int model.indexingResultId
             , maybeEncode "error_message" Json.Encode.string model.errorMessage
             , maybeEncode "run_internal_id" Json.Encode.int model.runInternalId
+            , encode "files" (Json.Encode.list encodeJsonRunFile) model.files
             ]
     in
     pairs
@@ -4894,7 +4899,7 @@ encodeJsonRunPairs model =
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             , encode "started" Json.Encode.int model.started
             , maybeEncode "stopped" Json.Encode.int model.stopped
-            , encode "files" (Json.Encode.list encodeJsonFileOutput) model.files
+            , encode "files" (Json.Encode.list encodeJsonRunFile) model.files
             , encode "summary" encodeJsonIndexingFom model.summary
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
             ]
@@ -4941,7 +4946,8 @@ encodeJsonRunFilePairs : JsonRunFile -> List EncodedField
 encodeJsonRunFilePairs model =
     let
         pairs =
-            [ encode "glob" Json.Encode.string model.glob
+            [ encode "id" Json.Encode.int model.id
+            , encode "glob" Json.Encode.string model.glob
             , encode "source" Json.Encode.string model.source
             ]
     in
@@ -5198,6 +5204,7 @@ encodeJsonUpdateRunPairs model =
             [ encode "id" Json.Encode.int model.id
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
+            , maybeEncode "files" (Json.Encode.list encodeJsonRunFile) model.files
             ]
     in
     pairs
@@ -5218,6 +5225,7 @@ encodeJsonUpdateRunOutputPairs model =
     let
         pairs =
             [ encode "result" Json.Encode.bool model.result
+            , encode "files" (Json.Encode.list encodeJsonRunFile) model.files
             ]
     in
     pairs
@@ -5985,7 +5993,7 @@ jsonCreateOrUpdateRunDecoder =
     Json.Decode.succeed JsonCreateOrUpdateRun
         |> decode "beamtime_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
-        |> decode "files" (Json.Decode.list Json.Decode.string) 
+        |> maybeDecode "files" (Json.Decode.list jsonRunFileDecoder) Nothing
         |> maybeDecode "started" Json.Decode.int Nothing
         |> maybeDecode "stopped" Json.Decode.int Nothing
 
@@ -5997,6 +6005,7 @@ jsonCreateOrUpdateRunOutputDecoder =
         |> maybeDecode "indexing_result_id" Json.Decode.int Nothing
         |> maybeDecode "error_message" Json.Decode.string Nothing
         |> maybeDecode "run_internal_id" Json.Decode.int Nothing
+        |> decode "files" (Json.Decode.list jsonRunFileDecoder) 
 
 
 jsonDataSetDecoder : Json.Decode.Decoder JsonDataSet
@@ -6749,7 +6758,7 @@ jsonRunDecoder =
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
         |> decode "started" Json.Decode.int 
         |> maybeDecode "stopped" Json.Decode.int Nothing
-        |> decode "files" (Json.Decode.list jsonFileOutputDecoder) 
+        |> decode "files" (Json.Decode.list jsonRunFileDecoder) 
         |> decode "summary" jsonIndexingFomDecoder 
         |> decode "experiment_type_id" Json.Decode.int 
 
@@ -6768,6 +6777,7 @@ jsonRunAnalysisIndexingResultDecoder =
 jsonRunFileDecoder : Json.Decode.Decoder JsonRunFile
 jsonRunFileDecoder =
     Json.Decode.succeed JsonRunFile
+        |> decode "id" Json.Decode.int 
         |> decode "glob" Json.Decode.string 
         |> decode "source" Json.Decode.string 
 
@@ -6857,12 +6867,14 @@ jsonUpdateRunDecoder =
         |> decode "id" Json.Decode.int 
         |> decode "experiment_type_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
+        |> maybeDecode "files" (Json.Decode.list jsonRunFileDecoder) Nothing
 
 
 jsonUpdateRunOutputDecoder : Json.Decode.Decoder JsonUpdateRunOutput
 jsonUpdateRunOutputDecoder =
     Json.Decode.succeed JsonUpdateRunOutput
         |> decode "result" Json.Decode.bool 
+        |> decode "files" (Json.Decode.list jsonRunFileDecoder) 
 
 
 jsonUpdateRunsBulkInputDecoder : Json.Decode.Decoder JsonUpdateRunsBulkInput

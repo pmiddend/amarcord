@@ -65,6 +65,7 @@ from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonRun
 from amarcord.web.json_models import JsonRunAnalysisIndexingResult
+from amarcord.web.json_models import JsonRunFile
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateRun
@@ -208,10 +209,12 @@ async def create_or_update_run(
         run_logger.info(f"experiment type set to {experiment_type_id}")
         run_in_db = (
             await session.scalars(
-                select(orm.Run).where(
+                select(orm.Run)
+                .where(
                     (orm.Run.external_id == runExternalId)
                     & (orm.Run.beamtime_id == beamtime_id),
-                ),
+                )
+                .options(selectinload(orm.Run.files)),
             )
         ).one_or_none()
         run_was_created = run_in_db is None
@@ -286,10 +289,11 @@ async def create_or_update_run(
                             run_in_db.attributo_values.append(
                                 duplicate_run_attributo(latest_run_attributo),
                             )
-            # For now, let's say files can only be added when creating the run, and only here.
-            # This will have to change later though.
-            for file_glob in input_.files:
-                run_in_db.files.append(orm.RunHasFiles(glob=file_glob, source="raw"))
+            if input_.files is not None:
+                for run_file in input_.files:
+                    run_in_db.files.append(
+                        orm.RunHasFiles(glob=run_file.glob, source=run_file.source)
+                    )
             session.add(run_in_db)
             # we might have a new run, and added a chemical to it, but the chemical relationship hasn't been loaded
             # for that. That we do here by flushing
@@ -416,6 +420,9 @@ async def create_or_update_run(
         indexing_result_id=indexing_result_id,
         error_message=None,
         run_internal_id=run_in_db.id,
+        files=[
+            JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in run_in_db.files
+        ],
     )
 
 
@@ -427,8 +434,22 @@ async def update_run(
     async with session.begin():
         run_id = RunInternalId(input_.id)
         current_run = (
-            await session.scalars(select(orm.Run).where(orm.Run.id == run_id))
+            await session.scalars(
+                select(orm.Run)
+                .where(orm.Run.id == run_id)
+                .options(selectinload(orm.Run.files))
+            )
         ).one()
+        if input_.files is not None:
+            # clearing doesn't work because implicit IO
+            # current_run.files.clear()
+            for f in current_run.files:
+                await session.delete(f)
+            await session.refresh(current_run)
+            for new_run_file in input_.files:
+                current_run.files.append(
+                    orm.RunHasFiles(glob=new_run_file.glob, source=new_run_file.source)
+                )
         await update_attributi_from_json(
             session,
             db_item=current_run,
@@ -450,7 +471,13 @@ async def update_run(
         current_run.experiment_type_id = input_.experiment_type_id
         await session.commit()
 
-    return JsonUpdateRunOutput(result=True)
+    return JsonUpdateRunOutput(
+        result=True,
+        files=[
+            JsonRunFile(id=f.id, source=f.source, glob=f.glob)
+            for f in current_run.files
+        ],
+    )
 
 
 def encode_attributo_value(
@@ -731,7 +758,8 @@ async def read_runs(
             select(orm.Run)
             .where(orm.Run.beamtime_id == beamtimeId)
             # Sort by inverse chronological order
-            .order_by(orm.Run.started.desc()),
+            .order_by(orm.Run.started.desc())
+            .options(selectinload(orm.Run.files)),
         )
     ).all()
     all_events = (
@@ -797,7 +825,9 @@ async def read_runs(
                     if r.stopped is not None
                     else None
                 ),
-                files=[],
+                files=[
+                    JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in r.files
+                ],
                 summary=encode_indexing_fom_to_json(empty_indexing_fom),
                 experiment_type_id=r.experiment_type_id,
             )
@@ -856,7 +886,8 @@ async def read_runs_overview(
                 selectinload(orm.Run.indexing_results).selectinload(
                     orm.IndexingResult.indexing_parameters,
                 ),
-            ),
+            )
+            .options(selectinload(orm.Run.files)),
         )
     ).one_or_none()
     events = (
@@ -1003,7 +1034,7 @@ async def read_runs_overview(
             stopped=(
                 datetime_to_attributo_int(r.stopped) if r.stopped is not None else None
             ),
-            files=[],
+            files=[JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in r.files],
             summary=encode_indexing_fom_to_json(this_run_fom),
             experiment_type_id=r.experiment_type_id,
         )

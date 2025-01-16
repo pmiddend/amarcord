@@ -435,10 +435,16 @@ class JsonStopRunOutput(BaseModel):
     result: bool
 
 
+class JsonRunFile(BaseModel):
+    id: int
+    glob: str
+    source: str
+
+
 class JsonCreateOrUpdateRun(BaseModel):
     beamtime_id: BeamtimeId
     attributi: list[JsonAttributoValue]
-    files: list[str]
+    files: None | list[JsonRunFile]
     started: None | int = None
     stopped: None | int = None
 
@@ -448,16 +454,19 @@ class JsonCreateOrUpdateRunOutput(BaseModel):
     indexing_result_id: None | int
     error_message: None | str
     run_internal_id: None | RunInternalId
+    files: list[JsonRunFile]
 
 
 class JsonUpdateRun(BaseModel):
     id: RunInternalId
     experiment_type_id: int
     attributi: list[JsonAttributoValue]
+    files: None | list[JsonRunFile]
 
 
 class JsonUpdateRunOutput(BaseModel):
     result: bool
+    files: list[JsonRunFile]
 
 
 class JsonReadRunsBulkInput(BaseModel):
@@ -498,11 +507,6 @@ class JsonUpdateRunsBulkInput(BaseModel):
 
 class JsonUpdateRunsBulkOutput(BaseModel):
     result: bool
-
-
-class JsonRunFile(BaseModel):
-    glob: str
-    source: str
 
 
 class JsonAnalysisRun(BaseModel):
@@ -600,7 +604,7 @@ class JsonRun(BaseModel):
     attributi: list[JsonAttributoValue]
     started: int
     stopped: None | int
-    files: list[JsonFileOutput]
+    files: list[JsonRunFile]
     summary: JsonIndexingFom
     experiment_type_id: int
 
