@@ -273,7 +273,9 @@ def _parse_run_row_cell(
                 f'should the list of files for this run, but it\'s not a string: "{cell.value}"'
             )
         return RunCellResult(files=[v.strip() for v in cell.value.split(",")])
-    return RunCellResult(custom_column_values=[str(cell.value)])
+    return RunCellResult(
+        custom_column_values=[str(cell.value) if cell.value is not None else ""]
+    )
 
 
 def _parse_run_row(
@@ -422,6 +424,7 @@ def convert_value(
                 f'is a chemical, but value is "{value}", cannot convert (I expect the chemical name)'
             )
         name = value.strip()
+        logger.info(f"name {name}, type {type(name)}")
         if not name:
             return None
         chemical = chemicals_by_name.get(name)
