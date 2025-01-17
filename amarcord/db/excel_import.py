@@ -558,7 +558,7 @@ def create_runs_from_spreadsheet(
             started=run.started,
             stopped=run.stopped,
             modified=datetime.datetime.now(datetime.timezone.utc),
-            files=[orm.RunHasFiles(glob=f, source="h5") for f in run.files],
+            files=[orm.RunHasFiles(glob=f, source="raw") for f in run.files],
             attributo_values=attributo_values,
         )
         new_run.experiment_type = et
