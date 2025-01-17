@@ -264,7 +264,7 @@ makeLink x =
 
 makeImportSpreadsheetLink : BeamtimeId -> String
 makeImportSpreadsheetLink beamtimeId =
-    "/api/run-bulk-import-template/" ++ String.fromInt beamtimeId ++ ".xlsx"
+    "api/run-bulk-import-template/" ++ String.fromInt beamtimeId ++ ".xlsx"
 
 
 makeFilesLink : Int -> Maybe String -> String
