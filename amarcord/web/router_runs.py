@@ -22,6 +22,7 @@ from openpyxl import load_workbook
 from sqlalchemy import true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
 
 from amarcord.cli.crystfel_index import coparse_cell_description
@@ -72,6 +73,7 @@ from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
 from amarcord.web.json_models import JsonDataSet
 from amarcord.web.json_models import JsonDataSetWithFom
+from amarcord.web.json_models import JsonDeleteRunOutput
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonLiveStream
 from amarcord.web.json_models import JsonReadRuns
@@ -1351,3 +1353,23 @@ async def bulk_import(
             simulated=simulate,
             create_data_sets=create_data_sets,
         )
+
+
+@router.delete(
+    "/api/runs/{beamtimeId}/{runId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
+async def delete_run(
+    beamtimeId: BeamtimeId,  # noqa: N803
+    runId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> JsonDeleteRunOutput:
+    async with session.begin():
+        await session.execute(
+            delete(orm.Run).where(
+                (orm.Run.beamtime_id == beamtimeId) & (orm.Run.external_id == runId)
+            )
+        )
+        await session.commit()
+    return JsonDeleteRunOutput(result=True)

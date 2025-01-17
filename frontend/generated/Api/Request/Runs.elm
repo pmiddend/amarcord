@@ -17,6 +17,7 @@ module Api.Request.Runs exposing
     ( bulkImportApiRunBulkImportBeamtimeIdPost
     , bulkImportInfoApiRunBulkImportBeamtimeIdGet
     , createOrUpdateRunApiRunsRunExternalIdPost
+    , deleteRunApiRunsBeamtimeIdRunIdDelete
     , readRunsApiRunsBeamtimeIdGet
     , readRunsBulkApiRunsBulkPost
     , readRunsOverviewApiRunsOverviewBeamtimeIdGet
@@ -68,6 +69,18 @@ createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateR
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonCreateOrUpdateRun jsonCreateOrUpdateRun_body)))
         Api.Data.jsonCreateOrUpdateRunOutputDecoder
+
+
+deleteRunApiRunsBeamtimeIdRunIdDelete : Int -> Int -> Api.Request Api.Data.JsonDeleteRunOutput
+deleteRunApiRunsBeamtimeIdRunIdDelete beamtimeId_path runId_path =
+    Api.request
+        "DELETE"
+        "/api/runs/{beamtimeId}/{runId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "runId", String.fromInt runId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonDeleteRunOutputDecoder
 
 
 readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns

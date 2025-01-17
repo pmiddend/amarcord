@@ -82,6 +82,7 @@ module Api.Data exposing
     , JsonDeleteExperimentTypeOutput
     , JsonDeleteFileInput
     , JsonDeleteFileOutput
+    , JsonDeleteRunOutput
     , JsonDetectorShift
     , JsonEvent
     , JsonEventInput
@@ -237,6 +238,7 @@ module Api.Data exposing
     , encodeJsonDeleteExperimentTypeOutput
     , encodeJsonDeleteFileInput
     , encodeJsonDeleteFileOutput
+    , encodeJsonDeleteRunOutput
     , encodeJsonDetectorShift
     , encodeJsonEvent
     , encodeJsonEventInput
@@ -400,6 +402,7 @@ module Api.Data exposing
     , jsonDeleteExperimentTypeOutputDecoder
     , jsonDeleteFileInputDecoder
     , jsonDeleteFileOutputDecoder
+    , jsonDeleteRunOutputDecoder
     , jsonDetectorShiftDecoder
     , jsonEventDecoder
     , jsonEventInputDecoder
@@ -1080,6 +1083,11 @@ type alias JsonDeleteFileInput =
 
 type alias JsonDeleteFileOutput =
     { id : Int
+    }
+
+
+type alias JsonDeleteRunOutput =
+    { result : Bool
     }
 
 
@@ -3426,6 +3434,26 @@ encodeJsonDeleteFileOutputPairs model =
     let
         pairs =
             [ encode "id" Json.Encode.int model.id
+            ]
+    in
+    pairs
+
+
+encodeJsonDeleteRunOutput : JsonDeleteRunOutput -> Json.Encode.Value
+encodeJsonDeleteRunOutput =
+    encodeObject << encodeJsonDeleteRunOutputPairs
+
+
+encodeJsonDeleteRunOutputWithTag : ( String, String ) -> JsonDeleteRunOutput -> Json.Encode.Value
+encodeJsonDeleteRunOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonDeleteRunOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonDeleteRunOutputPairs : JsonDeleteRunOutput -> List EncodedField
+encodeJsonDeleteRunOutputPairs model =
+    let
+        pairs =
+            [ encode "result" Json.Encode.bool model.result
             ]
     in
     pairs
@@ -6185,6 +6213,12 @@ jsonDeleteFileOutputDecoder : Json.Decode.Decoder JsonDeleteFileOutput
 jsonDeleteFileOutputDecoder =
     Json.Decode.succeed JsonDeleteFileOutput
         |> decode "id" Json.Decode.int 
+
+
+jsonDeleteRunOutputDecoder : Json.Decode.Decoder JsonDeleteRunOutput
+jsonDeleteRunOutputDecoder =
+    Json.Decode.succeed JsonDeleteRunOutput
+        |> decode "result" Json.Decode.bool 
 
 
 jsonDetectorShiftDecoder : Json.Decode.Decoder JsonDetectorShift

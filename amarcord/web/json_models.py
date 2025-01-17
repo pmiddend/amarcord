@@ -999,3 +999,7 @@ class JsonCopyExperimentTypesInput(BaseModel):
 
 class JsonCopyExperimentTypesOutput(BaseModel):
     to_beamtime_experiment_type_ids: list[int]
+
+
+class JsonDeleteRunOutput(BaseModel):
+    result: bool

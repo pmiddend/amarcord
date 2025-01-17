@@ -105,6 +105,7 @@ from amarcord.web.json_models import JsonDeleteExperimentType
 from amarcord.web.json_models import JsonDeleteExperimentTypeOutput
 from amarcord.web.json_models import JsonDeleteFileInput
 from amarcord.web.json_models import JsonDeleteFileOutput
+from amarcord.web.json_models import JsonDeleteRunOutput
 from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
 from amarcord.web.json_models import JsonEventTopLevelOutput
@@ -1429,6 +1430,63 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
         ).json(),
     )
     assert len(read_indexing_results_response.indexing_jobs) == 1
+
+
+def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    enable_crystfel_online(client, beamtime_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    client.post(
+        f"/api/runs/{external_run_id}",
+        json=JsonCreateOrUpdateRun(
+            beamtime_id=beamtime_id,
+            files=[],
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_channel_1_chemical_attributo_id,
+                    attributo_value_chemical=lyso_chemical_id,
+                ),
+            ],
+            started=1,
+            stopped=None,
+        ).dict(),
+    )
+    client.post(
+        f"/api/runs/{external_run_id+1}",
+        json=JsonCreateOrUpdateRun(
+            beamtime_id=beamtime_id,
+            files=[],
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_channel_1_chemical_attributo_id,
+                    attributo_value_chemical=lyso_chemical_id,
+                ),
+            ],
+            started=1,
+            stopped=None,
+        ).dict(),
+    )
+
+    # ...and remove the run again
+    assert JsonDeleteRunOutput(
+        **client.request("DELETE", f"/api/runs/{beamtime_id}/{external_run_id}").json(),
+    ).result
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 1
+    assert read_runs_output.runs[0].external_id == external_run_id + 1
 
 
 def test_create_and_update_run_with_patch(

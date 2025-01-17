@@ -19,9 +19,9 @@ import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
-import Api.Data exposing (JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
+import Api.Data exposing (JsonDeleteRunOutput, JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
-import Api.Request.Runs exposing (readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
+import Api.Request.Runs exposing (deleteRunApiRunsBeamtimeIdRunIdDelete, readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
@@ -41,6 +41,8 @@ type alias Model =
     , beamtimeId : BeamtimeId
     , onlineIndexingParameters : RemoteData HttpError IndexingParameters.Model
     , updateOnlineIndexingParameters : RemoteData HttpError JsonUpdateOnlineIndexingParametersOutput
+    , deleteRunRequest : RemoteData HttpError JsonDeleteRunOutput
+    , deleteRunId : RunExternalId
     }
 
 
@@ -54,6 +56,9 @@ type Msg
     | StartRunFinished (Result HttpError JsonStartRunOutput)
     | StopRun
     | StopRunFinished (Result HttpError JsonStopRunOutput)
+    | StartDeleteRun
+    | DeleteRunRequestDone (Result HttpError JsonDeleteRunOutput)
+    | DeleteRunIdChanged (Maybe Int)
     | RunsReceived (Result HttpError JsonReadRunsOverview)
     | IndexingParametersReceived (Result HttpError JsonIndexingParameters)
     | Refresh Posix
@@ -83,6 +88,8 @@ init hereAndNow beamtimeId =
       , beamtimeId = beamtimeId
       , onlineIndexingParameters = Loading
       , updateOnlineIndexingParameters = NotAsked
+      , deleteRunRequest = NotAsked
+      , deleteRunId = runExternalIdFromInt 1
       }
     , Cmd.batch
         [ send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId)
@@ -133,6 +140,14 @@ receiveRuns model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        StartDeleteRun ->
+            ( { model | deleteRunRequest = Loading }
+            , send DeleteRunRequestDone (deleteRunApiRunsBeamtimeIdRunIdDelete model.beamtimeId (runExternalIdToInt model.deleteRunId))
+            )
+
+        DeleteRunRequestDone result ->
+            ( { model | deleteRunRequest = RemoteData.fromResult result }, Cmd.none )
+
         UpdateOnlineIndexingParametersDone result ->
             ( { model | updateOnlineIndexingParameters = RemoteData.fromResult result }, Cmd.none )
 
@@ -217,6 +232,14 @@ update msg model =
             ( model
             , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
             )
+
+        DeleteRunIdChanged int ->
+            case int of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just runId ->
+                    ( { model | deleteRunId = runExternalIdFromInt runId }, Cmd.none )
 
         RunIdChanged int ->
             case int of
@@ -341,6 +364,24 @@ viewOnlineIndexingParameters model =
         ]
 
 
+viewDeleteRun : Model -> Html Msg
+viewDeleteRun model =
+    div_
+        [ div [ class "form-floating mb-3" ]
+            [ input_
+                [ type_ "text"
+                , class "form-control"
+                , value (runExternalIdToString model.deleteRunId)
+                , onInput (DeleteRunIdChanged << String.toInt)
+                , disabled (isLoading model.deleteRunRequest)
+                ]
+            , label [ for "run-id", class "form-label" ] [ text "Run ID" ]
+            ]
+        , button [ type_ "button", class "btn btn-danger", onClick StartDeleteRun ]
+            [ icon { name = "send" }, text " Delete this run" ]
+        ]
+
+
 view : Model -> Html Msg
 view model =
     div [ class "container" ]
@@ -350,6 +391,9 @@ view model =
         , viewRunControls model
         , hr_
         , viewOnlineIndexingParameters model
+        , hr_
+        , h2_ [ icon { name = "trash" }, text " Delete runs" ]
+        , viewDeleteRun model
         , hr_
         , h2_ [ icon { name = "journals" }, text " Bulk update" ]
         , p_ [ em_ [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ] ]
