@@ -29,7 +29,6 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
-from amarcord.web.constants import ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonBeamtime
 
@@ -425,11 +424,6 @@ async def determine_run_indexing_metadata(
     # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
     # example in the case where you actually don't know that and want to find out.
     crystal_chemicals: list[orm.Chemical] = []
-    # "protein" is for old beamtimes and acts as a fallback for now. Not a good solution, we know.
-    crystal_attributo_names = [
-        f"channel_{channel}_chemical_id"
-        for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS + 1)
-    ] + ["protein"]
     async for this_channel_chemical in (
         (
             await session.scalars(
@@ -444,7 +438,6 @@ async def determine_run_indexing_metadata(
         ).one()
         for attributo_value in r.attributo_values
         if attributo_value.chemical_value is not None
-        and attributo_value.attributo.name in crystal_attributo_names
     ):
         if this_channel_chemical.type == ChemicalType.CRYSTAL:
             crystal_chemicals.append(this_channel_chemical)
@@ -510,4 +503,19 @@ def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamti
             [chemical.name for chemical in bt.chemicals] if with_chemicals else []
         ),
         analysis_output_path=bt.analysis_output_path,
+    )
+
+
+def run_has_attributo_to_data_set_has_attributo(
+    r: orm.RunHasAttributoValue,
+) -> orm.DataSetHasAttributoValue:
+    return orm.DataSetHasAttributoValue(
+        attributo_id=r.attributo_id,
+        integer_value=r.integer_value,
+        float_value=r.float_value,
+        string_value=r.string_value,
+        bool_value=r.bool_value,
+        datetime_value=r.datetime_value,
+        list_value=r.list_value,
+        chemical_value=r.chemical_value,
     )

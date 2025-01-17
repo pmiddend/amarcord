@@ -294,7 +294,7 @@ type AttributoFormMsg
     | AttributoFormSubmit
 
 
-viewAttributoForm : List (Chemical Int a b) -> ChemicalType -> EditableAttributo -> Html AttributoFormMsg
+viewAttributoForm : List (Chemical Int a b) -> Maybe ChemicalType -> EditableAttributo -> Html AttributoFormMsg
 viewAttributoForm chemicals chemicalType a =
     case a.type_.editValue of
         EditValueString s ->
@@ -462,7 +462,13 @@ viewAttributoForm chemicals chemicalType a =
 
                 filterChemical : Chemical Int a b -> Bool
                 filterChemical { type_ } =
-                    type_ == chemicalType
+                    case chemicalType of
+                        Nothing ->
+                            -- no filter for chemical role
+                            True
+
+                        Just realChemicalType ->
+                            type_ == realChemicalType
             in
             div [ class "mb-3" ] <|
                 [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]

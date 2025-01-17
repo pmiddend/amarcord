@@ -504,6 +504,17 @@ class DataSetHasAttributoValue(Base):
         ForeignKey("Chemical.id", ondelete="cascade"),
     )
 
+    def is_value_equal(self, b: "DataSetHasAttributoValue") -> bool:
+        return (
+            self.integer_value == b.integer_value
+            and self.float_value == b.float_value
+            and self.string_value == b.string_value
+            and self.bool_value == b.bool_value
+            and self.datetime_value == b.datetime_value
+            and self.list_value == b.list_value
+            and self.chemical_value == b.chemical_value
+        )
+
     # Relationships
     data_set: Mapped[DataSet] = relationship(
         back_populates="attributo_values",

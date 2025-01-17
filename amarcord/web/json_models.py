@@ -598,6 +598,20 @@ class JsonDataSetStatistics(BaseModel):
     indexed_frames: int
 
 
+class JsonRunsBulkImportOutput(BaseModel):
+    simulated: bool
+    create_data_sets: bool
+    errors: list[str]
+    number_of_runs: int
+    data_sets: list[JsonDataSet]
+
+
+class JsonRunsBulkImportInfo(BaseModel):
+    run_attributi: list[JsonAttributo]
+    experiment_types: list[str]
+    chemicals: list[JsonChemical]
+
+
 class JsonRun(BaseModel):
     id: int
     external_id: int

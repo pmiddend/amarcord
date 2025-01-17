@@ -6,7 +6,7 @@ import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
 import Dict
 import Time exposing (millisToPosix, posixToMillis)
 import Url
-import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, parse, s, top)
+import Url.Parser exposing ((</>), (<?>), Parser, custom, int, map, oneOf, parse, s, top)
 import Url.Parser.Query as Query
 
 
@@ -22,6 +22,41 @@ type MergeFilter
     | Both
 
 
+type ImportStep
+    = ImportAttributi
+    | ImportExperimentTypes
+    | ImportRuns
+
+
+importStepToString : ImportStep -> String
+importStepToString x =
+    case x of
+        ImportAttributi ->
+            "attributi"
+
+        ImportExperimentTypes ->
+            "experiment-types"
+
+        ImportRuns ->
+            "runs"
+
+
+importStepFromString : String -> Maybe ImportStep
+importStepFromString x =
+    case x of
+        "attributi" ->
+            Just ImportAttributi
+
+        "experiment-types" ->
+            Just ImportExperimentTypes
+
+        "runs" ->
+            Just ImportRuns
+
+        _ ->
+            Nothing
+
+
 type Route
     = BeamtimeSelection
     | Root BeamtimeId
@@ -31,6 +66,7 @@ type Route
     | ExperimentTypes BeamtimeId
     | Runs BeamtimeId
     | RunOverview BeamtimeId
+    | Import BeamtimeId ImportStep
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
     | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool MergeFilter
@@ -68,6 +104,9 @@ beamtimeIdInRoute x =
             Just btid
 
         RunOverview btid ->
+            Just btid
+
+        Import btid _ ->
             Just btid
 
         Attributi btid ->
@@ -167,6 +206,9 @@ makeLink x =
         RunOverview beamtimeId ->
             routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
 
+        Import beamtimeId step ->
+            routePrefix ++ "/import/" ++ beamtimeIdToString beamtimeId ++ "/" ++ importStepToString step
+
         AdvancedControls beamtimeId ->
             routePrefix ++ "/advancedcontrols/" ++ beamtimeIdToString beamtimeId
 
@@ -218,6 +260,11 @@ makeLink x =
 
         EventLog beamtimeId ->
             routePrefix ++ "/event-log/" ++ beamtimeIdToString beamtimeId
+
+
+makeImportSpreadsheetLink : BeamtimeId -> String
+makeImportSpreadsheetLink beamtimeId =
+    "/api/run-bulk-import-template/" ++ String.fromInt beamtimeId ++ ".xlsx"
 
 
 makeFilesLink : Int -> Maybe String -> String
@@ -339,6 +386,7 @@ matchRoute =
         , map Attributi (s "attributi" </> int)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
+        , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)
         , map Runs (s "runs" </> int)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)

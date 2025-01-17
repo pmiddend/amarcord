@@ -247,7 +247,7 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                     Nop
 
         attributiFormEntries =
-            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] ChemicalTypeCrystal attributo)) editingChemical.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] Nothing attributo)) editingChemical.attributi.editableAttributi
 
         otherChemicalsNames =
             List.map .name <|

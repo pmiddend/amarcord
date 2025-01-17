@@ -2,8 +2,10 @@ import datetime
 import os
 import re
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Annotated
 from typing import Any
+from typing import Generator
 from typing import Iterable
 from typing import Mapping
 from zoneinfo import ZoneInfo
@@ -12,6 +14,11 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Response
+from fastapi import UploadFile
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
@@ -29,6 +36,11 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.excel_import import ConversionError
+from amarcord.db.excel_import import SpreadsheetValidationErrors
+from amarcord.db.excel_import import create_data_set_for_runs
+from amarcord.db.excel_import import create_runs_from_spreadsheet
+from amarcord.db.excel_import import parse_run_spreadsheet_workbook
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
@@ -45,6 +57,7 @@ from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
 from amarcord.web.constants import DATE_FORMAT
+from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import encode_run_attributo_value
 from amarcord.web.fastapi_utils import event_has_date
 from amarcord.web.fastapi_utils import get_orm_db
@@ -56,6 +69,7 @@ from amarcord.web.json_models import JsonAttributoBulkValue
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
+from amarcord.web.json_models import JsonDataSet
 from amarcord.web.json_models import JsonDataSetWithFom
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonLiveStream
@@ -66,6 +80,8 @@ from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonRun
 from amarcord.web.json_models import JsonRunAnalysisIndexingResult
 from amarcord.web.json_models import JsonRunFile
+from amarcord.web.json_models import JsonRunsBulkImportInfo
+from amarcord.web.json_models import JsonRunsBulkImportOutput
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateRun
@@ -1070,3 +1086,206 @@ async def read_runs_overview(
             else None
         ),
     )
+
+
+@router.get(
+    "/api/run-bulk-import-template/{beamtimeId}.xlsx",
+    tags=["runs"],
+    include_in_schema=False,
+    response_model_exclude_defaults=True,
+)
+async def bulk_import_spreadsheet_template(
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> Response:
+    workbook_output = Workbook()
+    ws = workbook_output.active
+
+    assert ws is not None
+
+    ws["A1"] = "run id"
+    ws["B1"] = "experiment type"
+    ws["C1"] = "started"
+    ws["D1"] = "stopped"
+    ws["E1"] = "files"
+
+    col_idx = 6
+    for attributo in await session.scalars(
+        select(orm.Attributo).where(
+            (orm.Attributo.beamtime_id == beamtimeId)
+            & (orm.Attributo.associated_table == AssociatedTable.RUN)
+        )
+    ):
+        ws.cell(column=col_idx, row=1, value=attributo.name)
+        col_idx += 1
+
+    workbook = workbook_output
+    workbook_bytes = BytesIO()
+    workbook.save(workbook_bytes)
+    workbook_bytes.seek(0)
+
+    def iterworkbook() -> Generator[bytes, None, None]:
+        yield from workbook_bytes
+
+    return StreamingResponse(
+        iterworkbook(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{beamtimeId}-import.xlsx"'
+        },
+    )
+
+
+@router.get(
+    "/api/run-bulk-import/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
+async def bulk_import_info(
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> JsonRunsBulkImportInfo:
+    return JsonRunsBulkImportInfo(
+        run_attributi=[
+            encode_attributo(a)
+            for a in await session.scalars(
+                select(orm.Attributo).where(
+                    (orm.Attributo.beamtime_id == beamtimeId)
+                    & (orm.Attributo.associated_table == AssociatedTable.RUN)
+                )
+            )
+        ],
+        experiment_types=[
+            et.name
+            for et in await session.scalars(
+                select(orm.ExperimentType).where(
+                    orm.ExperimentType.beamtime_id == beamtimeId
+                )
+            )
+        ],
+        chemicals=[
+            encode_chemical(c)
+            for c in await session.scalars(
+                select(orm.Chemical)
+                .where(orm.Chemical.beamtime_id == beamtimeId)
+                .options(selectinload(orm.Chemical.files))
+            )
+        ],
+    )
+
+
+@router.post(
+    "/api/run-bulk-import/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
+async def bulk_import(
+    beamtimeId: BeamtimeId,  # noqa: N803
+    simulate: bool,
+    create_data_sets: bool,
+    file: UploadFile,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> JsonRunsBulkImportOutput:
+    async with session.begin():
+        logger.info("starting bulk import")
+        wb = load_workbook(filename=BytesIO(file.file.read()))
+
+        parsed_wb = parse_run_spreadsheet_workbook(wb)
+
+        if isinstance(parsed_wb, ConversionError):
+            logger.error(
+                f"there were errors parsing spreadsheet: {parsed_wb.joined_messages()}"
+            )
+            return JsonRunsBulkImportOutput(
+                errors=parsed_wb.error_messages,
+                number_of_runs=0,
+                data_sets=[],
+                simulated=simulate,
+                create_data_sets=create_data_sets,
+            )
+
+        attributi = list(
+            (
+                await session.scalars(
+                    select(orm.Attributo).where(
+                        (orm.Attributo.beamtime_id == beamtimeId)
+                        & (orm.Attributo.associated_table == AssociatedTable.RUN)
+                    )
+                )
+            ).all()
+        )
+
+        chemicals = list(
+            (
+                await session.scalars(
+                    select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId)
+                )
+            ).all()
+        )
+
+        ets = list(
+            (
+                await session.scalars(
+                    select(orm.ExperimentType).where(
+                        orm.ExperimentType.beamtime_id == beamtimeId
+                    )
+                )
+            ).all()
+        )
+
+        created_runs = create_runs_from_spreadsheet(
+            spreadsheet=parsed_wb,
+            beamtime_id=beamtimeId,
+            attributi=attributi,
+            chemicals=chemicals,
+            experiment_types=ets,
+        )
+
+        if isinstance(created_runs, SpreadsheetValidationErrors):
+            logger.error(
+                f"there were errors validating spreadsheet: {created_runs.errors}"
+            )
+            return JsonRunsBulkImportOutput(
+                errors=created_runs.errors,
+                number_of_runs=0,
+                data_sets=[],
+                simulated=simulate,
+                create_data_sets=create_data_sets,
+            )
+
+        for run in created_runs:
+            session.add(run)
+
+        data_sets: list[orm.DataSet]
+        if create_data_sets:
+            data_sets = create_data_set_for_runs(ets, created_runs)
+            for ds in data_sets:
+                session.add(ds)
+        else:
+            data_sets = []
+
+        await session.flush()
+
+        if simulate:
+            await session.rollback()
+        else:
+            await session.commit()
+
+        return JsonRunsBulkImportOutput(
+            errors=[],
+            number_of_runs=len(created_runs),
+            data_sets=[
+                JsonDataSet(
+                    id=ds.id,
+                    experiment_type_id=ds.experiment_type_id,
+                    attributi=[
+                        encode_data_set_attributo_value(dsa)
+                        for dsa in ds.attributo_values
+                    ],
+                    beamtime_id=beamtimeId,
+                )
+                for ds in data_sets
+            ],
+            simulated=simulate,
+            create_data_sets=create_data_sets,
+        )

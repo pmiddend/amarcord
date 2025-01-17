@@ -18,6 +18,7 @@ import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
+import Amarcord.Pages.Import as Import
 import Amarcord.Pages.MergeResult as MergeResult
 import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
@@ -84,6 +85,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | ImportPageMsg Import.Msg
     | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
@@ -107,6 +109,7 @@ type Page
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
     | RunsPage Runs.Model
+    | ImportPage Import.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
@@ -186,6 +189,9 @@ buildTitleForPage page =
 
         RunOverviewPage model ->
             RunOverview.pageTitle model
+
+        ImportPage model ->
+            Import.pageTitle model
 
         RunsPage model ->
             Runs.pageTitle model
@@ -341,6 +347,12 @@ currentView model =
             div []
                 [ RunOverview.view pageModel
                     |> Html.map RunOverviewPageMsg
+                ]
+
+        ImportPage pageModel ->
+            div []
+                [ Import.view pageModel
+                    |> Html.map ImportPageMsg
                 ]
 
         AnalysisOverviewPage pageModel ->
@@ -509,6 +521,15 @@ updateInner hereAndNow msg model =
             , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
+        ( ImportPageMsg subMsg, ImportPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Import.update subMsg pageModel
+            in
+            ( { model | page = ImportPage updatedPageModel }
+            , Cmd.map ImportPageMsg updatedCmd
+            )
+
         ( BeamtimeSelectionPageMsg subMsg, BeamtimeSelectionPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -568,7 +589,7 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path then
+                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path || contains "run-bulk-import-template" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -692,6 +713,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             RunOverview.init hereAndNow localStorage beamtimeId
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
+
+                Route.Import beamtimeId step ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Import.init hereAndNow beamtimeId step
+                    in
+                    ( ImportPage pageModel, Cmd.map ImportPageMsg pageCmds )
 
                 Route.AnalysisOverview beamtimeId filters across mergeFilter ->
                     let

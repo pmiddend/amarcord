@@ -35,6 +35,7 @@ icon { name } =
 type AlertProperty
     = AlertSuccess
     | AlertDanger
+    | AlertWarning
 
 
 alertPropToCss : AlertProperty -> String
@@ -45,6 +46,9 @@ alertPropToCss x =
 
         AlertDanger ->
             "alert-danger"
+
+        AlertWarning ->
+            "alert-warning"
 
 
 viewAlert : List AlertProperty -> List (Html msg) -> Html msg

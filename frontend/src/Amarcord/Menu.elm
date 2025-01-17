@@ -76,6 +76,7 @@ menu bt =
         , { route = Route.AdvancedControls bt, description = "Advanced", iconName = "speedometer" }
         , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
         , { route = Route.EventLog bt, description = "Events", iconName = "book" }
+        , { route = Route.Import bt Route.ImportAttributi, description = "Import", iconName = "upload" }
         ]
     , VerticalRule
     , Leaf { route = Route.Root bt, description = "All Beamtimes", iconName = "globe" }

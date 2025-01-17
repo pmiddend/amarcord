@@ -11,7 +11,7 @@ import Amarcord.Html exposing (div_, h2_, h5_, input_, li_, onIntInput, p_, stro
 import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.RunFilesForm as RunFilesForm
 import Amarcord.Util exposing (listContainsBy)
-import Api.Data exposing (ChemicalType(..), JsonAttributo, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
+import Api.Data exposing (JsonAttributo, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Runs exposing (updateRunApiRunsPatch)
 import Html exposing (Html, a, button, div, form, label, option, p, select, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, href, selected, type_, value)
@@ -137,7 +137,6 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
             a.associatedTable
                 == AssociatedTable.Run
                 && (showAllAttributi || a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
-                && not (List.member a.name [ "started", "stopped" ])
 
         filteredAttributi : List EditableAttributo
         filteredAttributi =
@@ -146,10 +145,21 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
         viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
         viewAttributoFormWithRole e =
             viewAttributoForm chemicals
-                (Maybe.withDefault ChemicalTypeSolution <|
-                    Maybe.map .role <|
-                        ListExtra.find (\awr -> awr.id == e.id) <|
-                            Maybe.withDefault [] currentExperimentTypeAttributi
+                -- This is a tricky bit. It determines which chemicals
+                -- to display in the drop-down menu for a chemical
+                -- attributo.
+                --
+                -- If this (chemical) attributo is in the current
+                -- experiment type, then it will have a role (crystal
+                -- or solution) attached. Meaning, we only want to
+                -- display chemicals with that role.
+                --
+                -- If it's not in the current experiment, it has no
+                -- role, and we don't want to filter on the role
+                -- either
+                (Maybe.map .role <|
+                    ListExtra.find (\awr -> awr.id == e.id) <|
+                        Maybe.withDefault [] currentExperimentTypeAttributi
                 )
                 e
 
@@ -222,7 +232,13 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
         [ h2_ [ text ("Edit run " ++ runExternalIdToString runExternalId) ]
         , form [ class "mb-3" ] <|
             div [ class "form-check form-switch mb-3" ]
-                [ input_ [ type_ "checkbox", Html.Attributes.id "show-all-attributi", class "form-check-input", checked showAllAttributi, onInput (always (ChangeShowAllAttributi (not showAllAttributi))) ]
+                [ input_
+                    [ type_ "checkbox"
+                    , Html.Attributes.id "show-all-attributi"
+                    , class "form-check-input"
+                    , checked showAllAttributi
+                    , onInput (always (ChangeShowAllAttributi (not showAllAttributi)))
+                    ]
                 , label [ class "form-check-label", for "show-all-attributi" ] [ text "Show all attributi" ]
                 ]
                 :: div [ class "mb-3" ]

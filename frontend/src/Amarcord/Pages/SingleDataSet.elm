@@ -20,7 +20,7 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Maybe
@@ -381,10 +381,10 @@ viewJobStatus : Bool -> DBJobStatus -> Html msg
 viewJobStatus hasError x =
     case x of
         DBJobStatusQueued ->
-            span [ class "badge text-bg-secondary" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " queued" ]
+            span [ class "badge text-bg-secondary d-inline-flex align-items-center gap-2" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " queued" ]
 
         DBJobStatusRunning ->
-            span [ class "badge text-bg-info" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " running" ]
+            span [ class "badge text-bg-primary d-inline-flex align-items-center gap-2" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " running" ]
 
         DBJobStatusDone ->
             if hasError then
@@ -678,7 +678,7 @@ viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexing
               else
                 tr_ [ td [ colspan (List.length indexingAndMergeResultHeaders) ] [ div_ [ hideShowDetailsButton parametersId ] ] ]
             , tr_
-                [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
+                [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
                     [ h5_ [ text "Merge Results" ]
                     , viewMergeResults model experimentType dataSet parameters mergeResults
                     ]
@@ -927,7 +927,7 @@ viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
         , case model.submitProcessingRequest of
             Success { dataSetId } ->
                 if dataSetId == dataSet.id then
-                    p [ class "text-success" ] [ text "Job submitted!" ]
+                    div [ class "badge text-bg-success" ] [ text "Job submitted!" ]
 
                 else
                     text ""

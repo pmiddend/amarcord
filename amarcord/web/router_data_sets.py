@@ -16,6 +16,7 @@ from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.orm_utils import run_has_attributo_to_data_set_has_attributo
 from amarcord.json_schema import JSONSchemaBoolean
 from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import get_orm_db
@@ -33,21 +34,6 @@ from amarcord.web.router_chemicals import encode_chemical
 from amarcord.web.router_experiment_types import encode_experiment_type
 
 router = APIRouter()
-
-
-def _run_has_attributo_to_data_set_has_attributo(
-    r: orm.RunHasAttributoValue,
-) -> orm.DataSetHasAttributoValue:
-    return orm.DataSetHasAttributoValue(
-        attributo_id=r.attributo_id,
-        integer_value=r.integer_value,
-        float_value=r.float_value,
-        string_value=r.string_value,
-        bool_value=r.bool_value,
-        datetime_value=r.datetime_value,
-        list_value=r.list_value,
-        chemical_value=r.chemical_value,
-    )
 
 
 def encode_orm_data_set_to_json(a: orm.DataSet, beamtime_id: BeamtimeId) -> JsonDataSet:
@@ -81,7 +67,7 @@ async def create_data_set_from_run(
             for run_attributo in run.attributo_values:
                 if run_attributo.attributo_id == et_attributo.attributo_id:
                     new_data_set.attributo_values.append(
-                        _run_has_attributo_to_data_set_has_attributo(run_attributo),
+                        run_has_attributo_to_data_set_has_attributo(run_attributo),
                     )
         session.add(new_data_set)
         await session.flush()

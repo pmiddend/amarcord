@@ -147,6 +147,8 @@ module Api.Data exposing
     , JsonRunAnalysisIndexingResult
     , JsonRunFile
     , JsonRunId
+    , JsonRunsBulkImportInfo
+    , JsonRunsBulkImportOutput
     , JsonStartRunOutput
     , JsonStopRunOutput
     , JsonUpdateAttributoConversionFlags
@@ -300,6 +302,8 @@ module Api.Data exposing
     , encodeJsonRunAnalysisIndexingResult
     , encodeJsonRunFile
     , encodeJsonRunId
+    , encodeJsonRunsBulkImportInfo
+    , encodeJsonRunsBulkImportOutput
     , encodeJsonStartRunOutput
     , encodeJsonStopRunOutput
     , encodeJsonUpdateAttributoConversionFlags
@@ -461,6 +465,8 @@ module Api.Data exposing
     , jsonRunAnalysisIndexingResultDecoder
     , jsonRunFileDecoder
     , jsonRunIdDecoder
+    , jsonRunsBulkImportInfoDecoder
+    , jsonRunsBulkImportOutputDecoder
     , jsonStartRunOutputDecoder
     , jsonStopRunOutputDecoder
     , jsonUpdateAttributoConversionFlagsDecoder
@@ -1680,6 +1686,22 @@ type alias JsonRunFile =
 type alias JsonRunId =
     { internalRunId : Int
     , externalRunId : Int
+    }
+
+
+type alias JsonRunsBulkImportInfo =
+    { runAttributi : List JsonAttributo
+    , experimentTypes : List String
+    , chemicals : List JsonChemical
+    }
+
+
+type alias JsonRunsBulkImportOutput =
+    { simulated : Bool
+    , createDataSets : Bool
+    , errors : List String
+    , numberOfRuns : Int
+    , dataSets : List JsonDataSet
     }
 
 
@@ -4975,6 +4997,52 @@ encodeJsonRunIdPairs model =
     pairs
 
 
+encodeJsonRunsBulkImportInfo : JsonRunsBulkImportInfo -> Json.Encode.Value
+encodeJsonRunsBulkImportInfo =
+    encodeObject << encodeJsonRunsBulkImportInfoPairs
+
+
+encodeJsonRunsBulkImportInfoWithTag : ( String, String ) -> JsonRunsBulkImportInfo -> Json.Encode.Value
+encodeJsonRunsBulkImportInfoWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRunsBulkImportInfoPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRunsBulkImportInfoPairs : JsonRunsBulkImportInfo -> List EncodedField
+encodeJsonRunsBulkImportInfoPairs model =
+    let
+        pairs =
+            [ encode "run_attributi" (Json.Encode.list encodeJsonAttributo) model.runAttributi
+            , encode "experiment_types" (Json.Encode.list Json.Encode.string) model.experimentTypes
+            , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
+            ]
+    in
+    pairs
+
+
+encodeJsonRunsBulkImportOutput : JsonRunsBulkImportOutput -> Json.Encode.Value
+encodeJsonRunsBulkImportOutput =
+    encodeObject << encodeJsonRunsBulkImportOutputPairs
+
+
+encodeJsonRunsBulkImportOutputWithTag : ( String, String ) -> JsonRunsBulkImportOutput -> Json.Encode.Value
+encodeJsonRunsBulkImportOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRunsBulkImportOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRunsBulkImportOutputPairs : JsonRunsBulkImportOutput -> List EncodedField
+encodeJsonRunsBulkImportOutputPairs model =
+    let
+        pairs =
+            [ encode "simulated" Json.Encode.bool model.simulated
+            , encode "create_data_sets" Json.Encode.bool model.createDataSets
+            , encode "errors" (Json.Encode.list Json.Encode.string) model.errors
+            , encode "number_of_runs" Json.Encode.int model.numberOfRuns
+            , encode "data_sets" (Json.Encode.list encodeJsonDataSet) model.dataSets
+            ]
+    in
+    pairs
+
+
 encodeJsonStartRunOutput : JsonStartRunOutput -> Json.Encode.Value
 encodeJsonStartRunOutput =
     encodeObject << encodeJsonStartRunOutputPairs
@@ -6787,6 +6855,24 @@ jsonRunIdDecoder =
     Json.Decode.succeed JsonRunId
         |> decode "internal_run_id" Json.Decode.int 
         |> decode "external_run_id" Json.Decode.int 
+
+
+jsonRunsBulkImportInfoDecoder : Json.Decode.Decoder JsonRunsBulkImportInfo
+jsonRunsBulkImportInfoDecoder =
+    Json.Decode.succeed JsonRunsBulkImportInfo
+        |> decode "run_attributi" (Json.Decode.list jsonAttributoDecoder) 
+        |> decode "experiment_types" (Json.Decode.list Json.Decode.string) 
+        |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
+
+
+jsonRunsBulkImportOutputDecoder : Json.Decode.Decoder JsonRunsBulkImportOutput
+jsonRunsBulkImportOutputDecoder =
+    Json.Decode.succeed JsonRunsBulkImportOutput
+        |> decode "simulated" Json.Decode.bool 
+        |> decode "create_data_sets" Json.Decode.bool 
+        |> decode "errors" (Json.Decode.list Json.Decode.string) 
+        |> decode "number_of_runs" Json.Decode.int 
+        |> decode "data_sets" (Json.Decode.list jsonDataSetDecoder) 
 
 
 jsonStartRunOutputDecoder : Json.Decode.Decoder JsonStartRunOutput

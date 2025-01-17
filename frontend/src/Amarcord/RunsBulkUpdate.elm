@@ -8,7 +8,7 @@ import Amarcord.Chemical exposing (Chemical, ChemicalId, convertChemicalFromApi)
 import Amarcord.Html exposing (form_, h3_, hr_, input_, li_, onIntInput, p_, strongText)
 import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Util exposing (HereAndNow)
-import Api.Data exposing (ChemicalType(..), JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
+import Api.Data exposing (JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
 import Api.Request.Runs exposing (readRunsBulkApiRunsBulkPost, updateRunsBulkApiRunsBulkPatch)
 import Dict
 import Html exposing (Html, button, div, label, option, select, text, ul)
@@ -132,7 +132,7 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
             :: div [ class "lead" ] [ text "The following input fields might be left empty, in which case multiple runs have different values for this attributo. Write something in the input field value, and all runs will have the new attributo value set." ]
             :: hr_
             :: experimentTypeSelect
-            :: List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals ChemicalTypeCrystal) actualEditableAttributi.editableAttributi
+            :: List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals Nothing) actualEditableAttributi.editableAttributi
             ++ submitErrors
             ++ submitSuccess
             ++ okButton
