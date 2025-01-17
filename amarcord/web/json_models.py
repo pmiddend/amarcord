@@ -596,6 +596,7 @@ class JsonDataSetStatistics(BaseModel):
     run_count: int
     merge_results_count: int
     indexed_frames: int
+    merge_or_indexing_jobs_running: bool
 
 
 class JsonRunsBulkImportOutput(BaseModel):

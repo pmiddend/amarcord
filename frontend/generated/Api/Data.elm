@@ -1005,6 +1005,7 @@ type alias JsonDataSetStatistics =
     , runCount : Int
     , mergeResultsCount : Int
     , indexedFrames : Int
+    , mergeOrIndexingJobsRunning : Bool
     }
 
 
@@ -3139,6 +3140,7 @@ encodeJsonDataSetStatisticsPairs model =
             , encode "run_count" Json.Encode.int model.runCount
             , encode "merge_results_count" Json.Encode.int model.mergeResultsCount
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
+            , encode "merge_or_indexing_jobs_running" Json.Encode.bool model.mergeOrIndexingJobsRunning
             ]
     in
     pairs
@@ -6092,6 +6094,7 @@ jsonDataSetStatisticsDecoder =
         |> decode "run_count" Json.Decode.int 
         |> decode "merge_results_count" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
+        |> decode "merge_or_indexing_jobs_running" Json.Decode.bool 
 
 
 jsonDataSetWithFomDecoder : Json.Decode.Decoder JsonDataSetWithFom

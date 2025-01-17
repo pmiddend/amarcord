@@ -323,7 +323,7 @@ viewDataSet model attributi chemicalIdsToName dataSet dataSetStatistics =
                     Nothing ->
                         text ""
 
-                    Just { runCount, mergeResultsCount, indexedFrames } ->
+                    Just { runCount, mergeResultsCount, indexedFrames, mergeOrIndexingJobsRunning } ->
                         p [ class "hstack gap-1" ] <|
                             (if runCount == 0 then
                                 span [ class "badge text-bg-warning" ] [ text "no runs" ]
@@ -382,6 +382,12 @@ viewDataSet model attributi chemicalIdsToName dataSet dataSetStatistics =
 
                                         ( _, False, False ) ->
                                             [ tooLittleIndexed "secondary", mergeResults "success" ]
+                                   )
+                                ++ (if mergeOrIndexingJobsRunning then
+                                        [ div [ class "spinner-border spinner-border-sm text-primary" ] [] ]
+
+                                    else
+                                        []
                                    )
                 , a
                     [ href

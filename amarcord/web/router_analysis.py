@@ -782,6 +782,19 @@ async def read_analysis_results(
                         for ir_list in indexed_frames_per_run.values()
                     ),
                     merge_results_count=len(merge_results),
+                    merge_or_indexing_jobs_running=any(
+                        True
+                        for r in runs_in_this_ds
+                        for ir in r.indexing_results
+                        for mr in ir.merge_results
+                        if mr.job_status != DBJobStatus.DONE
+                    )
+                    or any(
+                        True
+                        for r in runs_in_this_ds
+                        for ir in r.indexing_results
+                        if ir.job_status != DBJobStatus.DONE
+                    ),
                 ),
             )
 
