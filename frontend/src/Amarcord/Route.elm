@@ -4,6 +4,7 @@ import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
 import Dict
+import Maybe.Extra
 import Time exposing (millisToPosix, posixToMillis)
 import Url
 import Url.Parser exposing ((</>), (<?>), Parser, custom, int, map, oneOf, parse, s, top)
@@ -57,6 +58,35 @@ importStepFromString x =
             Nothing
 
 
+type alias RunRange =
+    { runIdFrom : Int, runIdTo : Int }
+
+
+runRangeFromString : String -> Maybe RunRange
+runRangeFromString input =
+    case String.split "-" input of
+        [ from, to ] ->
+            Maybe.map2 RunRange (String.toInt from) (String.toInt to)
+
+        _ ->
+            Nothing
+
+
+runRangesFromString : List String -> List RunRange
+runRangesFromString runRanges =
+    case runRanges of
+        x :: _ ->
+            Maybe.withDefault [] (Maybe.Extra.combineMap runRangeFromString (String.split "," x))
+
+        _ ->
+            []
+
+
+runRangesToString : List RunRange -> String
+runRangesToString =
+    String.join "," << List.map (\{ runIdFrom, runIdTo } -> String.fromInt runIdFrom ++ "-" ++ String.fromInt runIdTo)
+
+
 type Route
     = BeamtimeSelection
     | Root BeamtimeId
@@ -64,7 +94,7 @@ type Route
     | DataSets BeamtimeId
     | Schedule BeamtimeId
     | ExperimentTypes BeamtimeId
-    | Runs BeamtimeId
+    | Runs BeamtimeId (List RunRange)
     | RunOverview BeamtimeId
     | Import BeamtimeId ImportStep
     | Attributi BeamtimeId
@@ -100,7 +130,7 @@ beamtimeIdInRoute x =
         ExperimentTypes btid ->
             Just btid
 
-        Runs btid ->
+        Runs btid _ ->
             Just btid
 
         RunOverview btid ->
@@ -200,8 +230,11 @@ makeLink x =
         Attributi beamtimeId ->
             routePrefix ++ "/attributi/" ++ beamtimeIdToString beamtimeId
 
-        Runs beamtimeId ->
+        Runs beamtimeId [] ->
             routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId
+
+        Runs beamtimeId runRanges ->
+            routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId ++ "?runs=" ++ runRangesToString runRanges
 
         RunOverview beamtimeId ->
             routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
@@ -387,7 +420,7 @@ matchRoute =
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)
-        , map Runs (s "runs" </> int)
+        , map Runs (s "runs" </> int <?> Query.custom "runs" runRangesFromString)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)

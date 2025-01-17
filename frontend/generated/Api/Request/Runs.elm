@@ -70,13 +70,13 @@ createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateR
         Api.Data.jsonCreateOrUpdateRunOutputDecoder
 
 
-readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns
-readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query =
+readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns
+readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query runRanges_query =
     Api.request
         "GET"
         "/api/runs/{beamtimeId}"
         [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
-        [ ( "date", Maybe.map identity date_query ), ( "filter", Maybe.map identity filter_query ) ]
+        [ ( "date", Maybe.map identity date_query ), ( "filter", Maybe.map identity filter_query ), ( "runRanges", Maybe.map identity runRanges_query ) ]
         []
         Nothing
         Api.Data.jsonReadRunsDecoder

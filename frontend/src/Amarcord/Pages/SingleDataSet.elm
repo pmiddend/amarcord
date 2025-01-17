@@ -11,7 +11,7 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route exposing (MergeFilter(..), Route(..), makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
@@ -579,16 +579,30 @@ foldIntervals list =
             lastPair :: pairs
 
 
-createRunRanges : List Int -> List String
-createRunRanges =
-    List.map
-        (\( start, end ) ->
-            if start == end then
-                String.fromInt start
+makeRangesLink : BeamtimeId -> List RunRange -> Html msg
+makeRangesLink beamtimeId ranges =
+    a [ href (makeLink (Runs beamtimeId ranges)) ]
+        [ text
+            (String.join ", "
+                (List.map
+                    (\{ runIdFrom, runIdTo } ->
+                        if runIdFrom == runIdTo then
+                            String.fromInt runIdFrom
 
-            else
-                String.fromInt start ++ "-" ++ String.fromInt end
-        )
+                        else
+                            String.fromInt runIdFrom ++ "-" ++ String.fromInt runIdTo
+                    )
+                    ranges
+                )
+            )
+        ]
+
+
+createRunRanges : BeamtimeId -> List Int -> Html msg
+createRunRanges beamtimeId =
+    makeRangesLink beamtimeId
+        << List.map
+            (\( start, end ) -> { runIdFrom = start, runIdTo = end })
         << foldIntervals
         << List.sort
 
@@ -662,7 +676,7 @@ viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexing
             in
             [ tr_
                 [ td_ [ text (String.fromInt parametersId) ]
-                , td_ [ text <| String.join ", " (createRunRanges (List.map .runExternalId successfulResults)) ]
+                , td_ [ createRunRanges model.beamtimeId (List.map .runExternalId successfulResults) ]
                 , td_ [ text (formatIntHumanFriendly frames) ]
                 , td_ [ text (formatIntHumanFriendly hits) ]
                 , td_ [ text (formatIntHumanFriendly indexedFrames) ]

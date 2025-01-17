@@ -57,7 +57,7 @@ menu bt =
     [ Dropdown "Runs"
         "card-list"
         [ { route = Route.RunOverview bt, description = "Current Run", iconName = "caret-right" }
-        , { route = Route.Runs bt, description = "All Runs", iconName = "folder2" }
+        , { route = Route.Runs bt [], description = "All Runs", iconName = "folder2" }
         ]
     , Dropdown "Library"
         "collection"

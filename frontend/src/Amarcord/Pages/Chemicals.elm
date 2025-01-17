@@ -146,7 +146,7 @@ getChemicalsAndRuns : BeamtimeId -> Cmd Msg
 getChemicalsAndRuns beamtimeId =
     Cmd.batch
         [ send ChemicalsReceived (readChemicalsApiChemicalsBeamtimeIdGet beamtimeId)
-        , send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
+        , send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing Nothing)
         ]
 
 

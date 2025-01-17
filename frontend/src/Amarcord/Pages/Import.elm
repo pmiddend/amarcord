@@ -208,7 +208,7 @@ viewUploadResult model { runAttributi, chemicals } uploadResult =
                           else
                             span_
                                 [ text "Check "
-                                , a [ href (Route.makeLink (Route.Runs model.beamtimeId)) ] [ text "→ the runs table" ]
+                                , a [ href (Route.makeLink (Route.Runs model.beamtimeId [])) ] [ text "→ the runs table" ]
                                 , text " to view these runs."
                                 ]
                         ]

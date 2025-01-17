@@ -516,7 +516,7 @@ viewInner model { runsOverview, latestRun } =
             ]
         , tbody_ (List.map (viewEventRow model.zone) runsOverview.events)
         ]
-    , a [ href (makeLink (Runs model.beamtimeId)) ] [ text "→ Go to runs table" ]
+    , a [ href (makeLink (Runs model.beamtimeId [])) ] [ text "→ Go to runs table" ]
     ]
 
 

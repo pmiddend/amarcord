@@ -700,10 +700,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( MergeResultPage pageModel, Cmd.map MergeResultPageMsg pageCmds )
 
-                Route.Runs beamtimeId ->
+                Route.Runs beamtimeId runsRange ->
                     let
                         ( pageModel, pageCmds ) =
-                            Runs.init hereAndNow localStorage beamtimeId
+                            Runs.init hereAndNow localStorage beamtimeId runsRange
                     in
                     ( RunsPage pageModel, Cmd.map RunsPageMsg pageCmds )
 

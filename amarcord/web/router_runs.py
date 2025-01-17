@@ -19,6 +19,7 @@ from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl import load_workbook
+from sqlalchemy import true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
@@ -745,6 +746,7 @@ async def read_runs(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
     date: None | str = None,
     filter: None | str = None,  # noqa: A002
+    runRanges: None | str = None,  # noqa: N803
 ) -> JsonReadRuns:
     attributi = list(
         (
@@ -769,10 +771,32 @@ async def read_runs(
             ),
         )
     ).all()
+    run_ids: set[int] = set()
+    if runRanges is not None and runRanges.strip():
+        for single_range in runRanges.split(","):
+            try:
+                from_to = single_range.split("-", maxsplit=2)
+                from_: int
+                to_: int
+                if len(from_to) == 1:
+                    from_ = to_ = int(from_to[0])
+                else:
+                    from_ = int(from_to[0])
+                    to_ = int(from_to[1])
+                for run_id in range(from_, to_ + 1):
+                    run_ids.add(run_id)
+            except:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"run range “{range}” is not of the form “from-to” (where from, to are integers)",
+                )
     all_runs = (
         await session.scalars(
             select(orm.Run)
-            .where(orm.Run.beamtime_id == beamtimeId)
+            .where(
+                (orm.Run.beamtime_id == beamtimeId)
+                & (orm.Run.external_id.in_(run_ids) if run_ids else true())
+            )
             # Sort by inverse chronological order
             .order_by(orm.Run.started.desc())
             .options(selectinload(orm.Run.files)),

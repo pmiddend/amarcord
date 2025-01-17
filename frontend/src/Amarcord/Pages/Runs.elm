@@ -12,7 +12,7 @@ import Amarcord.Html exposing (input_, li_, p_, strongText, tbody_, td_, th_, th
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
-import Amarcord.Route exposing (makeFilesLink)
+import Amarcord.Route exposing (RunRange, makeFilesLink, runRangesToString)
 import Amarcord.RunAttributiForm as RunAttributiForm
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Api.Data exposing (JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput)
@@ -113,6 +113,7 @@ type alias Model =
     , zone : Zone
     , refreshRequest : RemoteData HttpError ()
     , now : Posix
+    , runRanges : List RunRange
     , runDateFilter : RunDateFilterInfo
     , runDates : List RunEventDate
     , runEditInfo : Maybe RunAttributiForm.Model
@@ -126,13 +127,14 @@ type alias Model =
     }
 
 
-init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )
-init { zone, now } localStorage beamtimeId =
+init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> List RunRange -> ( Model, Cmd Msg )
+init { zone, now } localStorage beamtimeId runRanges =
     ( { runs = Loading
       , zone = zone
       , refreshRequest = NotAsked
       , now = now
       , runDates = []
+      , runRanges = runRanges
       , runDateFilter = initRunDateFilter
       , runEditInfo = Nothing
       , runEditRequest = NotAsked
@@ -148,6 +150,13 @@ init { zone, now } localStorage beamtimeId =
             beamtimeId
             (Maybe.map runEventDateToString <| runEventDateFilter emptyRunEventDateFilter)
             (Just <| runFilterToString emptyRunFilter)
+            (case runRanges of
+                [] ->
+                    Nothing
+
+                ranges ->
+                    Just (runRangesToString ranges)
+            )
         )
     )
 
@@ -504,6 +513,13 @@ retrieveRuns model =
         (readRunsApiRunsBeamtimeIdGet model.beamtimeId
             (Maybe.map runEventDateToString <| runEventDateFilter <| model.runDateFilter.runDateFilter)
             (Just <| runFilterToString model.runFilter.runFilter)
+            (case model.runRanges of
+                [] ->
+                    Nothing
+
+                ranges ->
+                    Just (runRangesToString ranges)
+            )
         )
 
 
