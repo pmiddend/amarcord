@@ -2045,7 +2045,9 @@ def run_primary(args: PrimaryArgs) -> None:
         args=args,
         program_version=crystfel_version,
         geometry_hash=geometry_hash,
-        generated_geometry_file=geometry_file_destination,
+        generated_geometry_file=geometry_file_destination
+        if Path(geometry_file_destination).is_file()
+        else "",
         line=final_fom,
     )
 
