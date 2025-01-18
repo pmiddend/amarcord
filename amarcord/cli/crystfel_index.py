@@ -1756,16 +1756,16 @@ set x2tics out rotate (ALPHA_pos_max_y ALPHA_pos_max_y)
 plot inputfile using (bin(column(4), bin_width)):(1.0) smooth freq with boxes notitle
 set title "Beta"
 set xtics auto nomirror out rotate
-set x2range [ALPHA_min_x-5:ALPHA_max_x+5]
-set xrange [ALPHA_min_x-5:ALPHA_max_x+5]
-set x2tics out rotate (ALPHA_pos_max_y ALPHA_pos_max_y)
+set x2range [BETA_min_x-5:BETA_max_x+5]
+set xrange [BETA_min_x-5:BETA_max_x+5]
+set x2tics out rotate (BETA_pos_max_y BETA_pos_max_y)
 set style fill solid border lt 5
 plot inputfile using (bin(column(5), bin_width)):(1.0) smooth freq with boxes notitle
 set title "Gamma"
 set xtics auto nomirror out rotate
-set x2range [ALPHA_min_x-5:ALPHA_max_x+5]
-set xrange [ALPHA_min_x-5:ALPHA_max_x+5]
-set x2tics out rotate (ALPHA_pos_max_y ALPHA_pos_max_y)
+set x2range [GAMMA_min_x-5:GAMMA_max_x+5]
+set xrange [GAMMA_min_x-5:GAMMA_max_x+5]
+set x2tics out rotate (GAMMA_pos_max_y GAMMA_pos_max_y)
 set style fill solid border lt 6
 plot inputfile using (bin(column(6), bin_width)):(1.0) smooth freq with boxes notitle
 
