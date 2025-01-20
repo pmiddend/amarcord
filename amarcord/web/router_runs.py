@@ -800,7 +800,7 @@ async def read_runs(
                 & (orm.Run.external_id.in_(run_ids) if run_ids else true())
             )
             # Sort by inverse chronological order
-            .order_by(orm.Run.started.desc())
+            .order_by(orm.Run.external_id.desc())
             .options(selectinload(orm.Run.files)),
         )
     ).all()
