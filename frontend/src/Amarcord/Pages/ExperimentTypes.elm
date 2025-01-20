@@ -99,7 +99,7 @@ copyFromOtherBeamtimeView { zone, beamtimeRequest, copyRequest, selectedBeamtime
                         , value ""
                         , selected (isNothing selectedBeamtime)
                         ]
-                        [ text "« choose a chemical »" ]
+                        [ text "« choose an experiment type »" ]
                         :: List.map viewBeamtime beamtimes
                     )
                 , div [ class "hstack gap-3 mb-3" ]
