@@ -1291,9 +1291,20 @@ async def bulk_import(
         for run in created_runs.runs:
             session.add(run)
 
+        existing_data_sets: list[orm.DataSet] = list(
+            (
+                await session.scalars(
+                    select(orm.DataSet, orm.ExperimentType)
+                    .join(orm.DataSet.experiment_type)
+                    .where(orm.ExperimentType.beamtime_id == beamtimeId),
+                )
+            ).all()
+        )
         data_sets: list[orm.DataSet]
         if create_data_sets:
-            data_sets = create_data_set_for_runs(ets, created_runs.runs)
+            data_sets = create_data_set_for_runs(
+                ets, created_runs.runs, existing_data_sets
+            )
             for ds in data_sets:
                 session.add(ds)
         else:

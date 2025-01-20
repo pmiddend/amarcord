@@ -633,7 +633,9 @@ def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
 
 
 def create_data_set_for_runs(
-    ets: list[orm.ExperimentType], runs: list[orm.Run]
+    ets: list[orm.ExperimentType],
+    runs: list[orm.Run],
+    existing_data_sets: list[orm.DataSet],
 ) -> list[orm.DataSet]:
     result: list[orm.DataSet] = []
     et_per_id: dict[int, orm.ExperimentType] = {et.id: et for et in ets}
@@ -655,6 +657,9 @@ def create_data_set_for_runs(
         have_equal = False
         for previous_ds in result:
             if data_sets_are_equal(previous_ds, new_data_set):
+                have_equal = True
+        for existing_ds in existing_data_sets:
+            if data_sets_are_equal(existing_ds, new_data_set):
                 have_equal = True
         if not have_equal:
             result.append(new_data_set)
