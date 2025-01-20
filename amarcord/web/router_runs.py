@@ -1259,8 +1259,12 @@ async def bulk_import(
         ets = list(
             (
                 await session.scalars(
-                    select(orm.ExperimentType).where(
-                        orm.ExperimentType.beamtime_id == beamtimeId
+                    select(orm.ExperimentType)
+                    .where(orm.ExperimentType.beamtime_id == beamtimeId)
+                    .options(
+                        selectinload(orm.ExperimentType.attributi).selectinload(
+                            orm.ExperimentHasAttributo.attributo
+                        )
                     )
                 )
             ).all()
@@ -1302,9 +1306,20 @@ async def bulk_import(
         )
         data_sets: list[orm.DataSet]
         if create_data_sets:
-            data_sets = create_data_set_for_runs(
+            data_set_creation_result = create_data_set_for_runs(
                 ets, created_runs.runs, existing_data_sets
             )
+            if isinstance(data_set_creation_result, ConversionError):
+                await session.rollback()
+                return JsonRunsBulkImportOutput(
+                    errors=data_set_creation_result.error_messages,
+                    warnings=created_runs.warnings,
+                    number_of_runs=len(created_runs.runs),
+                    data_sets=[],
+                    simulated=simulate,
+                    create_data_sets=create_data_sets,
+                )
+            data_sets = data_set_creation_result
             for ds in data_sets:
                 session.add(ds)
         else:

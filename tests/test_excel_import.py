@@ -880,6 +880,7 @@ def test_create_data_set_for_runs() -> None:
     run1.experiment_type = et1
     run2.experiment_type = et1
     data_sets = create_data_set_for_runs([et1], [run1, run2], [])
+    assert isinstance(data_sets, list)
     assert len(data_sets) == 1
 
 

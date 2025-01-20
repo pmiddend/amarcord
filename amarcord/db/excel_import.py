@@ -424,7 +424,6 @@ def convert_value(
                 f'is a chemical, but value is "{value}", cannot convert (I expect the chemical name)'
             )
         name = value.strip()
-        logger.info(f"name {name}, type {type(name)}")
         if not name:
             return None
         chemical = chemicals_by_name.get(name)
@@ -636,9 +635,10 @@ def create_data_set_for_runs(
     ets: list[orm.ExperimentType],
     runs: list[orm.Run],
     existing_data_sets: list[orm.DataSet],
-) -> list[orm.DataSet]:
+) -> list[orm.DataSet] | ConversionError:
     result: list[orm.DataSet] = []
     et_per_id: dict[int, orm.ExperimentType] = {et.id: et for et in ets}
+    error_messages: list[str] = []
     for run in runs:
         et = et_per_id.get(run.experiment_type_id)
         if et is None:
@@ -652,8 +652,24 @@ def create_data_set_for_runs(
                     new_data_set.attributo_values.append(
                         run_has_attributo_to_data_set_has_attributo(run_attributo)
                     )
+            if len(new_data_set.attributo_values) != len(run.experiment_type.attributi):
+                for existing_attributo in run.experiment_type.attributi:
+                    found = False
+                    for data_set_attributo in new_data_set.attributo_values:
+                        if (
+                            data_set_attributo.attributo_id
+                            == existing_attributo.attributo_id
+                        ):
+                            found = True
+                            break
+                    if not found:
+                        error_messages.append(
+                            f"run {run.external_id}: tried to create a data set for experiment type “{run.experiment_type.name}”, but attributo “{existing_attributo.attributo.name}” not found in this run"
+                        )
         if not new_data_set.attributo_values:
-            raise Exception("data set without attributo values?")
+            error_messages.append(
+                f"run {run.external_id}: found no attributo values to create the data set"
+            )
         have_equal = False
         for previous_ds in result:
             if data_sets_are_equal(previous_ds, new_data_set):
@@ -663,4 +679,6 @@ def create_data_set_for_runs(
                 have_equal = True
         if not have_equal:
             result.append(new_data_set)
+    if error_messages:
+        return ConversionError(error_messages)
     return result
