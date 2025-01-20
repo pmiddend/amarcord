@@ -1248,6 +1248,14 @@ async def bulk_import(
             ).all()
         )
 
+        existing_runs = list(
+            (
+                await session.scalars(
+                    select(orm.Run).where(orm.Run.beamtime_id == beamtimeId)
+                )
+            ).all()
+        )
+
         ets = list(
             (
                 await session.scalars(
@@ -1264,6 +1272,7 @@ async def bulk_import(
             attributi=attributi,
             chemicals=chemicals,
             experiment_types=ets,
+            existing_runs=existing_runs,
         )
 
         if isinstance(created_runs, SpreadsheetValidationErrors):

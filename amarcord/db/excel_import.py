@@ -503,6 +503,7 @@ def create_runs_from_spreadsheet(
     beamtime_id: BeamtimeId,
     attributi: list[orm.Attributo],
     chemicals: list[orm.Chemical],
+    existing_runs: list[orm.Run],
     experiment_types: list[orm.ExperimentType],
 ) -> SpreadsheetValidationErrors | SpreadsheetValidationResult:
     if not experiment_types:
@@ -533,15 +534,36 @@ def create_runs_from_spreadsheet(
     orm_runs: list[orm.Run] = []
     existing_file_globs_with_rows: dict[str, int] = {}
     warnings: list[str] = []
+    run_ids: set[int] = set(x.external_id for x in existing_runs)
+    additional_run_ids_with_rows: dict[int, int] = {}
     for run in spreadsheet.runs:
         et = experiment_types_by_name.get(run.experiment_type)
         if et is None:
             errors = errors.combine(
                 ConversionError.singleton(
-                    f'row {run.original_row}: experiment type "{run.experiment_type}" not found in list of experiment types'
+                    f"row {run.original_row}: experiment type “{run.experiment_type}” not found in list of experiment types (this is case-sensitive!)"
                 )
             )
             continue
+
+        if run.external_id in run_ids:
+            errors = errors.combine(
+                ConversionError.singleton(
+                    f"row {run.original_row}: you already have a run with ID {run.external_id} in the database"
+                )
+            )
+            continue
+
+        existing_run_with_this_id = additional_run_ids_with_rows.get(run.external_id)
+        if existing_run_with_this_id is not None:
+            errors = errors.combine(
+                ConversionError.singleton(
+                    f"row {run.original_row}: you already have a run with ID {run.external_id} in row {existing_run_with_this_id}"
+                )
+            )
+            continue
+
+        additional_run_ids_with_rows[run.external_id] = run.original_row
 
         attributo_values: list[orm.RunHasAttributoValue] = []
         chemicals_by_name: dict[str, orm.Chemical] = {

@@ -14,10 +14,12 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
-from amarcord.db.excel_import import ConversionError, SpreadsheetValidationResult
+from amarcord.db.excel_import import ConversionError
 from amarcord.db.excel_import import ParsedRunSpreadsheet
 from amarcord.db.excel_import import ParsedRunSpreadsheetRun
 from amarcord.db.excel_import import RunCellResult
+from amarcord.db.excel_import import SpreadsheetValidationErrors
+from amarcord.db.excel_import import SpreadsheetValidationResult
 from amarcord.db.excel_import import convert_value
 from amarcord.db.excel_import import create_data_set_for_runs
 from amarcord.db.excel_import import create_runs_from_spreadsheet
@@ -596,6 +598,7 @@ def test_create_runs_from_spreadsheet_no_custom_attributi() -> None:
         beamtime_id=beamtime_id,
         attributi=[],
         chemicals=[],
+        existing_runs=[],
         experiment_types=[experiment_type],
     )
     assert isinstance(result, SpreadsheetValidationResult)
@@ -644,6 +647,7 @@ def test_create_runs_from_spreadsheet_one_custom_int_attributo() -> None:
         beamtime_id=beamtime_id,
         attributi=[test_attributo],
         chemicals=[],
+        existing_runs=[],
         experiment_types=[experiment_type],
     )
     assert isinstance(result, SpreadsheetValidationResult)
@@ -655,6 +659,57 @@ def test_create_runs_from_spreadsheet_one_custom_int_attributo() -> None:
     assert first_run.experiment_type_id == experiment_type_id
     assert first_run.external_id == run_external_id
     assert first_run.started == run_started
+
+
+def test_create_runs_from_spreadsheet_duplicate_run_ids_inside_spreadsheet() -> None:
+    beamtime_id = BeamtimeId(1)
+    experiment_type_id = 1338
+    experiment_type = orm.ExperimentType(name="simple", beamtime_id=beamtime_id)
+    experiment_type.id = experiment_type_id
+    run_external_id = 1339
+    run_started = datetime.datetime.now()
+    test_attributo = orm.Attributo(
+        name="test",
+        json_schema={"type": "integer"},
+        beamtime_id=beamtime_id,
+        description="",
+        group="",
+        associated_table=AssociatedTable.RUN,
+    )
+    test_attributo_id = 1400
+    test_attributo.id = test_attributo_id  # type: ignore
+    result = create_runs_from_spreadsheet(
+        spreadsheet=ParsedRunSpreadsheet(
+            custom_column_headers=["test"],
+            runs=[
+                ParsedRunSpreadsheetRun(
+                    external_id=run_external_id,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=1,
+                    files=["test.h5"],
+                    custom_column_values=["3"],
+                ),
+                ParsedRunSpreadsheetRun(
+                    # see? same ID as before - not goot
+                    external_id=run_external_id,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=1,
+                    files=["test.h5"],
+                    custom_column_values=["3"],
+                ),
+            ],
+        ),
+        beamtime_id=beamtime_id,
+        attributi=[test_attributo],
+        chemicals=[],
+        existing_runs=[],
+        experiment_types=[experiment_type],
+    )
+    assert isinstance(result, SpreadsheetValidationErrors)
 
 
 def test_data_sets_are_equal() -> None:
@@ -863,7 +918,71 @@ def test_create_runs_from_spreadsheet_duplicate_file_glob() -> None:
         beamtime_id=beamtime_id,
         attributi=[],
         chemicals=[],
+        existing_runs=[],
         experiment_types=[experiment_type],
     )
     assert isinstance(result, SpreadsheetValidationResult)
     assert result.warnings
+
+
+def test_create_runs_from_spreadsheet_duplicate_run_ids_outside_spreadsheet() -> None:
+    beamtime_id = BeamtimeId(1)
+    experiment_type_id = 1338
+    experiment_type = orm.ExperimentType(name="simple", beamtime_id=beamtime_id)
+    experiment_type.id = experiment_type_id
+    run_external_id = 1339
+    run_started = datetime.datetime.now()
+    test_attributo = orm.Attributo(
+        name="test",
+        json_schema={"type": "integer"},
+        beamtime_id=beamtime_id,
+        description="",
+        group="",
+        associated_table=AssociatedTable.RUN,
+    )
+    test_attributo_id = 1400
+    test_attributo.id = test_attributo_id  # type: ignore
+    result = create_runs_from_spreadsheet(
+        spreadsheet=ParsedRunSpreadsheet(
+            custom_column_headers=["test"],
+            runs=[
+                ParsedRunSpreadsheetRun(
+                    external_id=run_external_id,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=1,
+                    files=["test.h5"],
+                    custom_column_values=["3"],
+                )
+            ],
+        ),
+        beamtime_id=beamtime_id,
+        attributi=[test_attributo],
+        chemicals=[],
+        existing_runs=[
+            orm.Run(
+                # same ID as the one in the spreadsheet!
+                external_id=RunExternalId(run_external_id),
+                beamtime_id=beamtime_id,
+                modified=datetime.datetime.now(),
+                started=datetime.datetime.now(),
+                stopped=datetime.datetime.now(),
+                experiment_type_id=experiment_type_id,
+                attributo_values=[
+                    orm.RunHasAttributoValue(
+                        attributo_id=AttributoId(test_attributo_id),
+                        integer_value=1,
+                        float_value=None,
+                        string_value=None,
+                        bool_value=None,
+                        datetime_value=None,
+                        list_value=None,
+                        chemical_value=None,
+                    )
+                ],
+            )
+        ],
+        experiment_types=[experiment_type],
+    )
+    assert isinstance(result, SpreadsheetValidationErrors)
