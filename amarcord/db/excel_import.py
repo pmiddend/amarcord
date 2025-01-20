@@ -25,6 +25,7 @@ from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.orm_utils import run_has_attributo_to_data_set_has_attributo
 from amarcord.db.run_external_id import RunExternalId
+from amarcord.util import check_consecutive
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -604,6 +605,14 @@ def create_runs_from_spreadsheet(
         )
         new_run.experiment_type = et
         orm_runs.append(new_run)
+    nonconsecutive_run_id_pair = check_consecutive(
+        sorted(additional_run_ids_with_rows.keys())
+    )
+    if nonconsecutive_run_id_pair is not None:
+        from_, to_ = nonconsecutive_run_id_pair
+        warnings.append(
+            f"run IDs are not consecutive, we have a jump from run ID {from_} to run ID {to_}; you can still import the spreadsheet, but this run ID mixup could be a mistake?"
+        )
     if not errors.is_empty():
         return SpreadsheetValidationErrors(errors=errors.error_messages)
     return SpreadsheetValidationResult(runs=orm_runs, warnings=warnings)

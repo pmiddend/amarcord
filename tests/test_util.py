@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from amarcord.util import check_consecutive
 from amarcord.util import dict_union
 from amarcord.util import group_by
 from amarcord.util import last_line_of_file
@@ -90,3 +91,8 @@ def test_maybe_you_meant(
 ) -> None:
     result_str = maybe_you_meant(input_string, candidates)
     assert (len(result_str) > 0) == result
+
+
+def test_check_consecutive() -> None:
+    assert check_consecutive([1, 2, 3, 4]) is None
+    assert check_consecutive([1, 2, 4, 4]) == (2, 4)

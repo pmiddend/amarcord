@@ -265,3 +265,12 @@ def overwrite_interpreter(file_contents: str, interpreter: str) -> str:
     lines = file_contents.split("\n")
     lines[0] = interpreter
     return "\n".join(lines)
+
+
+def check_consecutive(xs: Iterable[int]) -> None | tuple[int, int]:
+    prev = None
+    for x in xs:
+        if prev is not None and prev != x - 1:
+            return (prev, x)
+        prev = x
+    return None

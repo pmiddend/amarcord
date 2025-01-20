@@ -926,6 +926,48 @@ def test_create_runs_from_spreadsheet_duplicate_file_glob() -> None:
     assert result.warnings
 
 
+def test_create_runs_from_spreadsheet_run_ids_are_not_consecutive() -> None:
+    beamtime_id = BeamtimeId(1)
+    experiment_type_id = 1338
+    experiment_type = orm.ExperimentType(name="simple", beamtime_id=beamtime_id)
+    experiment_type.id = experiment_type_id
+    run_external_id = 1339
+    run_started = datetime.datetime.now()
+    result = create_runs_from_spreadsheet(
+        spreadsheet=ParsedRunSpreadsheet(
+            custom_column_headers=[],
+            runs=[
+                ParsedRunSpreadsheetRun(
+                    external_id=run_external_id,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=1,
+                    files=["test.h5"],
+                    custom_column_values=[],
+                ),
+                ParsedRunSpreadsheetRun(
+                    # we jump from id to id+2
+                    external_id=run_external_id + 2,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=2,
+                    files=["test2.h5"],
+                    custom_column_values=[],
+                ),
+            ],
+        ),
+        beamtime_id=beamtime_id,
+        attributi=[],
+        chemicals=[],
+        existing_runs=[],
+        experiment_types=[experiment_type],
+    )
+    assert isinstance(result, SpreadsheetValidationResult)
+    assert result.warnings
+
+
 def test_create_runs_from_spreadsheet_duplicate_run_ids_outside_spreadsheet() -> None:
     beamtime_id = BeamtimeId(1)
     experiment_type_id = 1338
