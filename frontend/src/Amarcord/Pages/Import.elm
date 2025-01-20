@@ -180,7 +180,7 @@ viewUploadResult model { runAttributi, chemicals } uploadResult =
                     ]
                 ]
 
-        Success { errors, numberOfRuns, dataSets, simulated, createDataSets } ->
+        Success { errors, warnings, numberOfRuns, dataSets, simulated, createDataSets } ->
             if List.isEmpty errors then
                 div [ class "mt-3" ]
                     [ h5_
@@ -212,6 +212,17 @@ viewUploadResult model { runAttributi, chemicals } uploadResult =
                                 , text " to view these runs."
                                 ]
                         ]
+                    , if List.isEmpty warnings then
+                        text ""
+
+                      else
+                        div [ class "mt-3" ]
+                            [ viewAlert [ AlertWarning ] <|
+                                [ h4 [ class "alert-heading" ] [ text "🐟 The spreadsheet looks a bit fishy!" ]
+                                , p_ [ small [] [ text "Data will still be imported if you don't enable the simulation, but check closely if there are issues in your import table!" ] ]
+                                , ul_ (List.map (\e -> li_ [ text e ]) warnings)
+                                ]
+                            ]
                     , if List.isEmpty dataSets then
                         if createDataSets then
                             p_ [ em [] [ text "No data sets were found to be created, although you requested to do so." ] ]

@@ -603,6 +603,7 @@ class JsonRunsBulkImportOutput(BaseModel):
     simulated: bool
     create_data_sets: bool
     errors: list[str]
+    warnings: list[str]
     number_of_runs: int
     data_sets: list[JsonDataSet]
 

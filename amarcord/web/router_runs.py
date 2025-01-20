@@ -1222,6 +1222,7 @@ async def bulk_import(
             )
             return JsonRunsBulkImportOutput(
                 errors=parsed_wb.error_messages,
+                warnings=[],
                 number_of_runs=0,
                 data_sets=[],
                 simulated=simulate,
@@ -1271,18 +1272,19 @@ async def bulk_import(
             )
             return JsonRunsBulkImportOutput(
                 errors=created_runs.errors,
+                warnings=[],
                 number_of_runs=0,
                 data_sets=[],
                 simulated=simulate,
                 create_data_sets=create_data_sets,
             )
 
-        for run in created_runs:
+        for run in created_runs.runs:
             session.add(run)
 
         data_sets: list[orm.DataSet]
         if create_data_sets:
-            data_sets = create_data_set_for_runs(ets, created_runs)
+            data_sets = create_data_set_for_runs(ets, created_runs.runs)
             for ds in data_sets:
                 session.add(ds)
         else:
@@ -1297,7 +1299,8 @@ async def bulk_import(
 
         return JsonRunsBulkImportOutput(
             errors=[],
-            number_of_runs=len(created_runs),
+            warnings=created_runs.warnings,
+            number_of_runs=len(created_runs.runs),
             data_sets=[
                 JsonDataSet(
                     id=ds.id,

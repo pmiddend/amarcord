@@ -14,7 +14,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
-from amarcord.db.excel_import import ConversionError
+from amarcord.db.excel_import import ConversionError, SpreadsheetValidationResult
 from amarcord.db.excel_import import ParsedRunSpreadsheet
 from amarcord.db.excel_import import ParsedRunSpreadsheetRun
 from amarcord.db.excel_import import RunCellResult
@@ -598,14 +598,15 @@ def test_create_runs_from_spreadsheet_no_custom_attributi() -> None:
         chemicals=[],
         experiment_types=[experiment_type],
     )
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert result[0].beamtime_id == beamtime_id
-    assert result[0].experiment_type_id == experiment_type_id
-    assert result[0].external_id == run_external_id
-    assert result[0].started == run_started
-    assert len(result[0].files) == 1
-    assert result[0].files[0].glob == "test.h5"
+    assert isinstance(result, SpreadsheetValidationResult)
+    assert len(result.runs) == 1
+    first_run = result.runs[0]
+    assert first_run.beamtime_id == beamtime_id
+    assert first_run.experiment_type_id == experiment_type_id
+    assert first_run.external_id == run_external_id
+    assert first_run.started == run_started
+    assert len(first_run.files) == 1
+    assert first_run.files[0].glob == "test.h5"
 
 
 def test_create_runs_from_spreadsheet_one_custom_int_attributo() -> None:
@@ -645,14 +646,15 @@ def test_create_runs_from_spreadsheet_one_custom_int_attributo() -> None:
         chemicals=[],
         experiment_types=[experiment_type],
     )
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert result[0].attributo_values[0].attributo_id == test_attributo_id
-    assert result[0].attributo_values[0].integer_value == 3
-    assert result[0].beamtime_id == beamtime_id
-    assert result[0].experiment_type_id == experiment_type_id
-    assert result[0].external_id == run_external_id
-    assert result[0].started == run_started
+    assert isinstance(result, SpreadsheetValidationResult)
+    assert len(result.runs) == 1
+    first_run = result.runs[0]
+    assert first_run.attributo_values[0].attributo_id == test_attributo_id
+    assert first_run.attributo_values[0].integer_value == 3
+    assert first_run.beamtime_id == beamtime_id
+    assert first_run.experiment_type_id == experiment_type_id
+    assert first_run.external_id == run_external_id
+    assert first_run.started == run_started
 
 
 def test_data_sets_are_equal() -> None:
@@ -824,3 +826,44 @@ def test_create_data_set_for_runs() -> None:
     run2.experiment_type = et1
     data_sets = create_data_set_for_runs([et1], [run1, run2])
     assert len(data_sets) == 1
+
+
+def test_create_runs_from_spreadsheet_duplicate_file_glob() -> None:
+    beamtime_id = BeamtimeId(1)
+    experiment_type_id = 1338
+    experiment_type = orm.ExperimentType(name="simple", beamtime_id=beamtime_id)
+    experiment_type.id = experiment_type_id
+    run_external_id = 1339
+    run_started = datetime.datetime.now()
+    result = create_runs_from_spreadsheet(
+        spreadsheet=ParsedRunSpreadsheet(
+            custom_column_headers=[],
+            runs=[
+                ParsedRunSpreadsheetRun(
+                    external_id=run_external_id,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=1,
+                    files=["test.h5"],
+                    custom_column_values=[],
+                ),
+                ParsedRunSpreadsheetRun(
+                    external_id=run_external_id + 1,
+                    experiment_type="simple",
+                    started=run_started,
+                    stopped=None,
+                    original_row=2,
+                    # see here? that's a duplicate
+                    files=["test.h5"],
+                    custom_column_values=[],
+                ),
+            ],
+        ),
+        beamtime_id=beamtime_id,
+        attributi=[],
+        chemicals=[],
+        experiment_types=[experiment_type],
+    )
+    assert isinstance(result, SpreadsheetValidationResult)
+    assert result.warnings

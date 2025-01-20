@@ -492,13 +492,19 @@ def convert_value(
     return ConversionError.singleton(f"invalid attributo type for import: {atype}")
 
 
+@dataclass(frozen=True)
+class SpreadsheetValidationResult:
+    runs: list[orm.Run]
+    warnings: list[str]
+
+
 def create_runs_from_spreadsheet(
     spreadsheet: ParsedRunSpreadsheet,
     beamtime_id: BeamtimeId,
     attributi: list[orm.Attributo],
     chemicals: list[orm.Chemical],
     experiment_types: list[orm.ExperimentType],
-) -> SpreadsheetValidationErrors | list[orm.Run]:
+) -> SpreadsheetValidationErrors | SpreadsheetValidationResult:
     if not experiment_types:
         return SpreadsheetValidationErrors(
             errors=["couldn't find any experiment types"]
@@ -525,6 +531,8 @@ def create_runs_from_spreadsheet(
     }
     errors = ConversionError.empty()
     orm_runs: list[orm.Run] = []
+    existing_file_globs_with_rows: dict[str, int] = {}
+    warnings: list[str] = []
     for run in spreadsheet.runs:
         et = experiment_types_by_name.get(run.experiment_type)
         if et is None:
@@ -554,6 +562,15 @@ def create_runs_from_spreadsheet(
             elif attributo_result is not None:
                 attributo_values.append(attributo_result)
 
+        for f in run.files:
+            row_for_existing_file = existing_file_globs_with_rows.get(f)
+            if row_for_existing_file is not None:
+                warnings.append(
+                    f"row {run.original_row}: the file path {f} already appears in row {row_for_existing_file} - is this deliberate?"
+                )
+            else:
+                existing_file_globs_with_rows[f] = run.original_row
+
         new_run = orm.Run(
             external_id=RunExternalId(run.external_id),
             experiment_type_id=et.id,
@@ -568,7 +585,7 @@ def create_runs_from_spreadsheet(
         orm_runs.append(new_run)
     if not errors.is_empty():
         return SpreadsheetValidationErrors(errors=errors.error_messages)
-    return orm_runs
+    return SpreadsheetValidationResult(runs=orm_runs, warnings=warnings)
 
 
 def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:

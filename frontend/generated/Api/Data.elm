@@ -1701,6 +1701,7 @@ type alias JsonRunsBulkImportOutput =
     { simulated : Bool
     , createDataSets : Bool
     , errors : List String
+    , warnings : List String
     , numberOfRuns : Int
     , dataSets : List JsonDataSet
     }
@@ -5038,6 +5039,7 @@ encodeJsonRunsBulkImportOutputPairs model =
             [ encode "simulated" Json.Encode.bool model.simulated
             , encode "create_data_sets" Json.Encode.bool model.createDataSets
             , encode "errors" (Json.Encode.list Json.Encode.string) model.errors
+            , encode "warnings" (Json.Encode.list Json.Encode.string) model.warnings
             , encode "number_of_runs" Json.Encode.int model.numberOfRuns
             , encode "data_sets" (Json.Encode.list encodeJsonDataSet) model.dataSets
             ]
@@ -6874,6 +6876,7 @@ jsonRunsBulkImportOutputDecoder =
         |> decode "simulated" Json.Decode.bool 
         |> decode "create_data_sets" Json.Decode.bool 
         |> decode "errors" (Json.Decode.list Json.Decode.string) 
+        |> decode "warnings" (Json.Decode.list Json.Decode.string) 
         |> decode "number_of_runs" Json.Decode.int 
         |> decode "data_sets" (Json.Decode.list jsonDataSetDecoder) 
 
