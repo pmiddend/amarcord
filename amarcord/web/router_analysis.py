@@ -30,11 +30,11 @@ from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import group_by
 from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import encode_run_attributo_value
-from amarcord.web.fastapi_utils import format_run_id_intervals
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import orm_encode_merge_result_to_json
 from amarcord.web.fastapi_utils import orm_indexing_parameters_to_json
 from amarcord.web.fastapi_utils import orm_indexing_result_to_json
+from amarcord.web.fastapi_utils import run_id_to_run_ranges
 from amarcord.web.json_models import JsonAnalysisRun
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonChemicalIdAndName
@@ -349,7 +349,7 @@ async def read_single_data_set_results(
         ip_and_ix_results[main_parameter_id].append(ir)
     # Strictly speaking, this is "merge results by indexing parameters ID"
     merge_results_per_indexing_parameters: dict[int, list[orm.MergeResult]] = {
-        ip_id: [] for ip_id in main_indexing_parameter_id.keys()
+        ip_id: [] for ip_id in main_indexing_parameter_id
     }
     data_set_run_ids: set[int] = set(r.id for r in relevant_runs)
 
@@ -402,7 +402,7 @@ async def read_single_data_set_results(
                 beamtime_id=beamtimeId,
             ),
             internal_run_ids=[r.id for r in relevant_runs],
-            runs=format_run_id_intervals(r.external_id for r in relevant_runs),
+            runs=run_id_to_run_ranges(r.external_id for r in relevant_runs),
             indexing_results=[
                 JsonIndexingParametersWithResults(
                     parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),

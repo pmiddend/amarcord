@@ -980,7 +980,17 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
             ]
         , div [ class "col-6 text-center" ]
             [ h5_ [ text "Runs" ]
-            , p_ (List.intersperse br_ <| List.map text runs)
+            , p_
+                [ a
+                    [ href
+                        (makeLink
+                            (Runs model.beamtimeId
+                                (List.map (\{ runFrom, runTo } -> { runIdFrom = runFrom, runIdTo = runTo }) runs)
+                            )
+                        )
+                    ]
+                    (List.intersperse br_ <| List.map (\{ runFrom, runTo } -> text (String.fromInt runFrom ++ "-" ++ String.fromInt runTo)) runs)
+                ]
             ]
         ]
     , h4 [ class "mt-3" ] [ text "Processing Results", viewHelpButton "help-processing-results" ]

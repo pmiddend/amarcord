@@ -894,12 +894,17 @@ class JsonDataSetWithoutIndexingResults(BaseModel):
     runs: list[str]
 
 
+class JsonRunRange(BaseModel):
+    run_from: int
+    run_to: int
+
+
 class JsonDataSetWithIndexingResults(BaseModel):
     data_set: JsonDataSet
     # To start indexing jobs
     internal_run_ids: list[int]
     # For display
-    runs: list[str]
+    runs: list[JsonRunRange]
     indexing_results: list[JsonIndexingParametersWithResults]
 
 

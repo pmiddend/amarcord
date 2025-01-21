@@ -47,6 +47,7 @@ from amarcord.web.json_models import JsonMergeResultStateQueued
 from amarcord.web.json_models import JsonMergeResultStateRunning
 from amarcord.web.json_models import JsonPolarisation
 from amarcord.web.json_models import JsonRefinementResult
+from amarcord.web.json_models import JsonRunRange
 
 
 def _json_serializer_allow_nan_false(obj: Any, **kwargs: Any) -> str:
@@ -217,6 +218,13 @@ async def update_attributi_from_json(
 def format_run_id_intervals(run_ids: Iterable[int]) -> list[str]:
     return [
         str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
+        for t in create_intervals(list(run_ids))
+    ]
+
+
+def run_id_to_run_ranges(run_ids: Iterable[int]) -> list[JsonRunRange]:
+    return [
+        JsonRunRange(run_from=t[0], run_to=t[1])
         for t in create_intervals(list(run_ids))
     ]
 

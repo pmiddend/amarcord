@@ -148,6 +148,7 @@ module Api.Data exposing
     , JsonRunAnalysisIndexingResult
     , JsonRunFile
     , JsonRunId
+    , JsonRunRange
     , JsonRunsBulkImportInfo
     , JsonRunsBulkImportOutput
     , JsonStartRunOutput
@@ -304,6 +305,7 @@ module Api.Data exposing
     , encodeJsonRunAnalysisIndexingResult
     , encodeJsonRunFile
     , encodeJsonRunId
+    , encodeJsonRunRange
     , encodeJsonRunsBulkImportInfo
     , encodeJsonRunsBulkImportOutput
     , encodeJsonStartRunOutput
@@ -468,6 +470,7 @@ module Api.Data exposing
     , jsonRunAnalysisIndexingResultDecoder
     , jsonRunFileDecoder
     , jsonRunIdDecoder
+    , jsonRunRangeDecoder
     , jsonRunsBulkImportInfoDecoder
     , jsonRunsBulkImportOutputDecoder
     , jsonStartRunOutputDecoder
@@ -1021,7 +1024,7 @@ type alias JsonDataSetWithFom =
 type alias JsonDataSetWithIndexingResults =
     { dataSet : JsonDataSet
     , internalRunIds : List Int
-    , runs : List String
+    , runs : List JsonRunRange
     , indexingResults : List JsonIndexingParametersWithResults
     }
 
@@ -1695,6 +1698,12 @@ type alias JsonRunFile =
 type alias JsonRunId =
     { internalRunId : Int
     , externalRunId : Int
+    }
+
+
+type alias JsonRunRange =
+    { runFrom : Int
+    , runTo : Int
     }
 
 
@@ -3192,7 +3201,7 @@ encodeJsonDataSetWithIndexingResultsPairs model =
         pairs =
             [ encode "data_set" encodeJsonDataSet model.dataSet
             , encode "internal_run_ids" (Json.Encode.list Json.Encode.int) model.internalRunIds
-            , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
+            , encode "runs" (Json.Encode.list encodeJsonRunRange) model.runs
             , encode "indexing_results" (Json.Encode.list encodeJsonIndexingParametersWithResults) model.indexingResults
             ]
     in
@@ -5028,6 +5037,27 @@ encodeJsonRunIdPairs model =
     pairs
 
 
+encodeJsonRunRange : JsonRunRange -> Json.Encode.Value
+encodeJsonRunRange =
+    encodeObject << encodeJsonRunRangePairs
+
+
+encodeJsonRunRangeWithTag : ( String, String ) -> JsonRunRange -> Json.Encode.Value
+encodeJsonRunRangeWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRunRangePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRunRangePairs : JsonRunRange -> List EncodedField
+encodeJsonRunRangePairs model =
+    let
+        pairs =
+            [ encode "run_from" Json.Encode.int model.runFrom
+            , encode "run_to" Json.Encode.int model.runTo
+            ]
+    in
+    pairs
+
+
 encodeJsonRunsBulkImportInfo : JsonRunsBulkImportInfo -> Json.Encode.Value
 encodeJsonRunsBulkImportInfo =
     encodeObject << encodeJsonRunsBulkImportInfoPairs
@@ -6139,7 +6169,7 @@ jsonDataSetWithIndexingResultsDecoder =
     Json.Decode.succeed JsonDataSetWithIndexingResults
         |> decode "data_set" jsonDataSetDecoder 
         |> decode "internal_run_ids" (Json.Decode.list Json.Decode.int) 
-        |> decode "runs" (Json.Decode.list Json.Decode.string) 
+        |> decode "runs" (Json.Decode.list jsonRunRangeDecoder) 
         |> decode "indexing_results" (Json.Decode.list jsonIndexingParametersWithResultsDecoder) 
 
 
@@ -6894,6 +6924,13 @@ jsonRunIdDecoder =
     Json.Decode.succeed JsonRunId
         |> decode "internal_run_id" Json.Decode.int 
         |> decode "external_run_id" Json.Decode.int 
+
+
+jsonRunRangeDecoder : Json.Decode.Decoder JsonRunRange
+jsonRunRangeDecoder =
+    Json.Decode.succeed JsonRunRange
+        |> decode "run_from" Json.Decode.int 
+        |> decode "run_to" Json.Decode.int 
 
 
 jsonRunsBulkImportInfoDecoder : Json.Decode.Decoder JsonRunsBulkImportInfo
