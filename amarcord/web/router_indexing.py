@@ -184,10 +184,10 @@ async def indexing_job_queue_for_data_set(
     }
     new_parameters = orm.IndexingParameters(
         is_online=input_.is_online,
-        cell_description=input_.cell_description,
-        command_line=input_.command_line,
-        geometry_file=input_.geometry_file,
-        source=input_.source,
+        cell_description=input_.cell_description.strip(),
+        command_line=input_.command_line.strip(),
+        geometry_file=input_.geometry_file.strip(),
+        source=input_.source.strip(),
     )
     for ir in existing_indexing_results:
         # Finished, but erroneous indexing results are no use, they should be redoable
