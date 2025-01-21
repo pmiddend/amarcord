@@ -278,22 +278,78 @@ async def read_single_data_set_results(
             ds_attributi_map,
         )
     ]
+    relevant_run_ids: set[RunInternalId] = set(x.id for x in relevant_runs)
+
+    # The following code is pretty complicated. In the end, it lists
+    # all the indexing parameters with corresponding indexing results,
+    # and merge results for the indexing results.
+    #
+    # The problem is the parameters. They are compared not by ID, but
+    # by their content. Meaning, we have to look inside each of them
+    # and figure out which are equivalent.
+    #
+    # Associating an indexing parameter ID to the indexing results is
+    # thus not "strict". We elect a "main parameter object" and
+    # associate all equivalent parameter objects to that, and return
+    # this main object only.
+    #
+    # We start by retrieving all indexing results for this beam time,
+    # and group those by run ID.
     indexing_results_for_runs: dict[RunInternalId, list[orm.IndexingResult]] = group_by(
         await session.scalars(
             select(orm.IndexingResult)
             .join(orm.Run, orm.Run.id == orm.IndexingResult.run_id)
             .where(orm.Run.beamtime_id == beamtimeId)
-            .options(selectinload(orm.IndexingResult.indexing_parameters)),
+            .options(selectinload(orm.IndexingResult.indexing_parameters))
+            .options(selectinload(orm.IndexingResult.run)),
         ),
         lambda ir: ir.run_id,
     )
-    indexing_parameter_ids = set(
-        x.indexing_parameters_id
-        for run_results in indexing_results_for_runs.values()
-        for x in run_results
-    )
-    merge_results_per_data_set: dict[int, list[orm.MergeResult]] = {
-        ip_id: [] for ip_id in indexing_parameter_ids
+
+    # Then we store some maps. First, "main_ips" is the list of all
+    # main indexing parameter objects. However, for fast access, we
+    # store them in a dict by their ID.
+    main_ips: dict[int, orm.IndexingParameters] = {}
+
+    # This is the map from any indexing parameter object to its main
+    # indexing parameter obejct (see comment above as to why we need
+    # that).
+    main_indexing_parameter_id: dict[int, int] = {}
+
+    # In this dict, we store, for each main indexing parameter object,
+    # all corresponding indexing results.
+    ip_and_ix_results: dict[int, list[orm.IndexingResult]] = {}
+    for ir in (
+        v
+        for vs in indexing_results_for_runs.values()
+        for v in vs
+        if v.run_id in relevant_run_ids
+    ):
+        new_ip = ir.indexing_parameters
+
+        # We either have a new indexing parmeter object, or this one
+        # is equivalent to one of the previously selected "main" ones.
+        # We don't know yet.
+        main_parameter_id: None | int = None
+        for existing_ip in main_ips.values():
+            if orm.are_indexing_parameters_equal(existing_ip, new_ip):
+                # Okay, we have seen this parameter object before.
+                main_parameter_id = existing_ip.id
+                break
+
+        # This one is new, so add it to the corresponding maps.
+        if main_parameter_id is None:
+            main_parameter_id = new_ip.id
+            # We add ourselves as the main IP object
+            main_ips[new_ip.id] = new_ip
+
+            # And we start a new list of indexing results
+            ip_and_ix_results[main_parameter_id] = []
+        main_indexing_parameter_id[new_ip.id] = main_parameter_id
+        ip_and_ix_results[main_parameter_id].append(ir)
+    # Strictly speaking, this is "merge results by indexing parameters ID"
+    merge_results_per_indexing_parameters: dict[int, list[orm.MergeResult]] = {
+        ip_id: [] for ip_id in main_indexing_parameter_id.keys()
     }
     data_set_run_ids: set[int] = set(r.id for r in relevant_runs)
 
@@ -308,6 +364,9 @@ async def read_single_data_set_results(
     # result's runs.
     #
     # This is what's tested here.
+    #
+    # First, we retrieve all merge results of this beam time, by
+    # joining the indexing results and then the runs, as described.
     for merge_result in await session.scalars(
         select(orm.MergeResult)
         .where(
@@ -326,35 +385,13 @@ async def read_single_data_set_results(
         )
         if data_set_run_ids.issuperset(runs_in_merge_result):
             for ir in merge_result.indexing_results:
-                merge_results = merge_results_per_data_set[ir.indexing_parameters_id]
+                merge_results = merge_results_per_indexing_parameters[
+                    main_indexing_parameter_id[ir.indexing_parameters_id]
+                ]
                 if merge_result.id not in (mr.id for mr in merge_results):
                     merge_results.append(merge_result)
 
     def _build_data_set_result(ds: orm.DataSet) -> JsonDataSetWithIndexingResults:
-        # In the code that follows: ip is "indexing parameters"
-        ip_and_ix_results: list[
-            tuple[orm.IndexingParameters, list[orm.IndexingResult]]
-        ] = []
-
-        for run in relevant_runs:
-            for new_result in indexing_results_for_runs.get(run.id, []):
-                new_ip = new_result.indexing_parameters
-                # Check if this parameter is already captured. If so,
-                # add result to list Complexity is too high here I
-                # realize. Hashing the orm.IndexingParameters would be
-                # advantageous, but I'm not sure about hash and
-                # compatibility with sqlalchemy. Would have to be an
-                # external hash.
-                ip_is_really_new = True
-                for existing_ip, existing_result in ip_and_ix_results:
-                    if orm.are_indexing_parameters_equal(existing_ip, new_ip):
-                        existing_result.append(new_result)
-                        ip_is_really_new = False
-                        break
-
-                if ip_is_really_new:
-                    ip_and_ix_results.append((new_ip, [new_result]))
-
         return JsonDataSetWithIndexingResults(
             data_set=JsonDataSet(
                 id=ds.id,
@@ -368,7 +405,7 @@ async def read_single_data_set_results(
             runs=format_run_id_intervals(r.external_id for r in relevant_runs),
             indexing_results=[
                 JsonIndexingParametersWithResults(
-                    parameters=orm_indexing_parameters_to_json(ip),
+                    parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),
                     indexing_results=[
                         orm_indexing_result_to_json(result) for result in results
                     ],
@@ -379,10 +416,10 @@ async def read_single_data_set_results(
                                 id
                             ],
                         )
-                        for mr in merge_results_per_data_set.get(ip.id, [])
+                        for mr in merge_results_per_indexing_parameters.get(ip_id, [])
                     ],
                 )
-                for ip, results in ip_and_ix_results
+                for ip_id, results in ip_and_ix_results.items()
             ],
         )
 

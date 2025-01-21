@@ -1763,6 +1763,148 @@ def test_update_indexing_job(
     assert len(single_data_set_result.data_set.indexing_results) == 1
 
 
+def test_indexing_result_with_two_equal_parameter(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,  # noqa: ARG001
+    lyso_chemical_id: int,  # noqa: ARG001
+    simple_run_id: int,  # noqa: ARG001
+    simple_data_set_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json(),
+    )
+
+    ir_id = create_indexing_response.indexing_result_id
+    ip_id = create_indexing_response.indexing_parameters_id
+
+    finish_with_error_response = JsonIndexingJobUpdateOutput(
+        **client.post(
+            f"/api/indexing/{create_indexing_response.indexing_result_id}/finish-with-error",
+            json=JsonIndexingResultFinishWithError(
+                error_message="",
+                latest_log="",
+                workload_manager_job_id=1,
+            ).dict(),
+        ).json()
+    )
+    assert finish_with_error_response.result
+
+    create_indexing_response_later = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json(),
+    )
+
+    new_ir_id = create_indexing_response_later.indexing_result_id
+    new_ip_id = create_indexing_response_later.indexing_parameters_id
+
+    # This is the important part: we get a new indexing parameters
+    # object (due to laziness: we could just re-use an old one)
+    assert new_ip_id != ip_id
+    assert new_ir_id != ir_id
+
+    # To start a merge job, we have to finish the indexing result first.
+    client.post(
+        f"/api/indexing/{new_ir_id}/success",
+        json=JsonIndexingResultFinishSuccessfully(
+            workload_manager_job_id=1,
+            stream_file="/tmp/some-file.stream",  # noqa: S108
+            program_version="",
+            geometry_file="/tmp/some.geom",  # noqa: S108
+            geometry_hash=hashlib.sha256(b"").hexdigest(),
+            # More or less random values, we don't care about the specifics here
+            frames=200,
+            # Hit rate 50%
+            hits=100,
+            # Indexing rate 20%
+            indexed_frames=20,
+            indexed_crystals=25,
+            detector_shift_x_mm=0.5,
+            detector_shift_y_mm=-0.5,
+            generated_geometry_file="",
+            unit_cell_histograms_id=None,
+            latest_log="",
+        ).dict(),
+    )
+
+    # Now queue a merge job. The bug we encountered before lead to
+    # this merge job not showing up in the analysis results. So let's
+    # see if this situation is fixed now.
+    queue_merge_job_response = JsonQueueMergeJobOutput(
+        **client.post(
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
+                strict_mode=False,
+                data_set_id=simple_data_set_id,
+                # New indexing parameters ID! Important. We should still see the old ID and jobs in the analysis result later
+                indexing_parameters_id=new_ip_id,
+                merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
+                    point_group=LYSO_POINT_GROUP,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                ),
+            ).dict(),
+        ).json(),
+    )
+    assert queue_merge_job_response.merge_result_id > 0
+
+    # Finally, our analysis view
+    single_data_set_result = JsonReadSingleDataSetResults(
+        **client.get(
+            f"/api/analysis/single-data-set/{beamtime_id}/{simple_data_set_id}",
+        ).json(),
+    )
+
+    assert len(single_data_set_result.data_set.indexing_results) == 1
+    ir_and_mr = single_data_set_result.data_set.indexing_results[0]
+    assert ir_and_mr.parameters.id == ip_id
+    assert len(ir_and_mr.indexing_results) == 2
+    assert set(ir.id for ir in ir_and_mr.indexing_results) == set([ir_id, new_ir_id])
+    assert len(ir_and_mr.merge_results) == 1
+
+
 def test_analysis_view_with_single_data_set_directly_returns_results(
     client: TestClient,
     beamtime_id: BeamtimeId,
