@@ -32,6 +32,11 @@
     app.ports.storeLocalStorage.subscribe(function (localStorageStr) {
         localStorage.setItem('local-storage', localStorageStr);
     });
+
+    app.ports.copyToClipboard.subscribe(function(clipboardStr) {
+        // for now, omit callbacks
+	navigator.clipboard.writeText(clipboardStr).then(function() {}, function(err) {}); 
+    });
 </script>
 
 <script src="bootstrap.bundle.min.js"></script>

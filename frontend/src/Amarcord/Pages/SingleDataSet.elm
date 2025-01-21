@@ -4,7 +4,7 @@ import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
 import Amarcord.Attributo exposing (Attributo, AttributoType, ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert, viewHelpButton)
+import Amarcord.Bootstrap exposing (AlertProperty(..), copyToClipboardButton, icon, loadingBar, viewAlert, viewHelpButton)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -24,6 +24,7 @@ import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, 
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Maybe
+import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result.Extra
 import Scroll exposing (scrollY)
@@ -50,6 +51,7 @@ type alias ProcessingParametersInput =
 
 type Msg
     = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
+    | CopyToClipboard String
     | OpenMergeForm DataSetId IndexingParametersId
     | OpenProcessingFormWithExisting JsonIndexingParameters DataSetId
     | ToggleIndexingParameterExpansion Int
@@ -450,7 +452,7 @@ viewIndexingResults now results =
             tr_
                 [ td_ [ text (String.fromInt id) ]
                 , td_ [ text (String.fromInt runExternalId) ]
-                , td_
+                , td [ class "text-nowrap" ]
                     (viewJobStatus hasError status
                         :: viewJobDuration started stopped
                     )
@@ -481,40 +483,61 @@ viewIndexingResults now results =
                         ]
                     )
                 , td_
-                    [ div_ <|
-                        Maybe.withDefault [] <|
-                            Maybe.map2
-                                (\x y -> [ strongText "Detector shift: ", text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm"), br_ ])
-                                detectorShiftXMm
-                                detectorShiftYMm
-                    , div_ <|
-                        if String.isEmpty programVersion then
-                            []
+                    [ table [ class "table table-sm table-borderless" ]
+                        [ tbody_
+                            [ Maybe.withDefault (text "") <|
+                                Maybe.map2
+                                    (\x y ->
+                                        tr_
+                                            [ td_ [ strongText "Detector shift" ]
+                                            , td_ [ text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm") ]
+                                            ]
+                                    )
+                                    detectorShiftXMm
+                                    detectorShiftYMm
+                            , if String.isEmpty programVersion then
+                                text ""
 
-                        else
-                            [ strongText "CrystFEL version: ", text programVersion ]
-                    , span [ class "hstack gap-1" ]
-                        [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Show job log" ]
-                        , if hasError then
-                            a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Show error" ]
+                              else
+                                tr_ [ td_ [ strongText "CrystFEL version: " ], td_ [ text programVersion ] ]
+                            , tr_
+                                [ td_ [ strongText "Logs" ]
+                                , td_
+                                    [ span [ class "hstack gap-1" ]
+                                        [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                        , if hasError then
+                                            a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
-                          else
-                            text ""
-                        ]
-                    , case unitCellHistogramsFileId of
-                        Nothing ->
-                            text ""
-
-                        Just ucFileId ->
-                            div_
-                                [ strongText "Unit cell histograms:"
-                                , viewHistogram ucFileId
+                                          else
+                                            text ""
+                                        ]
+                                    ]
                                 ]
-                    , if String.isEmpty generatedGeometryFile then
-                        text ""
+                            , case unitCellHistogramsFileId of
+                                Nothing ->
+                                    text ""
 
-                      else
-                        div_ [ strongText "Geometry file: ", text generatedGeometryFile ]
+                                Just ucFileId ->
+                                    tr_
+                                        [ td [ colspan 2 ]
+                                            [ strongText "Unit cell histograms"
+                                            , viewHistogram ucFileId
+                                            ]
+                                        ]
+                            , if String.isEmpty generatedGeometryFile then
+                                text ""
+
+                              else
+                                tr_
+                                    [ td [ colspan 2 ]
+                                        [ strongText "Geometry file: "
+                                        , br_
+                                        , span [ class "font-monospace" ] [ text generatedGeometryFile ]
+                                        , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
+                                        ]
+                                    ]
+                            ]
+                        ]
                     ]
                 ]
     in
@@ -815,7 +838,7 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                         em_ [ text "none" ]
 
                     Just cellDescription ->
-                        text cellDescription
+                        span_ [ text cellDescription, copyToClipboardButton (CopyToClipboard cellDescription) ]
                 ]
             , dt [ class "col-3" ] [ text "Geometry file" ]
             , dd [ class "col-9" ]
@@ -828,7 +851,12 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                     )
                 ]
             ]
-        , p_ [ strongText "Command line: ", br_, code_ [ text parameters.commandLine ] ]
+        , p_
+            [ strongText "Command line: "
+            , br_
+            , code_ [ text parameters.commandLine ]
+            , copyToClipboardButton (CopyToClipboard parameters.commandLine)
+            ]
         , div_
             [ button
                 [ class "btn btn-sm btn-dark"
@@ -1015,13 +1043,6 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
     ]
 
 
-modalMergeResultDetail : Model -> Html Msg
-modalMergeResultDetail m =
-    case m.selectedMergeResult of
-        NoMergeResultSelected ->
-            text ""
-
-
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
@@ -1052,7 +1073,6 @@ view model =
                         , li [ class "breadcrumb-item" ] [ text <| "Data Set ID " ++ String.fromInt model.dataSetId ]
                         ]
                     ]
-                , modalMergeResultDetail model
                 , div_
                     (viewDataSet
                         model
@@ -1076,6 +1096,9 @@ possiblyRefresh model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CopyToClipboard s ->
+            ( model, copyToClipboard s )
+
         ToggleIndexingParameterExpansion ipId ->
             let
                 newParameterIds =

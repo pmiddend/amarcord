@@ -1,9 +1,10 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewAlert, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, copyToClipboardButton, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewAlert, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.Html exposing (div_, h4_, p_)
 import Amarcord.HttpError exposing (HttpError, showError)
 import Html exposing (Html, a, button, div, i, span, sup, text)
-import Html.Attributes exposing (attribute, class, classList, href)
+import Html.Attributes exposing (attribute, class, classList, href, style, title, type_)
+import Html.Events exposing (onClick)
 import List
 import RemoteData exposing (RemoteData(..))
 import String
@@ -156,3 +157,18 @@ viewCloseHelpButton target =
 viewMarkdownSupportText : Html msg
 viewMarkdownSupportText =
     div [ class "form-text" ] [ a [ href "https://github.github.com/gfm/" ] [ text "Markdown" ], text " is supported" ]
+
+
+copyToClipboardButton : msg -> Html msg
+copyToClipboardButton clickHandler =
+    sup []
+        [ button
+            [ class "btn btn-link"
+            , type_ "button"
+            , title "Copy to clipboard"
+            , onClick clickHandler
+            , style "font-size" "0.7rem"
+            , style "padding-left" "0.2rem"
+            ]
+            [ icon { name = "clipboard" } ]
+        ]
