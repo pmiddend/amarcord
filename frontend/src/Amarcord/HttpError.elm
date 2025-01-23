@@ -104,8 +104,22 @@ showError x =
                     , kbd [] [ text "Shift" ]
                     , text " + "
                     , kbd [] [ text "R" ]
-                    , text ". If that doesn’t help, then we have a more serious problem and you should contact the admins."
+                    , text "."
                     ]
+                , p_
+                    [ text "On "
+                    , strongText "Safari"
+                    , text " (i.e. if you have an Apple device), this is more complicated. You have to first press "
+                    , kbd [] [ text "Option" ]
+                    , text " + "
+                    , kbd [] [ text "Command" ]
+                    , text " + "
+                    , kbd [] [ text "E" ]
+                    , text " (it will seem like nothing has happened), and then hold "
+                    , kbd [] [ text "Shift" ]
+                    , text " and press the “Reload” button."
+                    ]
+                , p_ [ text "If that doesn’t help, then we have a more serious problem and you should contact the admins." ]
                 , p_ [ text "The actual decoding error is as follows: ", pre [] [ text detailMessage ] ]
                 ]
 
