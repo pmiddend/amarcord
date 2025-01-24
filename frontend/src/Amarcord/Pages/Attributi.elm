@@ -7,13 +7,13 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
-import Api.Data exposing (JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
+import Api.Data as Api exposing (JSONSchemaStringType(..), JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
 import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
 import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
 import Html exposing (..)
@@ -310,6 +310,8 @@ attributoAugTypeToType x =
 type Msg
     = AttributiReceived (Result HttpError JsonReadAttributi)
     | AddAttributo AssociatedTable
+    | CreateCellDescription
+    | CreatePointGroup
     | ChangeTab AssociatedTable
     | ToleranceCheckerChangeDs String
     | ToleranceCheckerChangeRun String
@@ -355,9 +357,9 @@ pageTitle _ =
     "Attributi"
 
 
-init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
-init _ beamtimeId =
-    ( { tab = Run
+init : HereAndNow -> BeamtimeId -> Maybe AssociatedTable -> ( Model, Cmd Msg )
+init _ beamtimeId tab =
+    ( { tab = Maybe.withDefault Run tab
       , attributiList = Loading
       , editAttributo = Nothing
       , editAttributoOriginalName = Nothing
@@ -987,6 +989,39 @@ viewInner model =
                         Just ea ->
                             viewEditForm model attributiListReal ea
 
+                magicalAttributi =
+                    if model.tab == Chemical then
+                        div [ class "mt-1" ]
+                            [ h5_ [ text "Magical Attributi" ]
+                            , div [ class "hstack gap-3" ]
+                                [ div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreateCellDescription
+                                        , disabled (List.any (\a -> a.name == "cell description") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “cell description”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for indexing" ]
+                                    ]
+                                , div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreatePointGroup
+                                        , disabled (List.any (\a -> a.name == "point group") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “point group”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for merging" ]
+                                    ]
+                                ]
+                            ]
+
+                    else
+                        text ""
+
                 modifyRequestResult =
                     case model.modifyRequest of
                         NotAsked ->
@@ -1063,6 +1098,7 @@ viewInner model =
             in
             [ tabBar
             , prefix
+            , magicalAttributi
             , modifyRequestResult
             , deleteRequestResult
             , table [ class "table table-striped" ]
@@ -1125,6 +1161,42 @@ type EditNumberResult
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CreateCellDescription ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Used for CrystFEL Online. The format of this is `lattice_type centering unique_axis (a b c) (alpha beta gamma)`. Angles are in degrees, lengths in *angstrom*. unique_axis can be “?” if it doesn't make sense for the space group."
+                    , group = "manual"
+                    , name = "cell description"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
+        CreatePointGroup ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Point group of crystalline samples. See the comment up top for possible values."
+                    , group = "manual"
+                    , name = "point group"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
         ChangeTab newTab ->
             ( { model | tab = newTab }, Cmd.none )
 

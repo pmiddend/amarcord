@@ -72,7 +72,7 @@ menu bt =
     , Dropdown "Admin"
         "gear-fill"
         [ { route = Route.ExperimentTypes bt, description = "Experiment Types", iconName = "clipboard-check" }
-        , { route = Route.Attributi bt, description = "Attributi", iconName = "card-list" }
+        , { route = Route.Attributi bt Nothing, description = "Attributi", iconName = "card-list" }
         , { route = Route.AdvancedControls bt, description = "Advanced", iconName = "speedometer" }
         , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
         , { route = Route.EventLog bt, description = "Events", iconName = "book" }

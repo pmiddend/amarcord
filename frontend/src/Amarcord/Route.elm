@@ -2,6 +2,7 @@ module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
+import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
 import Dict
 import Maybe.Extra
@@ -97,7 +98,7 @@ type Route
     | Runs BeamtimeId (List RunRange)
     | RunOverview BeamtimeId
     | Import BeamtimeId ImportStep
-    | Attributi BeamtimeId
+    | Attributi BeamtimeId (Maybe AssociatedTable)
     | AdvancedControls BeamtimeId
     | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool MergeFilter
     | AnalysisDataSet BeamtimeId Int
@@ -139,7 +140,7 @@ beamtimeIdInRoute x =
         Import btid _ ->
             Just btid
 
-        Attributi btid ->
+        Attributi btid _ ->
             Just btid
 
         AdvancedControls btid ->
@@ -227,8 +228,17 @@ makeLink x =
         Root beamtimeId ->
             routePrefix ++ "/" ++ beamtimeIdToString beamtimeId
 
-        Attributi beamtimeId ->
-            routePrefix ++ "/attributi/" ++ beamtimeIdToString beamtimeId
+        Attributi beamtimeId associatedTableMaybe ->
+            routePrefix
+                ++ "/attributi/"
+                ++ beamtimeIdToString beamtimeId
+                ++ (case associatedTableMaybe of
+                        Nothing ->
+                            ""
+
+                        Just associatedTable ->
+                            "?tab=" ++ associatedTableToString associatedTable
+                   )
 
         Runs beamtimeId [] ->
             routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId
@@ -246,7 +256,9 @@ makeLink x =
             routePrefix ++ "/advancedcontrols/" ++ beamtimeIdToString beamtimeId
 
         Chemicals beamtimeId ->
-            routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
+            routePrefix
+                ++ "/chemicals/"
+                ++ beamtimeIdToString beamtimeId
 
         AnalysisOverview beamtimeId filters acrossBeamtimes mergeFilter ->
             routePrefix
@@ -412,11 +424,24 @@ filtersSerializer filters =
     List.map filterSerializer filters
 
 
+tabFromString : List String -> Maybe AssociatedTable
+tabFromString =
+    List.head
+        >> Maybe.map
+            (\x ->
+                if x == "Run" then
+                    Run
+
+                else
+                    Chemical
+            )
+
+
 matchRoute : Parser (Route -> a) a
 matchRoute =
     oneOf
         [ map BeamtimeSelection top
-        , map Attributi (s "attributi" </> int)
+        , map Attributi (s "attributi" </> int <?> Query.custom "tab" tabFromString)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)

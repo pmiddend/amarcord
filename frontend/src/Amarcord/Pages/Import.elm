@@ -1,6 +1,7 @@
 module Amarcord.Pages.Import exposing (..)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
+import Amarcord.AssociatedTable exposing (AssociatedTable(..))
 import Amarcord.Attributo exposing (convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, viewAlert)
 import Amarcord.Chemical exposing (chemicalIdDict, convertChemicalFromApi)
@@ -139,10 +140,10 @@ viewImportAttributi model infoRequest =
         , p []
             [ text "Click "
             , a
-                [ href (Route.makeLink (Route.Attributi model.beamtimeId))
+                [ href (Route.makeLink (Route.Attributi model.beamtimeId (Just Run)))
                 ]
                 [ text "→ here" ]
-            , text " to go to the attributi overview and add more (be sure that they are "
+            , text " to go to the run attributi overview and add more (be sure that they are "
             , em [] [ text "run" ]
             , text " attributi, not chemical attributi)."
             ]

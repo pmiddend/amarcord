@@ -672,10 +672,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Root _ ->
                     ( RootPage, Cmd.none )
 
-                Route.Attributi beamtimeId ->
+                Route.Attributi beamtimeId tab ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init hereAndNow beamtimeId
+                            Attributi.init hereAndNow beamtimeId tab
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 
