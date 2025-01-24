@@ -661,20 +661,20 @@ def create_data_set_for_runs(
                     new_data_set.attributo_values.append(
                         run_has_attributo_to_data_set_has_attributo(run_attributo)
                     )
-            if len(new_data_set.attributo_values) != len(run.experiment_type.attributi):
-                for existing_attributo in run.experiment_type.attributi:
-                    found = False
-                    for data_set_attributo in new_data_set.attributo_values:
-                        if (
-                            data_set_attributo.attributo_id
-                            == existing_attributo.attributo_id
-                        ):
-                            found = True
-                            break
-                    if not found:
-                        error_messages.append(
-                            f"run {run.external_id}: tried to create a data set for experiment type “{run.experiment_type.name}”, but attributo “{existing_attributo.attributo.name}” not found in this run"
-                        )
+        if len(new_data_set.attributo_values) != len(run.experiment_type.attributi):
+            for existing_attributo in run.experiment_type.attributi:
+                found = False
+                for data_set_attributo in new_data_set.attributo_values:
+                    if (
+                        data_set_attributo.attributo_id
+                        == existing_attributo.attributo_id
+                    ):
+                        found = True
+                        break
+                if not found:
+                    error_messages.append(
+                        f"run {run.external_id}: tried to create a data set for experiment type “{run.experiment_type.name}”, but attributo “{existing_attributo.attributo.name}” not found in this run"
+                    )
         if not new_data_set.attributo_values:
             error_messages.append(
                 f"run {run.external_id}: found no attributo values to create the data set"
