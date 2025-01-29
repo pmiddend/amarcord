@@ -3,8 +3,10 @@ from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
+from fastapi import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope
 
 from amarcord.logging_util import setup_structlog
 from amarcord.web.router_analysis import router as analysis_router
@@ -59,6 +61,49 @@ app.include_router(schedule_router)
 app.include_router(spreadsheet_router)
 app.include_router(user_configuration_router)
 
+
+# This needs some explanation:
+#
+# By default, the browser is free to cache web sites, images, ...,
+# arbitrarily long. This is good, but also annoying if you want the
+# client to please update the Javascript files to the latest version.
+# Previously, the client just errored, and we displayed an alert
+# telling the user to please reload, clearing the cache. This
+# rightfully pissed everyone off to no end, so the solution is now as
+# follows:
+#
+# - Set the index.html file to "browser, do not cache this!" (index.html is tiny anyways)
+# - In index.html, don't include "main.js", but "main-$hash.js", where $hash is computed from the contents of "frontend/src"
+#
+# This way, the browser always sees the latest version of main.js, and
+# can even cache that one. Just index.html is reloaded every time
+# (which is fine).
+#
+# Thanks to SO:
+#
+# https://stackoverflow.com/a/2068407
+class CacheControlledStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        if "index.html" not in path:
+            return await super().get_response(path, scope)
+
+        # Prevent starlette/fastapi from just returning "everything still valid, 304!"
+        scope["headers"] = [
+            (k, v)
+            for k, v in scope["headers"]
+            if k not in (b"If-Modified-Since", b"If-None-Match")
+        ]
+        response = await super().get_response(path, scope)
+        # Prevent the browser from caching
+        # HTTP 1.1
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        # HTTP 1.0 and ancient clients
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        response.headers["Vary"] = "*"
+        return response
+
+
 # Neat trick: mount this after the endpoints to have both static files under / (for example, /index.html) as well as API endpoints under /api/*
 # Credits to https://stackoverflow.com/questions/65419794/serve-static-files-from-root-in-fastapi
 real_static_folder = os.environ.get(
@@ -68,7 +113,7 @@ real_static_folder = os.environ.get(
 if Path(real_static_folder).is_dir():
     app.mount(
         "/",
-        StaticFiles(
+        CacheControlledStaticFiles(
             directory=real_static_folder,
             html=True,
         ),

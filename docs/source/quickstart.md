@@ -54,7 +54,7 @@ Having done that, you can build the latest version of the front-end into the `fr
 cd frontend
 mkdir output
 elm make src/Main.elm --optimize --output output/main.js
-cp *.css *.png *.svg src/index.html output/
+cp -R assets/* src/index.html output/
 ```
 
 ### Backend

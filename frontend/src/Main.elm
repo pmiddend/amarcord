@@ -27,7 +27,7 @@ import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
-import Amarcord.Version exposing (version)
+import Amarcord.Version exposing (amarcordClientVersion)
 import Api.Data exposing (JsonBeamtime)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
@@ -169,7 +169,12 @@ init localStorageStr url navKey =
                 }
             }
     in
-    ( model, Cmd.batch [ Task.perform HereAndNowReceived retrieveHereAndNow, retrieveRouteBeamtime route ] )
+    ( model
+    , Cmd.batch
+        [ Task.perform HereAndNowReceived retrieveHereAndNow
+        , retrieveRouteBeamtime route
+        ]
+    )
 
 
 buildTitleForPage : Page -> String
@@ -267,11 +272,20 @@ view model =
             [ div [ class "container" ]
                 [ header
                     [ class "d-flex align-items-center justify-content-center py-3 mb-4 border-bottom" ]
-                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo" ] [], displayTitle, viewMenu model.route ]
+                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo me-3" ] []
+                    , displayTitle
+                    , viewMenu model.route
+                    ]
                 ]
             , currentViewOuter model
-            , div [ class "container mt-5 text-center" ]
-                [ p [ class "text-muted" ] [ img_ [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ], text <| "AMARCORD Version: " ++ version ]
+            , div [ class "container mt-5" ]
+                [ div [ class "d-flex gap-1 justify-content-center" ]
+                    [ img_ [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "amarcord-logo" ]
+                    , p [ class "text-muted" ]
+                        [ text "Client version "
+                        , span [ class "font-monospace" ] [ text amarcordClientVersion ]
+                        ]
+                    ]
                 ]
             ]
         ]

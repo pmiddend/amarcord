@@ -124,6 +124,10 @@
                 src = frontend/.;
                 outputJavaScript = true;
                 targets = [ "src/Main.elm" ];
+                postPatch = ''
+                  my_version="$(sha256sum <(find src assets generated -type f ! -name 'Version.elm' -exec sha256sum {} \; | sort) | head -c 8)"
+                  sed -i -e "s/INSERT_VERSION_HERE/$my_version/g" src/Amarcord/Version.elm
+                '';
               };
               mtzJs = pkgs.fetchurl {
                 url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.js";
@@ -143,12 +147,15 @@
 
               installPhase = ''
                 mkdir -p $out
-                cp ${corePackage}/Main.min.js $out/main.js
+                my_version="$(sha256sum <(find src assets generated -type f ! -name 'Version.elm' -exec sha256sum {} \; | sort) | head -c 8)"
+
+                # see amarcord/cli/webserver.py (at the bottom) for an explanation of this behavior
+                cp ${corePackage}/Main.min.js $out/main-$my_version.js
                 cp ${mtzJs} $out/mtz.js
                 cp ${mtzWasm} $out/mtz.wasm
-                cp uglymol-custom-element.js $out/
-                echo ${uglymol}
-                cp -R src/index.html ${uglymol.packages.${system}.default}/uglymol.min.js ./*.js ./*.svg ./*.css ./*.png ./*.jpg fonts/ $out/
+                cp -R src/index.html assets/* $out/
+                cp ${uglymol.packages.${system}.default}/uglymol.min.js $out/
+                sed -ie "s/main.js/main-$my_version.js/" $out/index.html
               '';
             };
 

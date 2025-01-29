@@ -11,7 +11,5 @@ command -v elm > /dev/null || die "couldn't find elm executable, cannot proceed"
 
 mkdir -p build-output
 elm make src/Main.elm --optimize --output build-output/main.js
-cp ./*.css ./*.png ./*.js build-output
-cp ./src/index.html  build-output
-cp -R fonts/ build-output
+cp -R ./src/index.html ./assets/* build-output
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-cp ./*.css ./*.svg ./*.png ./*.js output/
-cp -R fonts/ output/
+cp -R ./assets/* output/
 
 PATH="$PWD:${PATH}" npx elm-go src/Main.elm\
     --start-page=src/index.html\
