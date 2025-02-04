@@ -327,6 +327,11 @@ makeIndexingIdLogLink id =
     "api/indexing/" ++ String.fromInt id ++ "/log"
 
 
+makeMergeIdLogLink : Int -> String
+makeMergeIdLogLink id =
+    "api/merging/" ++ String.fromInt id ++ "/log"
+
+
 makeIndexingIdErrorLogLink : Int -> String
 makeIndexingIdErrorLogLink id =
     "api/indexing/" ++ String.fromInt id ++ "/errorlog"

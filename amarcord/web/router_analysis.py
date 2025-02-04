@@ -409,15 +409,20 @@ async def read_single_data_set_results(
                     indexing_results=[
                         orm_indexing_result_to_json(result) for result in results
                     ],
-                    merge_results=[
-                        orm_encode_merge_result_to_json(
-                            mr,
-                            run_id_formatter=lambda id: run_external_id_for_internal_id[
-                                id
-                            ],
-                        )
-                        for mr in merge_results_per_indexing_parameters.get(ip_id, [])
-                    ],
+                    merge_results=sorted(
+                        [
+                            orm_encode_merge_result_to_json(
+                                mr,
+                                run_id_formatter=lambda id: run_external_id_for_internal_id[
+                                    id
+                                ],
+                            )
+                            for mr in merge_results_per_indexing_parameters.get(
+                                ip_id, []
+                            )
+                        ],
+                        key=lambda x: x.id,
+                    ),
                 )
                 for ip_id, results in ip_and_ix_results.items()
             ],

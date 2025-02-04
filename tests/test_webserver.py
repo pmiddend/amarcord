@@ -319,6 +319,24 @@ def point_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int
 
 
 @pytest.fixture
+def space_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
+    input_ = JsonCreateAttributoInput(
+        name="space group",
+        description="description",
+        group=ATTRIBUTO_GROUP_MANUAL,
+        associated_table=AssociatedTable.CHEMICAL,
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
+        beamtime_id=beamtime_id,
+    ).dict()
+    response_json = client.post(
+        "/api/attributi",
+        json=input_,
+    ).json()
+    response = JsonCreateAttributoOutput(**response_json)
+    return response.id
+
+
+@pytest.fixture
 def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="run_string",
@@ -480,6 +498,8 @@ def string_experiment_type_id(
 # if we have it as 90.0 anyways comparison is easier.
 LYSO_CELL_DESCRIPTION = "tetragonal P c (79.2 79.2 38.0) (90.0 90.0 90.0)"
 LYSO_POINT_GROUP = "4/mmm"
+# Might not even be correct, but this is a test, who cares
+LYSO_SPACE_GROUP = "P 1 21 1"
 
 
 @pytest.fixture
@@ -488,6 +508,7 @@ def lyso_chemical_id(
     beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     test_file: int,
 ) -> int:
     response = JsonCreateChemicalOutput(
@@ -507,6 +528,10 @@ def lyso_chemical_id(
                         # Good old Lyso!
                         attributo_value_str=LYSO_POINT_GROUP,
                     ),
+                    JsonAttributoValue(
+                        attributo_id=space_group_attributo_id,
+                        attributo_value_str=LYSO_SPACE_GROUP,
+                    ),
                 ],
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[test_file],
@@ -524,6 +549,7 @@ def second_lyso_chemical_id(
     beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
 ) -> int:
     response = JsonCreateChemicalOutput(
         **client.post(
@@ -539,6 +565,10 @@ def second_lyso_chemical_id(
                     JsonAttributoValue(
                         attributo_id=point_group_attributo_id,
                         attributo_value_str="bar3",
+                    ),
+                    JsonAttributoValue(
+                        attributo_id=space_group_attributo_id,
+                        attributo_value_str="baz3",
                     ),
                 ],
                 chemical_type=ChemicalType.CRYSTAL,
@@ -859,6 +889,7 @@ def test_chemical_creation(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     beamtime_id: BeamtimeId,
     test_file: int,
 ) -> None:
@@ -875,6 +906,7 @@ def test_chemical_creation(
             LYSO_CELL_DESCRIPTION,
         ),
         _mock_string_attributo_value(point_group_attributo_id, LYSO_POINT_GROUP),
+        _mock_string_attributo_value(space_group_attributo_id, LYSO_SPACE_GROUP),
     ]
     assert first_chemical.beamtime_id == beamtime_id
     assert first_chemical.chemical_type == ChemicalType.CRYSTAL
@@ -908,6 +940,7 @@ def test_chemical_creation_and_update(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     beamtime_id: BeamtimeId,
     second_test_file: int,
 ) -> None:
@@ -920,6 +953,7 @@ def test_chemical_creation_and_update(
     # files).
     new_cell_description = "foo2"
     new_point_group = "bar2"
+    new_space_group = "baz2"
     patched_chemical_json = JsonChemicalWithId(
         id=lyso_chemical_id,
         attributi=[
@@ -928,6 +962,7 @@ def test_chemical_creation_and_update(
                 new_cell_description,
             ),
             _mock_string_attributo_value(point_group_attributo_id, new_point_group),
+            _mock_string_attributo_value(space_group_attributo_id, new_space_group),
         ],
         beamtime_id=beamtime_id,
         chemical_type=ChemicalType.CRYSTAL,
@@ -954,9 +989,10 @@ def test_chemical_creation_and_update(
     # still just one file, but a different one!
     assert len(chemical.files) == 1
     assert chemical.files[0].id == second_test_file
-    assert len(chemical.attributi) == 2
+    # point group, space group, cell description
+    assert len(chemical.attributi) == 3
     assert set(a.attributo_value_str for a in chemical.attributi) == set(
-        (new_cell_description, new_point_group),
+        (new_cell_description, new_point_group, new_space_group),
     )
 
 
@@ -993,6 +1029,7 @@ def test_chemical_copy_from_other_beamtime_with_copy_attributi(
     client: TestClient,
     cell_description_attributo_id: int,  # noqa: ARG001
     point_group_attributo_id: int,  # noqa: ARG001
+    space_group_attributo_id: int,  # noqa: ARG001
     lyso_chemical_id: int,
     beamtime_id: BeamtimeId,  # noqa: ARG001
     second_beamtime_id: BeamtimeId,
@@ -1018,8 +1055,8 @@ def test_chemical_copy_from_other_beamtime_with_copy_attributi(
     attributi_response = JsonReadAttributi(
         **client.get(f"/api/attributi/{second_beamtime_id}").json(),
     )
-    # A bit crude to hard-code 2 here, but we are expecting point group and cell description
-    assert len(attributi_response.attributi) == 2
+    # A bit crude to hard-code 2 here, but we are expecting point group, cell description and space group
+    assert len(attributi_response.attributi) == 3
 
 
 def test_create_and_delete_event_without_live_stream_and_files(
@@ -1864,6 +1901,7 @@ def test_indexing_result_with_two_equal_parameter(
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -2081,6 +2119,137 @@ def test_create_and_delete_data_set(
     ).data_sets
 
 
+def test_queue_merge_job_with_point_and_space_group_inferred(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    # Enable CrystFEL online so an indexing job will be created
+    enable_crystfel_online(client, beamtime_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    create_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                files=[],
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                ],
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_run_response.run_internal_id is not None
+    assert (
+        create_run_response.indexing_result_id is not None
+        and create_run_response.indexing_result_id > 0
+    )
+
+    assert JsonIndexingJobUpdateOutput(
+        **client.post(
+            f"/api/indexing/{create_run_response.indexing_result_id}/success",
+            json=JsonIndexingResultFinishSuccessfully(
+                stream_file="/tmp/some-file.stream",  # noqa: S108
+                program_version="",
+                geometry_file="/tmp/some.geom",  # noqa: S108
+                geometry_hash=hashlib.sha256(b"").hexdigest(),
+                workload_manager_job_id=1,
+                # More or less random values, we don't care about the specifics here
+                frames=200,
+                # Hit rate 50%
+                hits=100,
+                # Indexing rate 20%
+                indexed_frames=20,
+                indexed_crystals=25,
+                detector_shift_x_mm=0.5,
+                detector_shift_y_mm=-0.5,
+                unit_cell_histograms_id=None,
+                generated_geometry_file="",
+                latest_log="",
+            ).dict(),
+        ).json(),
+    ).result
+
+    # The result of this indexing you can query in various places. One
+    # of the most prominent ones is the "read runs" call. For that to
+    # work, however, we need a data set.
+    #
+    # The test will be "unnecessarily" long now, but let's test the
+    # "create data set from run" feature just now
+    create_data_set_response = JsonCreateDataSetFromRunOutput(
+        **client.post(
+            "/api/data-sets/from-run",
+            json=JsonCreateDataSetFromRun(
+                run_internal_id=create_run_response.run_internal_id,
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_data_set_response.data_set_id > 0
+
+    queue_merge_job_response = JsonQueueMergeJobOutput(
+        **client.post(
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
+                strict_mode=False,
+                data_set_id=create_data_set_response.data_set_id,
+                # Literally random stuff here, doesn't matter.
+                indexing_parameters_id=1,
+                merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
+                    # Deliberately left blank
+                    point_group="",
+                    # ...or None so we can test if this is inferred from the chemical/indexing result
+                    space_group=None,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                ),
+            ).dict(),
+        ).json(),
+    )
+    assert queue_merge_job_response.merge_result_id > 0
+
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.QUEUED.value}").json(),
+    )
+
+    assert len(queued_merge_results.merge_jobs) == 1
+    assert queued_merge_results.merge_jobs[0].parameters.point_group == LYSO_POINT_GROUP
+    assert queued_merge_results.merge_jobs[0].parameters.space_group == LYSO_SPACE_GROUP
+
+
 def test_queue_then_start_then_finish_merge_job(
     client: TestClient,
     beamtime_id: BeamtimeId,
@@ -2175,6 +2344,7 @@ def test_queue_then_start_then_finish_merge_job(
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -2301,8 +2471,7 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/finish",
             json=JsonMergeJobFinishedInput(
-                error=None,
-                result=merge_result,
+                error=None, result=merge_result, latest_log=None
             ).dict(),
         ).json(),
     )
@@ -2344,6 +2513,7 @@ def test_queue_then_start_then_finish_merge_job(
     assert first_mr.runs == [str(external_run_id)]
     assert first_mr.parameters == JsonMergeParameters(
         point_group=LYSO_POINT_GROUP,
+        space_group=LYSO_SPACE_GROUP,
         cell_description=LYSO_CELL_DESCRIPTION,
         negative_handling=MergeNegativeHandling.IGNORE,
         merge_model=MergeModel.UNITY,
@@ -3646,6 +3816,7 @@ async def test_merge_daemon(
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,

@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,6 +15,7 @@ from amarcord.db import orm
 from amarcord.db.attributi import datetime_from_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
+from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.merge_result import JsonMergeJobFinishedInput
@@ -101,9 +103,6 @@ async def merge_job_finished(
             job_logger.warning(
                 "merge result has a stopped date already; this might be fine though",
             )
-            recent_log = ""
-        else:
-            recent_log = current_merge_result_status.recent_log
 
         stopped_time = datetime.datetime.now(datetime.timezone.utc)
 
@@ -115,7 +114,12 @@ async def merge_job_finished(
         if current_merge_result_status.started is None:
             current_merge_result_status.started = stopped_time
         current_merge_result_status.stopped = stopped_time
-        current_merge_result_status.recent_log = recent_log
+        # Update the log if we have been given one, otherwise let it
+        # stay the same. This is important for the case where the
+        # actual job sends us the real log, but the daemon, at the
+        # same time, recognizes the cancelled job.
+        if json_result.latest_log is not None:
+            current_merge_result_status.recent_log = json_result.latest_log
         if json_result.error is not None:
             await safe_create_new_event(
                 job_logger,
@@ -143,7 +147,6 @@ async def merge_job_finished(
             "API",
         )
         current_merge_result_status.stopped = stopped_time
-        current_merge_result_status.recent_log = recent_log
         current_merge_result_status.job_status = DBJobStatus.DONE
 
         r = json_result.result
@@ -214,6 +217,53 @@ async def merge_job_finished(
                 ),
             )
         return JsonMergeJobFinishOutput(result=True)
+
+
+async def determine_space_group_from_indexing_results(
+    session: AsyncSession,
+    beamtime_id: int,
+    indexing_results_matching_params: list[orm.IndexingResult],
+) -> None | str:
+    # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
+    chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
+        (
+            orm.RunHasAttributoValue.run_id.in_(
+                ir.run_id for ir in indexing_results_matching_params
+            )
+        )
+        & (orm.RunHasAttributoValue.chemical_value.is_not(None)),
+    )
+    # attributi, plural, but there should be only one since names are hopefully unique
+    space_group_chemical_attributi = (
+        select(orm.Attributo.id)
+        .where(
+            (orm.Attributo.name == SPACE_GROUP_ATTRIBUTO)
+            & (orm.Attributo.beamtime_id == beamtime_id),
+        )
+        .scalar_subquery()
+    )
+    select_all_space_groups = select(orm.ChemicalHasAttributoValue.string_value).where(
+        (orm.ChemicalHasAttributoValue.attributo_id == space_group_chemical_attributi)
+        & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs)),
+    )
+    space_groups = set(
+        s.strip()
+        for s in (await session.scalars(select_all_space_groups.distinct()))
+        if s is not None and s.strip()
+    )
+
+    if len(space_groups) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Found more than one space group! The runs I chose have (internal) IDs "
+            + ", ".join(str(ir.run_id) for ir in indexing_results_matching_params)
+            + ", which results in the following space groups (determined by going through all chemicals in the runs): "
+            + ", ".join(space_groups)
+            + ". To correct this, you have to either specify a separate space group while merging, or (better choice, probably) take care of the space groups for your chemicals: you should have exactly one space group for all chemicals for all runs.",
+        )
+    if not space_groups:
+        return None
+    return next(iter(space_groups))
 
 
 async def determine_point_group_from_indexing_results(
@@ -350,6 +400,17 @@ async def queue_merge_job(
                 beamtime_id,
                 indexing_results_matching_params,
             )
+        # The space group we either get from the user as an input, or
+        # from the chemicals attached to the runs, which are, in turn,
+        # attached to the indexing results.
+        if input_.merge_parameters.space_group:
+            space_group = input_.merge_parameters.space_group
+        else:
+            space_group = await determine_space_group_from_indexing_results(
+                session,
+                beamtime_id,
+                indexing_results_matching_params,
+            )
         # The cell description is easier to get than the point group,
         # since it's already in the indexing parameters, and all of
         # those parameters have to be the same amongst the indexing
@@ -387,6 +448,7 @@ async def queue_merge_job(
             started=None,
             stopped=None,
             point_group=point_group,
+            space_group=space_group,
             job_id=None,
             job_error=None,
             mtz_file_id=None,
@@ -509,3 +571,25 @@ async def read_merge_jobs(
             )
         ],
     )
+
+
+@router.get(
+    "/api/merging/{mergeResultId}/log",
+    tags=["processing"],
+    response_model_exclude_defaults=True,
+    response_class=PlainTextResponse,
+)
+async def merge_job_get_log(
+    mergeResultId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> str:
+    async with session.begin():
+        return (
+            (
+                await session.scalars(
+                    select(orm.MergeResult).where(
+                        orm.MergeResult.id == mergeResultId,
+                    ),
+                )
+            ).one()
+        ).recent_log

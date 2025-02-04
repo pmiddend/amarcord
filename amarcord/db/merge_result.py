@@ -75,6 +75,7 @@ class JsonMergeResultInternal(BaseModel):
 
 
 class JsonMergeJobFinishedInput(BaseModel):
+    latest_log: None | str
     error: None | str
     result: None | JsonMergeResultInternal
 

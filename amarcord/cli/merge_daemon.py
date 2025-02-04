@@ -1,10 +1,8 @@
 import asyncio
 import datetime
 import inspect
-import json
 import os
 import shlex
-from base64 import b64encode
 from dataclasses import dataclass
 from datetime import timedelta
 from io import StringIO
@@ -219,36 +217,52 @@ async def start_merge_job(
             "r",
             encoding="utf-8",
         ) as merge_file:
-            predefined_args = {
-                "stream-files": stream_files,
-                "api-url": (
+            # mandatory parameters
+            env: dict[str, str] = {
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_STREAM_FILES: ",".join(
+                    stream_files
+                ),
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_API_URL: (
                     args.amarcord_url
                     if args.amarcord_url_for_spawned_job is None
                     else args.amarcord_url_for_spawned_job
                 ),
-                "merge-result-id": merge_result.id,
-                "cell-file-id": cell_file_id,
-                "point-group": merge_result.point_group,
-                "ccp4-path": args.ccp4_path,
-                "partialator-additional": shlex.join(
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_MERGE_RESULT_ID: str(
+                    merge_result.id
+                ),
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_CELL_FILE_ID: str(
+                    cell_file_id
+                ),
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_POINT_GROUP: merge_result.point_group,
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_PARTIALATOR_ADDITIONAL: shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),
-                "crystfel-path": str(args.crystfel_path),
-                "pdb-file-id": pdb_file_id,
-                "restraints-cif-file-id": restraints_cif_file_id,
-                "random-cut-length": merge_result.parameters.stop_after,
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_CRYSTFEL_PATH: str(
+                    args.crystfel_path
+                ),
             }
-            parent_logger.info(
-                "command line for this job is "
-                + " ".join(f"{k}={v}" for k, v in predefined_args.items()),
-            )
-            predefined_args_b64 = b64encode(
-                json.dumps(predefined_args, allow_nan=False).encode("utf-8"),
-            ).decode("utf-8")
-            merge_file_contents = (await merge_file.read()).replace(
-                "predefined_args: None | bytes = None",
-                f'predefined_args = "{predefined_args_b64}"',
-            )
+            # optional parameters
+            if args.ccp4_path is not None:
+                env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_CCP4_PATH] = (
+                    args.ccp4_path
+                )
+            if pdb_file_id is not None:
+                env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_PDB_FILE_ID] = str(
+                    pdb_file_id
+                )
+            if restraints_cif_file_id is not None:
+                env[
+                    amarcord.cli.crystfel_merge.MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID
+                ] = str(restraints_cif_file_id)
+            if merge_result.parameters.stop_after is not None:
+                env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_RANDOM_CUT_LENGTH] = str(
+                    merge_result.parameters.stop_after
+                )
+            if merge_result.parameters.space_group is not None:
+                env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_SPACE_GROUP] = str(
+                    merge_result.parameters.space_group
+                )
+            merge_file_contents = await merge_file.read()
             if args.overwrite_interpreter is not None:
                 merge_file_contents = overwrite_interpreter(
                     merge_file_contents,
@@ -267,7 +281,7 @@ async def start_merge_job(
                 name=f"mg_{merge_result.id}",
                 script=merge_file_contents,
                 time_limit=timedelta(days=1),
-                environment={},
+                environment=env,
                 stdout=job_base_directory / f"merging-{merge_result.id}-stdout.txt",
                 stderr=job_base_directory / f"merging-{merge_result.id}-stderr.txt",
             )
@@ -326,8 +340,7 @@ async def _start_new_jobs(
             async with session.post(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
-                    error=start_result.job_error,
-                    result=None,
+                    error=start_result.job_error, result=None, latest_log=None
                 ).dict(),
             ) as update_response:
                 if update_response.status // 200 != 1:
@@ -389,16 +402,18 @@ async def _update_jobs(
 
         if workload_job is None:
             bound_logger.info("finished because not in SLURM REST job list anymore")
-            job_error = "Job has finished on SLURM (not in job list anymore), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
+            job_error = "Job has finished (not in job list anymore), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
         else:
-            job_error = f"Job has finished on SLURM (status {workload_job.status.value}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
+            job_error = f"Job has finished (status {workload_job.status.value}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
             bound_logger.info(
                 f"finished because SLURM REST job status is {workload_job.status.value}",
             )
 
         async with session.post(
             f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
-            json=JsonMergeJobFinishedInput(error=job_error, result=None).dict(),
+            json=JsonMergeJobFinishedInput(
+                error=job_error, result=None, latest_log=None
+            ).dict(),
         ) as finish_request:
             if finish_request.status // 200 != 1:
                 bound_logger.info(

@@ -330,6 +330,7 @@ def orm_encode_json_merge_parameters_to_json(
 ) -> JsonMergeParameters:
     return JsonMergeParameters(
         point_group=mr.point_group,
+        space_group=mr.space_group,
         cell_description=mr.cell_description,
         negative_handling=mr.negative_handling,
         merge_model=mr.input_merge_model,

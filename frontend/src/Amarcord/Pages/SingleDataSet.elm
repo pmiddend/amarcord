@@ -11,7 +11,7 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
@@ -20,7 +20,7 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, th, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Maybe
@@ -274,8 +274,20 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
 
         isShowingMergeParams =
             mrw.showResults
+
+        mergeResultUnion =
+            createMergeResultUnion mrw.mergeResult
     in
-    tr_ <|
+    tr
+        [ class <|
+            case mergeResultUnion of
+                Just (MergeResultStateError _) ->
+                    "table-secondary"
+
+                _ ->
+                    ""
+        ]
+    <|
         [ td_ [ text (String.fromInt id) ]
         , td_
             [ span [ class "accordion accordion-flush" ]
@@ -294,7 +306,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                             , type_ "button"
                             , onClick (ToggleAccordionShowModelParameters id)
                             ]
-                            [ span [] [ text "Show merge parameters" ]
+                            [ span [] [ text "Params" ]
                             ]
                         ]
                     , div
@@ -317,7 +329,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
             ]
         , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
         ]
-            ++ (case createMergeResultUnion mrw.mergeResult of
+            ++ (case mergeResultUnion of
                     Just (MergeResultStateRunning { started }) ->
                         [ td
                             [ colspan remainingHeaders ]
@@ -331,7 +343,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                         ]
 
                     Just (MergeResultStateError { error }) ->
-                        [ td [ colspan remainingHeaders ] [ span_ [ text <| "Error: " ++ error ++ "." ] ] ]
+                        [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
 
                     Just (MergeResultStateDone { started, stopped, result }) ->
                         let
@@ -344,7 +356,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                             mtzFileId =
                                 result.mtzFileId
                         in
-                        [ td_ [ text <| String.fromInt <| posixDiffMinutes (millisToPosix stopped) (millisToPosix started) ]
+                        [ td_ [ text <| String.fromInt (posixDiffMinutes (millisToPosix stopped) (millisToPosix started)), span [ class "form-text" ] [ text "min" ] ]
                         , td_
                             [ text <|
                                 formatFloatHumanFriendly fom.oneOverDFrom
@@ -356,11 +368,11 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                                     ++ formatFloatHumanFriendly fom.outerShell.maxRes
                                     ++ ")"
                             ]
-                        , floatWithShell fom.completeness fom.outerShell.completeness
+                        , td_ [ text <| formatFloatHumanFriendly fom.completeness ++ "% (" ++ formatFloatHumanFriendly fom.outerShell.completeness ++ "%)" ]
                         , floatWithShell fom.redundancy fom.outerShell.redundancy
                         , floatWithShell fom.cc fom.outerShell.cc
                         , floatWithShell fom.ccstar fom.outerShell.ccstar
-                        , td_ [ text <| Maybe.withDefault "" <| Maybe.map formatFloatHumanFriendly fom.wilson ]
+                        , td_ [ text <| Maybe.withDefault "" <| Maybe.map (\wilsonReal -> formatFloatHumanFriendly wilsonReal ++ " Å²") fom.wilson ]
                         , td_
                             [ icon { name = "file-binary" }
                             , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
@@ -749,13 +761,13 @@ viewMergeResultsTable model experimentType mergeResults =
                 [ text "MRID"
                 , text "Parameters"
                 , text "Runs"
-                , text "Time (min)"
+                , text "Time"
                 , text "Resolution (Å)"
-                , text "Completeness (%)"
+                , text "Completeness"
                 , text "Multiplicity"
                 , span_ [ text "CC", Html.sub [] [ text "1/2" ] ]
                 , span_ [ text "CC", sup [] [ text "*" ] ]
-                , text "Wilson B factor (Å²)"
+                , text "Wilson B"
                 , text "Files"
                 , div_ []
                 ]
@@ -768,7 +780,7 @@ viewMergeResultsTable model experimentType mergeResults =
         in
         table
             [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
-            [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
+            [ thead_ <| [ tr_ (List.map (\header -> th [ class "text-nowrap" ] [ header ]) mergeRowHeaders) ]
             , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
             ]
 

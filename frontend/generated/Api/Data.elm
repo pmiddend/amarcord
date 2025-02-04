@@ -1312,7 +1312,8 @@ type alias JsonMergeJobFinishOutput =
 
 
 type alias JsonMergeJobFinishedInput =
-    { error : Maybe String
+    { latestLog : Maybe String
+    , error : Maybe String
     , result : Maybe JsonMergeResultInternal
     }
 
@@ -1330,6 +1331,7 @@ type alias JsonMergeJobStartedOutput =
 
 type alias JsonMergeParameters =
     { pointGroup : String
+    , spaceGroup : Maybe String
     , cellDescription : String
     , negativeHandling : Maybe MergeNegativeHandling
     , mergeModel : MergeModel
@@ -4029,7 +4031,8 @@ encodeJsonMergeJobFinishedInputPairs : JsonMergeJobFinishedInput -> List Encoded
 encodeJsonMergeJobFinishedInputPairs model =
     let
         pairs =
-            [ maybeEncode "error" Json.Encode.string model.error
+            [ maybeEncode "latest_log" Json.Encode.string model.latestLog
+            , maybeEncode "error" Json.Encode.string model.error
             , maybeEncode "result" encodeJsonMergeResultInternal model.result
             ]
     in
@@ -4092,6 +4095,7 @@ encodeJsonMergeParametersPairs model =
     let
         pairs =
             [ encode "point_group" Json.Encode.string model.pointGroup
+            , maybeEncode "space_group" Json.Encode.string model.spaceGroup
             , encode "cell_description" Json.Encode.string model.cellDescription
             , maybeEncode "negative_handling" encodeMergeNegativeHandling model.negativeHandling
             , encode "merge_model" encodeMergeModel model.mergeModel
@@ -6493,6 +6497,7 @@ jsonMergeJobFinishOutputDecoder =
 jsonMergeJobFinishedInputDecoder : Json.Decode.Decoder JsonMergeJobFinishedInput
 jsonMergeJobFinishedInputDecoder =
     Json.Decode.succeed JsonMergeJobFinishedInput
+        |> maybeDecode "latest_log" Json.Decode.string Nothing
         |> maybeDecode "error" Json.Decode.string Nothing
         |> maybeDecode "result" jsonMergeResultInternalDecoder Nothing
 
@@ -6514,6 +6519,7 @@ jsonMergeParametersDecoder : Json.Decode.Decoder JsonMergeParameters
 jsonMergeParametersDecoder =
     Json.Decode.succeed JsonMergeParameters
         |> decode "point_group" Json.Decode.string 
+        |> maybeDecode "space_group" Json.Decode.string Nothing
         |> decode "cell_description" Json.Decode.string 
         |> maybeDecode "negative_handling" mergeNegativeHandlingDecoder Nothing
         |> decode "merge_model" mergeModelDecoder 

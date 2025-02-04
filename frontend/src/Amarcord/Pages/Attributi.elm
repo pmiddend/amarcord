@@ -312,6 +312,7 @@ type Msg
     | AddAttributo AssociatedTable
     | CreateCellDescription
     | CreatePointGroup
+    | CreateSpaceGroup
     | ChangeTab AssociatedTable
     | ToleranceCheckerChangeDs String
     | ToleranceCheckerChangeRun String
@@ -1016,6 +1017,17 @@ viewInner model =
                                     , br_
                                     , span [ class "form-text" ] [ text "Used by CrystFEL for merging" ]
                                     ]
+                                , div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreateSpaceGroup
+                                        , disabled (List.any (\a -> a.name == "space group") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “space group”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for generating the MTZ file." ]
+                                    ]
                                 ]
                             ]
 
@@ -1188,6 +1200,24 @@ update msg model =
                     , description = "Point group of crystalline samples. See the comment up top for possible values."
                     , group = "manual"
                     , name = "point group"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
+        CreateSpaceGroup ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Space group of crystalline samples. The notation has to be compatible with the `CRYST1` line from the PDB. See [lbl.gov](https://cci.lbl.gov/sginfo/hall_symbols.html) (column “Hermann-Maugin” in Table 6) for reference."
+                    , group = "manual"
+                    , name = "space group"
                     , attributoTypeInteger = Nothing
                     , attributoTypeNumber = Nothing
                     , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }

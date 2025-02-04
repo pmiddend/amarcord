@@ -20,6 +20,7 @@ module Api.Request.Processing exposing
     , indexingJobGetLogApiIndexingIndexingResultIdLogGet
     , indexingJobQueueForDataSetApiIndexingPost
     , indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost
+    , mergeJobGetLogApiMergingMergeResultIdLogGet
     , readIndexingJobsApiIndexingGet
     , readIndexingParametersApiIndexingParametersDataSetIdGet
     )
@@ -101,6 +102,18 @@ indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost indexingResul
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultStillRunning jsonIndexingResultStillRunning_body)))
         Api.Data.jsonIndexingJobUpdateOutputDecoder
+
+
+mergeJobGetLogApiMergingMergeResultIdLogGet : Int -> Api.Request String
+mergeJobGetLogApiMergingMergeResultIdLogGet mergeResultId_path =
+    Api.request
+        "GET"
+        "/api/merging/{mergeResultId}/log"
+        [ ( "mergeResultId", String.fromInt mergeResultId_path ) ]
+        []
+        []
+        Nothing
+        Json.Decode.string
 
 
 readIndexingJobsApiIndexingGet : Maybe DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput

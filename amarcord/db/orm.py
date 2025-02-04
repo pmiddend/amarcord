@@ -714,6 +714,7 @@ class MergeResult(Base):
     started: Mapped[None | datetime] = mapped_column()
     stopped: Mapped[None | datetime] = mapped_column()
     point_group: Mapped[str] = mapped_column(sa.String(length=32))
+    space_group: Mapped[None | str] = mapped_column(sa.String(length=32))
     cell_description: Mapped[str] = mapped_column(sa.String(length=255))
     job_id: Mapped[None | int] = mapped_column()
     job_error: Mapped[None | str] = mapped_column(sa.Text)

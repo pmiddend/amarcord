@@ -230,6 +230,7 @@ class JsonMergeParameters(BaseModel):
     #
     # We could have made this "None | str" but that complicates things. For now, do it this way.
     point_group: str
+    space_group: None | str
     # Same as point_group comment above.
     cell_description: str
     negative_handling: None | MergeNegativeHandling

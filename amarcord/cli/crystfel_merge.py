@@ -6,10 +6,8 @@ import multiprocessing
 import os
 import re
 import shlex
-import shutil
 import subprocess
 import sys
-from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
@@ -19,6 +17,7 @@ from typing import BinaryIO
 from typing import Final
 from typing import Generator
 from typing import Iterable
+from typing import MutableSequence
 from typing import NoReturn
 from typing import TypeVar
 from urllib import request
@@ -93,163 +92,6 @@ def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
     if not input_mtz_labels_lines:
         raise Exception("couldn't parse mtzinfo output, no line starting with LABELS!")
     return input_mtz_labels_lines[0].split(" ")[1:]
-
-
-def uniqify(
-    ccp4_path: Path,
-    rfree_mtz: Path,
-    input_mtz: Path,
-    resolution_cut: float,
-) -> Path:
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/pointless",
-            "hklref",
-            str(rfree_mtz),
-            "hklin",
-            str(input_mtz),
-            "hklout",
-            POINTLESS_MTZ,
-        ],
-    )
-
-    mtzinfo_input_mtz = ccp4_run(ccp4_path, [f"{ccp4_path}/bin/mtzinfo", POINTLESS_MTZ])
-
-    input_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_input_mtz)
-
-    input_mtz_rfree_labels = [
-        label for label in input_mtz_labels if "free" in label.lower()
-    ]
-    if len(input_mtz_rfree_labels) > 1:
-        raise Exception(
-            f'couldn\'t do refinement, there is more than one "free" in "{POINTLESS_MTZ}": '
-            + ", ".join(input_mtz_rfree_labels),
-        )
-    if input_mtz_rfree_labels:
-        logger.info(
-            f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call',
-        )
-        ccp4_run(
-            ccp4_path,
-            [
-                f"{ccp4_path}/bin/mtzutils",
-                "hklin",
-                POINTLESS_MTZ,
-                "hklout",
-                EXCLUSION_MTZ,
-            ],
-            input_=f"exclude {input_mtz_rfree_labels[0]}",
-        )
-    else:
-        logger.info(
-            f"Input MTZ doesn't contain RFree flags column (columns are {input_mtz_labels}), just copying",
-        )
-        shutil.copyfile(POINTLESS_MTZ, EXCLUSION_MTZ)
-    xdata_lines = [
-        line for line in mtzinfo_input_mtz.split("\n") if line.startswith("XDATA ")
-    ]
-    if not xdata_lines:
-        raise Exception("couldn't parse mtzinfo output, no line starting with XDATA!")
-    xdata_line = re.split(r" +", xdata_lines[0])
-    logger.info(f"xdata line is {xdata_lines[0]} ({len(xdata_line)} component(s))")
-
-    mtzinfo_rfree_mtz = ccp4_run(
-        ccp4_path,
-        [f"{ccp4_path}/bin/mtzinfo", str(rfree_mtz)],
-    )
-    rfree_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_rfree_mtz)
-    rfree_mtz_rfree_labels = [
-        label for label in rfree_mtz_labels if "free" in label.lower()
-    ]
-    if not rfree_mtz_rfree_labels:
-        raise Exception(
-            f'couldn\'t find a "free" column in "{rfree_mtz}", columns are: '
-            + ",".join(rfree_mtz_labels),
-        )
-    rfree_mtz_column = rfree_mtz_rfree_labels[0]
-    logger.info(f"using column {rfree_mtz_column} as free flag in {rfree_mtz}")
-
-    unique_cell_information = f"CELL {xdata_line[1]} {xdata_line[2]} {xdata_line[3]} {xdata_line[4]} {xdata_line[5]} {xdata_line[6]} {xdata_line[7]} SYMMETRY {xdata_line[9]}"
-    logger.info(f"unique cell information: {unique_cell_information}")
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/unique",
-            "HKLOUT",
-            UNIQUE_MTZ,
-        ],
-        input_=f"""{unique_cell_information}
-    LABOUT F=FUNI SIGF=SIGFUNI
-    RESOLUTION {xdata_line[8]}
-    SYMM {xdata_line[9]}""",
-    )
-
-    cad_input = f"""
-    LABIN FILE 1  ALLIN
-    LABIN FILE 2  ALLIN
-    LABIN FILE 3 E1 = {rfree_mtz_column}
-    """
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/cad",
-            "HKLIN1",
-            EXCLUSION_MTZ,
-            "HKLIN2",
-            UNIQUE_MTZ,
-            "HKLIN3",
-            str(rfree_mtz),
-            "HKLOUT",
-            CAD_MTZ,
-        ],
-        input_=cad_input,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/freerflag",
-            "HKLIN",
-            CAD_MTZ,
-            "HKLOUT",
-            FREER_MTZ,
-        ],
-        input_=f"""
-    COMPLETE FREE={rfree_mtz_column}
-            """,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/mtzutils",
-            "hklin",
-            FREER_MTZ,
-            "hklout",
-            UNIQIFIED_MTZ,
-        ],
-        input_=f"""
-    EXCLUDE FUNI SIGFUNI
-    SYMM {xdata_line[9]}
-            """,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/mtzutils",
-            "hklin",
-            UNIQIFIED_MTZ,
-            "hklout",
-            RESCUT_MTZ,
-        ],
-        input_=f"""
-    resolution {resolution_cut}
-            """,
-    )
-
-    return Path(UNIQIFIED_MTZ)
 
 
 @dataclass(frozen=True)
@@ -390,10 +232,32 @@ def quick_refine(
     )
 
 
+# We want to log to a list of lines, so we can then send it from the
+# secondary to the primary job and output it there.
+#
+# Source:
+# https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
+class ListHandler(logging.Handler):
+    def __init__(self, log_list_: MutableSequence[str]) -> None:
+        # run the regular Handler __init__
+        logging.Handler.__init__(self)
+        # Our custom argument
+        self.log_list = log_list_
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # record.message is the log message
+        self.log_list.append(self.format(record).rstrip("\n"))
+
+
 logger = logging.getLogger(__name__)
+# Better to do it like this, but for now...
+# log_list: Deque[str] = deque(maxlen=20)
+# ...save the whole log
+log_list: list[str] = []
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s",
     level=logging.INFO,
+    handlers=[logging.StreamHandler(), ListHandler(log_list)],
 )
 
 
@@ -411,52 +275,42 @@ class ParsedArgs:
     pdb_file_id: None | int
     restraints_cif_file_id: None | int
     random_cut_length: None | int
+    space_group: None | str
 
 
-def parse_predefined(s: bytes) -> ParsedArgs:
-    j = json.loads(b64decode(s))
-    assert isinstance(j, dict)
-    crystfel_path_str = j.get("crystfel-path")
-    if crystfel_path_str is None:
-        exit_with_error(None, "crystfel-path missing in input")
-    if not isinstance(crystfel_path_str, str):
-        exit_with_error(None, f"crystfel-path not a string but {crystfel_path_str}")
-    crystfel_path = Path(crystfel_path_str)
+MERGE_ENVIRON_CRYSTFEL_PATH = "AMARCORD_CRYSTFEL_PATH"
+MERGE_ENVIRON_CCP4_PATH = "AMARCORD_CCP4_PATH"
+MERGE_ENVIRON_STREAM_FILES = "AMARCORD_STREAM_FILES"
+MERGE_ENVIRON_API_URL = "AMARCORD_API_URL"
+MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID = "AMARCORD_RESTRAINTS_CIF_FILE_ID"
+MERGE_ENVIRON_RANDOM_CUT_LENGTH = "AMARCORD_RANDOM_CUT_LENGTH"
+MERGE_ENVIRON_SPACE_GROUP = "AMARCORD_SPACE_GROUP"
+MERGE_ENVIRON_MERGE_RESULT_ID = "AMARCORD_RESULT_ID"
+MERGE_ENVIRON_CELL_FILE_ID = "AMARCORD_CELL_FILE_ID"
+MERGE_ENVIRON_POINT_GROUP = "AMARCORD_POINT_GROUP"
+MERGE_ENVIRON_HKL_FILE = "AMARCORD_HKL_FILE"
+MERGE_ENVIRON_PARTIALATOR_ADDITIONAL = "AMARCORD_PARTIALATOR_ADDITIONAL"
+MERGE_ENVIRON_PDB_FILE_ID = "AMARCORD_PDB_FILE_ID"
+
+
+def parse_args() -> ParsedArgs:
+    crystfel_path = Path(os.environ[MERGE_ENVIRON_CRYSTFEL_PATH])
     if not crystfel_path.is_dir():
         exit_with_error(
             None,
             f"CrystFEL path {crystfel_path} must be a valid directory",
         )
-
-    ccp4_path_str = j.get("ccp4-path")
-    if ccp4_path_str is None:
-        exit_with_error(None, "ccp4-path missing in input")
-    if not isinstance(ccp4_path_str, str):
-        exit_with_error(None, f"ccp4-path not a string but {ccp4_path_str}")
-    ccp4_path = Path(ccp4_path_str) if ccp4_path_str else None
+    ccp4_path_str = os.environ.get(MERGE_ENVIRON_CCP4_PATH)
+    ccp4_path = Path(ccp4_path_str) if ccp4_path_str is not None else None
     if ccp4_path and not ccp4_path.is_dir():
         exit_with_error(
             None,
-            f"ccp4 path {ccp4_path} must be a valid directory or empty",
+            f"CCP4 path {ccp4_path} must be a valid directory (or empty)",
         )
-
-    stream_files_raw = j.get("stream-files")
-    if stream_files_raw is None:
-        exit_with_error(None, "stream-files missing in input")
-    if not isinstance(stream_files_raw, list):
-        exit_with_error(None, f"stream-files not a list but {stream_files_raw}")
-    for idx, sf in enumerate(
-        stream_files_raw,  # pyright: ignore [reportUnknownArgumentType]
-    ):
-        if not isinstance(sf, str):
-            exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
-    stream_files = [
-        Path(p)  # pyright: ignore [reportUnknownArgumentType]
-        for p in stream_files_raw
-    ]
+    stream_files_raw = os.environ[MERGE_ENVIRON_STREAM_FILES]
+    stream_files = [Path(p.strip()) for p in stream_files_raw.split(",")]
     if not stream_files:
         exit_with_error(None, "no input stream files given")
-
     invalid_paths = set(f for f in stream_files if not f.is_file())
     if invalid_paths:
         logger.warning(
@@ -466,25 +320,29 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         if invalid_paths == set(stream_files):
             exit_with_error(None, "none of the input stream files is a valid file")
     valid_paths = [f for f in stream_files if f.is_file()]
+    restraints_cif_file_id_str = os.environ.get(MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID)
+    random_cut_length_str = os.environ.get(MERGE_ENVIRON_RANDOM_CUT_LENGTH)
     return ParsedArgs(
-        stream_files=valid_paths,
-        api_url=j.get("api-url"),  # type: ignore
-        merge_result_id=j.get("merge-result-id"),  # type: ignore
-        cell_file_id=j.get("cell-file-id"),  # type: ignore
-        point_group=j.get("point-group"),  # type: ignore
-        ccp4_path=ccp4_path,
-        hkl_file=Path(
-            j.get("hkl-file", "partialator.hkl"),  # pyright: ignore [reportUnknownArgumentType]
-        ),
-        partialator_additional=j.get("partialator-additional"),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
-        pdb_file_id=j.get("pdb-file-id"),  # pyright: ignore [reportUnknownArgumentType]
-        restraints_cif_file_id=j.get("restraints-cif-file-id"),  # pyright: ignore [reportUnknownArgumentType]
-        random_cut_length=j.get("random-cut-length"),  # type: ignore
+        ccp4_path=ccp4_path if ccp4_path else None,
+        stream_files=valid_paths,
+        api_url=os.environ[MERGE_ENVIRON_API_URL],
+        merge_result_id=int(os.environ[MERGE_ENVIRON_MERGE_RESULT_ID]),
+        cell_file_id=int(os.environ[MERGE_ENVIRON_CELL_FILE_ID]),
+        point_group=os.environ[MERGE_ENVIRON_POINT_GROUP],
+        hkl_file=Path(
+            os.environ.get(MERGE_ENVIRON_HKL_FILE, "partialator.hkl"),
+        ),
+        partialator_additional=os.environ.get(MERGE_ENVIRON_PARTIALATOR_ADDITIONAL),
+        pdb_file_id=int(os.environ[MERGE_ENVIRON_PDB_FILE_ID]),
+        restraints_cif_file_id=int(restraints_cif_file_id_str)
+        if restraints_cif_file_id_str is not None
+        else None,
+        random_cut_length=int(random_cut_length_str)
+        if random_cut_length_str is not None
+        else None,
+        space_group=os.environ.get(MERGE_ENVIRON_SPACE_GROUP),
     )
-
-
-predefined_args: None | bytes = None
 
 
 def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
@@ -534,13 +392,13 @@ def write_output_json(
 ) -> None:
     try:
         result_json = json.dumps(
-            {"error": error, "result": result},
+            {"error": error, "result": result, "latest_log": "\n".join(log_list)},
             allow_nan=False,
             indent=2,
         ).encode("utf-8")
     except ValueError:
         result_json_with_nan = json.dumps(
-            {"error": error, "result": result},
+            {"error": error, "result": result, "latest_log": "\n".join(log_list)},
             allow_nan=True,
             indent=2,
         ).encode("utf-8")
@@ -882,6 +740,9 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             str(output_path),
             "--output-format=mtz",
         ]
+        if args.space_group is not None:
+            cli_args.append(f"--space-group={args.space_group}")
+
         logging.info(f"starting get_hkl with command line: {cli_args}")
         result = subprocess.run(  # noqa: S603
             cli_args,
@@ -890,6 +751,8 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             encoding="utf-8",
             check=False,
         )
+
+        logger.info(f"get_hkl output: {result.stdout}")
 
         if result.returncode != 0:
             exit_with_error(
@@ -1159,6 +1022,7 @@ def generate_output(args: ParsedArgs) -> None:
             logger.exception("couldn't complete refinement")
 
     output_json = {
+        "latest_log": "\n".join(log_list),
         "mtz_file_id": upload_file(args, mtz_path),
         "detailed_foms": extract_shell_resolutions(args),
         "refinement_results": (
@@ -1414,6 +1278,4 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
 
 
 if __name__ == "__main__":
-    if predefined_args is None:
-        exit_with_error(None, "No predefined_args given")
-    generate_output(parse_predefined(predefined_args))
+    generate_output(parse_args())

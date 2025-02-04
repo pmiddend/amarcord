@@ -266,6 +266,7 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
 
         -- FIXME: take point group from user or leave it empty to auto-detect
         , pointGroup = ""
+        , spaceGroup = Nothing
 
         -- Here it's fine to leave it empty, we don't want it user-defined and it will be filled by the server.
         -- The only reason this is here is because we have only one class for merge parameters (for input and output).
@@ -685,6 +686,7 @@ quickMergeParameters dataSetId indexingParametersId =
 
         -- Auto-detect from chemicals
         , pointGroup = ""
+        , spaceGroup = Nothing
 
         -- See below for an explanation
         , cellDescription = ""
