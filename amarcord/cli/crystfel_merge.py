@@ -322,6 +322,7 @@ def parse_args() -> ParsedArgs:
     valid_paths = [f for f in stream_files if f.is_file()]
     restraints_cif_file_id_str = os.environ.get(MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID)
     random_cut_length_str = os.environ.get(MERGE_ENVIRON_RANDOM_CUT_LENGTH)
+    pdb_file_id_str = os.environ.get(MERGE_ENVIRON_PDB_FILE_ID)
     return ParsedArgs(
         crystfel_path=crystfel_path,
         ccp4_path=ccp4_path if ccp4_path else None,
@@ -334,7 +335,7 @@ def parse_args() -> ParsedArgs:
             os.environ.get(MERGE_ENVIRON_HKL_FILE, "partialator.hkl"),
         ),
         partialator_additional=os.environ.get(MERGE_ENVIRON_PARTIALATOR_ADDITIONAL),
-        pdb_file_id=int(os.environ[MERGE_ENVIRON_PDB_FILE_ID]),
+        pdb_file_id=int(pdb_file_id_str) if pdb_file_id_str is not None else None,
         restraints_cif_file_id=int(restraints_cif_file_id_str)
         if restraints_cif_file_id_str is not None
         else None,
