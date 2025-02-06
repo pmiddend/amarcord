@@ -466,12 +466,9 @@ update msg model =
                         -- Centering doesn't apply for the new system anymore - reset it
                         { model | bravaisLattice = newSystem, crystalCentering = "" }
 
-                -- When is this supposed to happen? The system can't
-                -- be invalid because the drop-down ensures that. The
-                -- centering can be invalid, but this is then of no
-                -- concern here
+                -- must be the centering is unset yet, so we just change the lattice
                 _ ->
-                    model
+                    { model | bravaisLattice = newSystem }
 
         ChangeA newA ->
             { model | cellA = newA }

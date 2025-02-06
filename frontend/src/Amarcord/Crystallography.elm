@@ -600,7 +600,7 @@ centeringToString x =
             "H"
 
         CentBase axis ->
-            axisToString axis
+            String.toUpper (axisToString axis)
 
 
 centeringsForSystem : LatticeSystem -> List Centering
@@ -647,7 +647,7 @@ parseCentering x =
             Just CentHexagonal
 
         _ ->
-            case parseAxis x of
+            case parseAxis (String.toLower x) of
                 Just axis ->
                     Just (CentBase axis)
 
