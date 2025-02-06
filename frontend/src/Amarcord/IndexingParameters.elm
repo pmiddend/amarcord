@@ -1,6 +1,7 @@
 module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineToModel, init, isEditOpen, toCommandLine, update, view)
 
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
 import Amarcord.Html exposing (div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
@@ -10,14 +11,13 @@ import Amarcord.Indexing.PinkIndexer as PinkIndexer
 import Amarcord.Indexing.TakeTwo as TakeTwo
 import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, mapMaybe, viewCitation)
 import Amarcord.Indexing.Xgandalf as Xgandalf
-import Amarcord.Util exposing (collectResults, join3)
+import Amarcord.Util exposing (collectResults, deadEndsToString, join3)
 import Dict exposing (Dict)
 import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, table, td, text, textarea, ul)
 import Html.Attributes exposing (checked, class, disabled, for, id, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
 import Maybe.Extra
-import Parser exposing (deadEndsToString)
 import Result.Extra
 import String
 
@@ -95,7 +95,7 @@ type alias Model =
     -- Specials
     , source : String
     , geometryFile : String
-    , cellDescription : String
+    , cellDescription : CellDescriptionEdit.Model
     , peakDetector : Maybe String
     , indexingMethods : Maybe (Dict String IndexingMethod)
     , indexingChooserOpen : String
@@ -130,6 +130,7 @@ type Msg
     | StartCommandLineEdit
     | CancelCommandLineEdit
     | FinishCommandLineEdit String
+    | CellDescriptionChange CellDescriptionEdit.Msg
 
 
 indexingMethodsToCommandLine : List IndexingMethod -> Result String (List CommandLineOption)
@@ -412,7 +413,7 @@ init sources cellDescription geometryFile mutableCellDescription =
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
     , geometryFile = geometryFile
-    , cellDescription = cellDescription
+    , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
     , indexingMethods = Nothing
     , indexingChooserOpen = "general"
@@ -879,27 +880,15 @@ viewCommandLine model =
 
 viewCellDescription : Model -> Html Msg
 viewCellDescription model =
-    div [ class "form-floating mb-3" ]
-        [ input_
-            [ type_ "text"
-            , class "form-control"
-            , id "pp-cell-description"
-            , value model.cellDescription
-            , onInput
-                (\newCellDescription ->
-                    Change
-                        (\ip ->
-                            { ip | cellDescription = newCellDescription }
-                        )
-                )
-            ]
-        , label [ for "pp-cell-description" ] [ text "Cell Description" ]
+    div [ class "mb-3" ]
+        [ label [ for "pp-cell-description" ] [ text "Cell Description" ]
+        , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
         , div
             [ class "form-text"
             ]
             [ text
                 ("This field is filled from the chemical attributi."
-                    ++ " Leave blank if you want to determine the parameters."
+                    ++ " Leave blank (select “As text”, then remove the text) if you want to determine the parameters."
                 )
             ]
         ]
@@ -1025,6 +1014,9 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CellDescriptionChange subMsg ->
+            ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
+
         ChangeOpenTab newTab ->
             ( { model | openTab = newTab }, Cmd.none )
 

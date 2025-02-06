@@ -13,6 +13,7 @@
             "jfmengels/elm-review-simplify": "2.1.5",
             "jfmengels/elm-review-unused": "1.2.3",
             "jsuder-xx/elm-review-reducible-lambdas": "2.0.1",
+            "miniBill/elm-review-no-broken-elm-parser-functions": "1.0.0",
             "stil4m/elm-syntax": "7.3.8",
             "truqu/elm-review-noredundantconcat": "1.0.1",
             "truqu/elm-review-noredundantcons": "1.0.1",

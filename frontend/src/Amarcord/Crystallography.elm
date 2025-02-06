@@ -1,11 +1,13 @@
-module Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
+module Amarcord.Crystallography exposing (..)
 
-import Amarcord.Html exposing (div_, em_, p_, span_)
-import Amarcord.Parser exposing (deadEndsToHtml, signedNumber, spaces1)
+import Amarcord.Html exposing (em_, span_)
+import Amarcord.Parser exposing (signedNumber, spaces1)
+import Amarcord.Util exposing (deadEndsToString)
 import Html exposing (Html, a, text)
 import Html.Attributes exposing (href)
 import List exposing (any)
-import Parser exposing ((|.), spaces)
+import Maybe.Extra
+import Parser exposing ((|.), (|=), spaces)
 import Set
 
 
@@ -101,72 +103,649 @@ validatePointGroup pointGroup =
                     ]
 
 
-validLatticeTypes : List String
-validLatticeTypes =
-    [ "triclinic", "monoclinic", "orthorhombic", "tetragonal", "rhombohedral", "hexagonal", "cubic" ]
+type Axis
+    = AxisA
+    | AxisB
+    | AxisC
 
 
-validCenterings : List String
-validCenterings =
-    [ "P", "A", "B", "C", "I", "F", "R", "H" ]
+allAxes : List Axis
+allAxes =
+    [ AxisA, AxisB, AxisC ]
 
 
-cellDescriptionParser : Parser.Parser ()
+axisToString : Axis -> String
+axisToString x =
+    case x of
+        AxisA ->
+            "a"
+
+        AxisB ->
+            "b"
+
+        AxisC ->
+            "c"
+
+
+type Centering
+    = CentPrimitive
+    | CentBody
+    | CentFace
+    | CentHexagonal
+    | CentRhombohedral
+    | CentBase Axis
+
+
+allCenterings : List Centering
+allCenterings =
+    [ CentPrimitive
+    , CentBody
+    , CentFace
+    , CentHexagonal
+    , CentRhombohedral
+    , CentBase AxisA
+    , CentBase AxisB
+    , CentBase AxisC
+    ]
+
+
+centeringFromString : String -> Maybe Centering
+centeringFromString x =
+    List.head (List.filter (\ls -> centeringToString ls == x) allCenterings)
+
+
+type LatticeSystem
+    = LatticeTriclinic
+    | LatticeMonoclinic
+    | LatticeOrthorhombic
+    | LatticeTetragonal
+    | LatticeRhombohedral
+    | LatticeHexagonal
+    | LatticeCubic
+
+
+allLatticeSystems : List LatticeSystem
+allLatticeSystems =
+    [ LatticeTriclinic
+    , LatticeMonoclinic
+    , LatticeOrthorhombic
+    , LatticeTetragonal
+    , LatticeRhombohedral
+    , LatticeHexagonal
+    , LatticeCubic
+    ]
+
+
+latticeSystemToString : LatticeSystem -> String
+latticeSystemToString x =
+    case x of
+        LatticeTriclinic ->
+            "triclinic"
+
+        LatticeMonoclinic ->
+            "monoclinic"
+
+        LatticeOrthorhombic ->
+            "orthorhombic"
+
+        LatticeTetragonal ->
+            "tetragonal"
+
+        LatticeRhombohedral ->
+            "rhombohedral"
+
+        LatticeHexagonal ->
+            "hexagonal"
+
+        _ ->
+            "cubic"
+
+
+latticeSystemFromString : String -> Maybe LatticeSystem
+latticeSystemFromString x =
+    List.head (List.filter (\ls -> latticeSystemToString ls == x) allLatticeSystems)
+
+
+latticeSystemHasUniqueAxis : LatticeSystem -> Bool
+latticeSystemHasUniqueAxis x =
+    case x of
+        LatticeMonoclinic ->
+            True
+
+        LatticeTetragonal ->
+            True
+
+        LatticeHexagonal ->
+            True
+
+        _ ->
+            False
+
+
+type BravaisLattice
+    = Triclinic Centering
+    | Monoclinic Centering Axis
+    | Orthorhombic Centering
+    | Tetragonal Centering Axis
+    | Rhombohedral Centering
+    | Hexagonal Centering Axis
+    | Cubic Centering
+
+
+bravaisLatticeToSystem : BravaisLattice -> LatticeSystem
+bravaisLatticeToSystem x =
+    case x of
+        Triclinic _ ->
+            LatticeTriclinic
+
+        Monoclinic _ _ ->
+            LatticeMonoclinic
+
+        Orthorhombic _ ->
+            LatticeOrthorhombic
+
+        Tetragonal _ _ ->
+            LatticeTetragonal
+
+        Rhombohedral _ ->
+            LatticeRhombohedral
+
+        Hexagonal _ _ ->
+            LatticeHexagonal
+
+        _ ->
+            LatticeCubic
+
+
+bravaisLatticeUniqueAxis : BravaisLattice -> Maybe Axis
+bravaisLatticeUniqueAxis x =
+    case x of
+        Monoclinic _ ua ->
+            Just ua
+
+        Tetragonal _ ua ->
+            Just ua
+
+        Hexagonal _ ua ->
+            Just ua
+
+        _ ->
+            Nothing
+
+
+bravaisLatticeCentering : BravaisLattice -> Centering
+bravaisLatticeCentering x =
+    case x of
+        Triclinic c ->
+            c
+
+        Monoclinic c _ ->
+            c
+
+        Orthorhombic c ->
+            c
+
+        Tetragonal c _ ->
+            c
+
+        Rhombohedral c ->
+            c
+
+        Hexagonal c _ ->
+            c
+
+        Cubic c ->
+            c
+
+
+bravaisLatticeToString : BravaisLattice -> String
+bravaisLatticeToString x =
+    case x of
+        Triclinic centering ->
+            "triclinic " ++ centeringToString centering ++ " ?"
+
+        Monoclinic centering ua ->
+            "monoclinic " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Orthorhombic centering ->
+            "orthorhombic " ++ centeringToString centering ++ " ?"
+
+        Tetragonal centering ua ->
+            "tetragonal " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Rhombohedral centering ->
+            "rhombohedral " ++ centeringToString centering ++ " ?"
+
+        Hexagonal centering ua ->
+            "hexagonal " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Cubic centering ->
+            "cubic " ++ centeringToString centering ++ " ?"
+
+
+
+-- For pretty-printing, not for the input line
+
+
+bravaisLatticeToStringNoUnknownAxis : BravaisLattice -> String
+bravaisLatticeToStringNoUnknownAxis x =
+    case x of
+        Triclinic centering ->
+            "triclinic " ++ centeringToString centering
+
+        Monoclinic centering ua ->
+            "monoclinic " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Orthorhombic centering ->
+            "orthorhombic " ++ centeringToString centering
+
+        Tetragonal centering ua ->
+            "tetragonal " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Rhombohedral centering ->
+            "rhombohedral " ++ centeringToString centering
+
+        Hexagonal centering ua ->
+            "hexagonal " ++ centeringToString centering ++ " " ++ axisToString ua
+
+        Cubic centering ->
+            "cubic " ++ centeringToString centering
+
+
+bravaisLatticeToStringNoCentering : BravaisLattice -> String
+bravaisLatticeToStringNoCentering x =
+    case x of
+        Triclinic _ ->
+            "triclinic"
+
+        Monoclinic _ ua ->
+            "monoclinic " ++ axisToString ua
+
+        Orthorhombic _ ->
+            "orthorhombic"
+
+        Tetragonal _ ua ->
+            "tetragonal " ++ axisToString ua
+
+        Rhombohedral _ ->
+            "rhombohedral"
+
+        Hexagonal _ ua ->
+            "hexagonal " ++ axisToString ua
+
+        _ ->
+            "cubic"
+
+
+type alias CellDescription =
+    { bravaisLattice : BravaisLattice
+    , cellA : Float
+    , cellB : Float
+    , cellC : Float
+    , cellAlpha : Float
+    , cellBeta : Float
+    , cellGamma : Float
+    }
+
+
+cellDescriptionToString : CellDescription -> String
+cellDescriptionToString { bravaisLattice, cellA, cellB, cellC, cellAlpha, cellBeta, cellGamma } =
+    bravaisLatticeToString bravaisLattice
+        ++ " ("
+        ++ String.fromFloat cellA
+        ++ " "
+        ++ String.fromFloat cellB
+        ++ " "
+        ++ String.fromFloat cellC
+        ++ ") ("
+        ++ String.fromFloat cellAlpha
+        ++ " "
+        ++ String.fromFloat cellBeta
+        ++ " "
+        ++ String.fromFloat cellGamma
+        ++ ")"
+
+
+constantParser : (a -> String) -> a -> Parser.Parser a
+constantParser toString x =
+    Parser.map (always x) <| Parser.keyword (toString x)
+
+
+parseLatticeSystem : String -> Result (List Parser.DeadEnd) LatticeSystem
+parseLatticeSystem =
+    Parser.run (Parser.oneOf (List.map (constantParser latticeSystemToString) allLatticeSystems))
+
+
+bravaisLatticeParser : Parser.Parser BravaisLattice
+bravaisLatticeParser =
+    Parser.oneOf
+        [ Parser.succeed
+            Triclinic
+            |. Parser.keyword "triclinic"
+            |. spaces1
+            |= centeringParser [ CentPrimitive ]
+            |. spaces1
+            |. Parser.oneOf [ Parser.keyword "*", Parser.keyword "?" ]
+        , Parser.succeed
+            Monoclinic
+            |. Parser.keyword "monoclinic"
+            |. spaces1
+            |= centeringParser [ CentPrimitive, CentBody, CentFace, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+            |. spaces1
+            |= axisParser
+        , Parser.succeed
+            Orthorhombic
+            |. Parser.keyword "orthorhombic"
+            |. spaces1
+            |= centeringParser [ CentPrimitive, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+            |. spaces1
+            |. Parser.oneOf [ Parser.keyword "*", Parser.keyword "?" ]
+        , Parser.succeed
+            Tetragonal
+            |. Parser.keyword "tetragonal"
+            |. spaces1
+            |= centeringParser [ CentPrimitive, CentBody ]
+            |. spaces1
+            |= axisParser
+        , Parser.succeed
+            Rhombohedral
+            |. Parser.keyword "rhombohedral"
+            |. spaces1
+            |= centeringParser [ CentRhombohedral ]
+            |. spaces1
+            |. Parser.oneOf [ Parser.keyword "*", Parser.keyword "?" ]
+        , Parser.succeed
+            Hexagonal
+            |. Parser.keyword "hexagonal"
+            |. spaces1
+            |= centeringParser [ CentHexagonal ]
+            |. spaces1
+            |= axisParser
+        , Parser.succeed
+            Cubic
+            |. Parser.keyword "cubic"
+            |. spaces1
+            |= centeringParser [ CentBody, CentFace, CentPrimitive ]
+            |. spaces1
+            |. Parser.oneOf [ Parser.keyword "*", Parser.keyword "?" ]
+        ]
+
+
+centeringParser : List Centering -> Parser.Parser Centering
+centeringParser centerings =
+    Parser.oneOf (List.map (constantParser centeringToString) centerings)
+
+
+cellDescriptionParserPossiblyInvalidCrystalSystem : Parser.Parser ( LatticeSystem, Centering, Maybe Axis )
+cellDescriptionParserPossiblyInvalidCrystalSystem =
+    Parser.succeed
+        (\ls c a -> ( ls, c, a ))
+        |= Parser.oneOf (List.map (constantParser latticeSystemToString) allLatticeSystems)
+        |. spaces1
+        |= Parser.oneOf (List.map (constantParser centeringToString) allCenterings)
+        |. spaces1
+        |= Parser.oneOf [ Parser.map Just axisParser, Parser.map (always Nothing) (Parser.keyword "?"), Parser.map (always Nothing) (Parser.keyword "*") ]
+        |. spaces1
+        |. Parser.symbol "("
+        |. spaces
+        |. signedNumber
+        |. spaces1
+        |. signedNumber
+        |. spaces1
+        |. signedNumber
+        |. spaces
+        |. Parser.symbol ")"
+        |. spaces1
+        |. Parser.symbol "("
+        |. spaces
+        |. signedNumber
+        |. spaces1
+        |. signedNumber
+        |. spaces1
+        |. signedNumber
+        |. spaces
+        |. Parser.symbol ")"
+
+
+cellDescriptionParser : Parser.Parser CellDescription
 cellDescriptionParser =
+    Parser.succeed
+        CellDescription
+        |= bravaisLatticeParser
+        |. spaces1
+        |. Parser.symbol "("
+        |. spaces
+        |= signedNumber
+        |. spaces1
+        |= signedNumber
+        |. spaces1
+        |= signedNumber
+        |. spaces
+        |. Parser.symbol ")"
+        |. spaces1
+        |. Parser.symbol "("
+        |. spaces
+        |= signedNumber
+        |. spaces1
+        |= signedNumber
+        |. spaces1
+        |= signedNumber
+        |. spaces
+        |. Parser.symbol ")"
+
+
+parseCellDescription : String -> Result String CellDescription
+parseCellDescription s =
+    case Parser.run cellDescriptionParser s of
+        Err e ->
+            case Parser.run cellDescriptionParserPossiblyInvalidCrystalSystem s of
+                Ok ( ls, c, a ) ->
+                    if not (List.member c (centeringsForSystem ls)) then
+                        Err <| latticeSystemToString ls ++ " cannot have " ++ centeringToString c ++ " centering."
+
+                    else if latticeSystemHasUniqueAxis ls && Maybe.Extra.isNothing a then
+                        Err <| latticeSystemToString ls ++ " needs a unique axis."
+
+                    else if not (latticeSystemHasUniqueAxis ls) && Maybe.Extra.isJust a then
+                        Err <| latticeSystemToString ls ++ " does not have a unique axis."
+
+                    else
+                        Err "Invalid combination of Bravais lattice type, unique axis and centering."
+
+                Err _ ->
+                    Err (deadEndsToString e)
+
+        Ok cd ->
+            Ok cd
+
+
+axisParser : Parser.Parser Axis
+axisParser =
+    Parser.oneOf (List.map (constantParser axisToString) allAxes)
+
+
+parseAxis : String -> Maybe Axis
+parseAxis x =
+    case x of
+        "a" ->
+            Just AxisA
+
+        "b" ->
+            Just AxisB
+
+        "c" ->
+            Just AxisC
+
+        -- Here we are deliberately putting *, ? and erroneous axes into one pot
+        _ ->
+            Nothing
+
+
+centeringToString : Centering -> String
+centeringToString x =
+    case x of
+        CentPrimitive ->
+            "P"
+
+        CentBody ->
+            "I"
+
+        CentFace ->
+            "F"
+
+        CentRhombohedral ->
+            "R"
+
+        CentHexagonal ->
+            "H"
+
+        CentBase axis ->
+            axisToString axis
+
+
+centeringsForSystem : LatticeSystem -> List Centering
+centeringsForSystem s =
+    case s of
+        LatticeCubic ->
+            [ CentBody, CentFace, CentPrimitive ]
+
+        LatticeHexagonal ->
+            [ CentHexagonal ]
+
+        LatticeRhombohedral ->
+            [ CentRhombohedral ]
+
+        LatticeTetragonal ->
+            [ CentPrimitive, CentBody ]
+
+        LatticeOrthorhombic ->
+            [ CentPrimitive, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+
+        LatticeMonoclinic ->
+            [ CentPrimitive, CentBody, CentFace, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+
+        LatticeTriclinic ->
+            [ CentPrimitive ]
+
+
+parseCentering : String -> Maybe Centering
+parseCentering x =
+    case x of
+        "P" ->
+            Just CentPrimitive
+
+        "I" ->
+            Just CentBody
+
+        "F" ->
+            Just CentFace
+
+        "R" ->
+            Just CentRhombohedral
+
+        "H" ->
+            Just CentHexagonal
+
+        _ ->
+            case parseAxis x of
+                Just axis ->
+                    Just (CentBase axis)
+
+                _ ->
+                    Nothing
+
+
+almostEqual : Float -> Float -> Bool
+almostEqual x y =
+    abs (x - y) < 0.01
+
+
+possibleIssue : CellDescription -> Maybe String
+possibleIssue m =
     let
-        latticeTypeParser : Parser.Parser ()
-        latticeTypeParser =
-            Parser.oneOf (List.map Parser.keyword validLatticeTypes)
+        ( maxSymmetry, uniqueAxis ) =
+            maximumSymmetry m
 
-        centeringParser : Parser.Parser ()
-        centeringParser =
-            Parser.oneOf (List.map Parser.symbol validCenterings)
-
-        uniqueAxisParser : Parser.Parser ()
-        uniqueAxisParser =
-            Parser.oneOf [ Parser.symbol "a", Parser.symbol "b", Parser.symbol "c", Parser.symbol "?", Parser.symbol "*" ]
+        thisSymmetry =
+            bravaisLatticeToSystem m.bravaisLattice
     in
-    Parser.succeed ()
-        |. latticeTypeParser
-        |. spaces1
-        |. centeringParser
-        |. spaces1
-        |. uniqueAxisParser
-        |. spaces1
-        |. Parser.symbol "("
-        |. spaces
-        |. signedNumber
-        |. spaces1
-        |. signedNumber
-        |. spaces1
-        |. signedNumber
-        |. spaces
-        |. Parser.symbol ")"
-        |. spaces1
-        |. Parser.symbol "("
-        |. spaces
-        |. signedNumber
-        |. spaces1
-        |. signedNumber
-        |. spaces1
-        |. signedNumber
-        |. spaces
-        |. Parser.symbol ")"
-
-
-validateCellDescription : String -> Result (Html msg) ()
-validateCellDescription input =
-    if String.isEmpty input then
-        Ok ()
+    if thisSymmetry /= maxSymmetry then
+        Just <| "You specified " ++ bravaisLatticeToString m.bravaisLattice ++ " but the maximum symmetry is " ++ latticeSystemToString maxSymmetry ++ " (check the lengths and angles)."
 
     else
-        case Parser.run cellDescriptionParser input of
-            Err deadEnds ->
-                Err <|
-                    div_
-                        [ p_ [ text "Invalid cell description “", em_ [ text input ], text "”." ]
-                        , deadEndsToHtml True deadEnds
-                        ]
+        let
+            thisUniqueAxis =
+                bravaisLatticeUniqueAxis m.bravaisLattice
+        in
+        if uniqueAxis /= thisUniqueAxis then
+            Just <|
+                "You specified "
+                    ++ (case thisUniqueAxis of
+                            Nothing ->
+                                "no"
 
-            Ok _ ->
-                Ok ()
+                            Just ua ->
+                                axisToString ua ++ " as "
+                       )
+                    ++ " unique axis, but the symmetry dictates "
+                    ++ (case uniqueAxis of
+                            Nothing ->
+                                "no"
+
+                            Just ua ->
+                                axisToString ua ++ " as "
+                       )
+                    ++ " unique axis."
+
+        else
+            Nothing
+
+
+almostNinety : Float -> Bool
+almostNinety x =
+    almostEqual x 90
+
+
+maximumSymmetry : CellDescription -> ( LatticeSystem, Maybe Axis )
+maximumSymmetry { cellA, cellB, cellC, cellAlpha, cellBeta, cellGamma } =
+    if almostNinety cellAlpha && almostNinety cellBeta && almostNinety cellGamma then
+        -- α = β = γ = 90°, could be cubic, tetragonal or orthorhombic
+        if almostEqual cellA cellB && almostEqual cellB cellC then
+            -- α = β = γ = 90°, a = b = c, so we're cubic (and )
+            ( LatticeCubic, Nothing )
+
+        else if almostEqual cellA cellB then
+            ( LatticeTetragonal, Just AxisC )
+
+        else if almostEqual cellA cellC then
+            ( LatticeTetragonal, Just AxisB )
+
+        else if almostEqual cellB cellC then
+            ( LatticeTetragonal, Just AxisA )
+
+        else
+            ( LatticeOrthorhombic, Nothing )
+
+    else if almostNinety cellAlpha && almostNinety cellBeta && almostEqual cellGamma 120 then
+        ( LatticeHexagonal, Just AxisC )
+
+    else if almostNinety cellAlpha && almostNinety cellGamma && almostEqual cellBeta 120 then
+        ( LatticeHexagonal, Just AxisB )
+
+    else if almostNinety cellBeta && almostNinety cellGamma && almostEqual cellAlpha 120 then
+        ( LatticeHexagonal, Just AxisA )
+
+    else if almostNinety cellAlpha && almostNinety cellBeta then
+        ( LatticeMonoclinic, Just AxisC )
+
+    else if almostNinety cellAlpha && almostNinety cellGamma then
+        ( LatticeMonoclinic, Just AxisB )
+
+    else if almostNinety cellBeta && almostNinety cellGamma then
+        ( LatticeMonoclinic, Just AxisA )
+
+    else if almostEqual cellAlpha cellBeta && almostEqual cellBeta cellGamma && almostEqual cellA cellB && almostEqual cellB cellC then
+        ( LatticeRhombohedral, Nothing )
+
+    else
+        ( LatticeTriclinic, Nothing )

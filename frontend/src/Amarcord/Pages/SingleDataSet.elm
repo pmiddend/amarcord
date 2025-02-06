@@ -5,8 +5,11 @@ import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
 import Amarcord.Attributo exposing (Attributo, AttributoType, ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), copyToClipboardButton, icon, loadingBar, viewAlert, viewHelpButton)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
+import Amarcord.CellDescriptionViewer as CellDescriptionViewer
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
+import Amarcord.Crystallography exposing (cellDescriptionToString)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
@@ -850,17 +853,21 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                         em_ [ text "none" ]
 
                     Just cellDescription ->
-                        span_ [ text cellDescription, copyToClipboardButton (CopyToClipboard cellDescription) ]
+                        span [ class "d-flex" ]
+                            [ CellDescriptionViewer.view cellDescription
+                            , copyToClipboardButton (CopyToClipboard cellDescription)
+                            ]
                 ]
             , dt [ class "col-3" ] [ text "Geometry file" ]
             , dd [ class "col-9" ]
-                [ text
-                    (if String.isEmpty parameters.geometryFile then
-                        "auto-detect"
+                [ if String.isEmpty parameters.geometryFile then
+                    text "auto-detect"
 
-                     else
-                        parameters.geometryFile
-                    )
+                  else
+                    span [ class "d-flex" ]
+                        [ text parameters.geometryFile
+                        , copyToClipboardButton (CopyToClipboard parameters.geometryFile)
+                        ]
                 ]
             ]
         , p_
@@ -1240,19 +1247,24 @@ update msg model =
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            ( { model | submitProcessingRequest = Loading }
-                            , send
-                                ProcessingSubmitted
-                                (indexingJobQueueForDataSetApiIndexingPost
-                                    { dataSetId = dataSetId
-                                    , isOnline = False
-                                    , cellDescription = indexingParamFormModel.cellDescription
-                                    , geometryFile = indexingParamFormModel.geometryFile
-                                    , commandLine = coparseCommandLine commandLine
-                                    , source = indexingParamFormModel.source
-                                    }
-                                )
-                            )
+                            case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
+                                Err _ ->
+                                    ( model, Cmd.none )
+
+                                Ok cellDescription ->
+                                    ( { model | submitProcessingRequest = Loading }
+                                    , send
+                                        ProcessingSubmitted
+                                        (indexingJobQueueForDataSetApiIndexingPost
+                                            { dataSetId = dataSetId
+                                            , isOnline = False
+                                            , cellDescription = cellDescriptionToString cellDescription
+                                            , geometryFile = indexingParamFormModel.geometryFile
+                                            , commandLine = coparseCommandLine commandLine
+                                            , source = indexingParamFormModel.source
+                                            }
+                                        )
+                                    )
 
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
