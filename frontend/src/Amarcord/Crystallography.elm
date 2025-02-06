@@ -334,19 +334,19 @@ bravaisLatticeToStringNoUnknownAxis x =
             "triclinic " ++ centeringToString centering
 
         Monoclinic centering ua ->
-            "monoclinic " ++ centeringToString centering ++ " " ++ axisToString ua
+            "monoclinic " ++ axisToString ua ++ " " ++ centeringToString centering
 
         Orthorhombic centering ->
             "orthorhombic " ++ centeringToString centering
 
         Tetragonal centering ua ->
-            "tetragonal " ++ centeringToString centering ++ " " ++ axisToString ua
+            "tetragonal " ++ axisToString ua ++ " " ++ centeringToString centering
 
         Rhombohedral centering ->
             "rhombohedral " ++ centeringToString centering
 
         Hexagonal centering ua ->
-            "hexagonal " ++ centeringToString centering ++ " " ++ axisToString ua
+            "hexagonal " ++ axisToString ua ++ " " ++ centeringToString centering
 
         Cubic centering ->
             "cubic " ++ centeringToString centering
