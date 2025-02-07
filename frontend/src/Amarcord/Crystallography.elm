@@ -749,3 +749,21 @@ maximumSymmetry { cellA, cellB, cellC, cellAlpha, cellBeta, cellGamma } =
 
     else
         ( LatticeTriclinic, Nothing )
+
+
+cellDescriptionsAlmostEqual : CellDescription -> CellDescription -> Bool
+cellDescriptionsAlmostEqual left right =
+    left.bravaisLattice
+        == right.bravaisLattice
+        && almostEqual left.cellA right.cellA
+        && almostEqual left.cellB right.cellB
+        && almostEqual left.cellC right.cellC
+        && almostEqual left.cellAlpha right.cellAlpha
+        && almostEqual left.cellBeta right.cellBeta
+        && almostEqual left.cellGamma right.cellGamma
+
+
+cellDescriptionsAlmostEqualStrings : String -> String -> Bool
+cellDescriptionsAlmostEqualStrings left right =
+    Result.withDefault False
+        (Result.map2 cellDescriptionsAlmostEqual (parseCellDescription left) (parseCellDescription right))

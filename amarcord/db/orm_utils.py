@@ -519,3 +519,93 @@ def run_has_attributo_to_data_set_has_attributo(
         list_value=r.list_value,
         chemical_value=r.chemical_value,
     )
+
+
+async def determine_string_attributo_from_runs(
+    session: AsyncSession, beamtime_id: int, run_ids: list[int], attributo_name: str
+) -> set[str]:
+    # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
+    chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
+        (orm.RunHasAttributoValue.run_id.in_(run_ids))
+        & (orm.RunHasAttributoValue.chemical_value.is_not(None)),
+    )
+    # attributi, plural, but there should be only one since names are hopefully unique
+    string_chemical_attributi = (
+        select(orm.Attributo.id)
+        .where(
+            (orm.Attributo.name == attributo_name)
+            & (orm.Attributo.beamtime_id == beamtime_id),
+        )
+        .scalar_subquery()
+    )
+    select_all_strings = select(orm.ChemicalHasAttributoValue.string_value).where(
+        (orm.ChemicalHasAttributoValue.attributo_id == string_chemical_attributi)
+        & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs)),
+    )
+    return set(
+        s.strip()
+        for s in (await session.scalars(select_all_strings.distinct()))
+        if s is not None and s.strip()
+    )
+
+
+async def determine_point_group_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    point_groups = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, POINT_GROUP_ATTRIBUTO
+    )
+
+    if len(point_groups) > 1:
+        raise ValueError(
+            "Found more than one point group! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following point groups (determined by going through all chemicals in the runs): "
+            + ", ".join(point_groups)
+            + ". To correct this, you have to either specify a separate point group while merging, or (better choice, probably) take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
+        )
+    if not point_groups:
+        raise ValueError(
+            "found no point groups at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no point group inside them.",
+        )
+    return next(iter(point_groups))
+
+
+async def determine_cell_description_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    cell_descriptions = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, CELL_DESCRIPTION_ATTRIBUTO
+    )
+
+    if len(cell_descriptions) > 1:
+        raise ValueError(
+            "Found more than one cell description! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following cell descriptions (determined by going through all chemicals in the runs): "
+            + ", ".join(cell_descriptions)
+            + ". To correct this, you have to take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
+        )
+    if not cell_descriptions:
+        raise ValueError(
+            "found no cell_description at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no cell description inside them.",
+        )
+    return next(iter(cell_descriptions))
+
+
+async def determine_point_group_from_indexing_results(
+    session: AsyncSession,
+    beamtime_id: int,
+    indexing_results_matching_params: list[orm.IndexingResult],
+) -> str:
+    return await determine_point_group_from_runs(
+        session, beamtime_id, [ir.run_id for ir in indexing_results_matching_params]
+    )

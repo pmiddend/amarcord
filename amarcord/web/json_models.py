@@ -906,6 +906,8 @@ class JsonDataSetWithIndexingResults(BaseModel):
     internal_run_ids: list[int]
     # For display
     runs: list[JsonRunRange]
+    point_group: str
+    cell_description: str
     indexing_results: list[JsonIndexingParametersWithResults]
 
 

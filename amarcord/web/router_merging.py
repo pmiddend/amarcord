@@ -14,13 +14,13 @@ from sqlalchemy.sql import select
 from amarcord.db import orm
 from amarcord.db.attributi import datetime_from_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_int
-from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
 from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.merge_result import JsonMergeJobFinishedInput
 from amarcord.db.merge_result import JsonMergeJobStartedInput
 from amarcord.db.merge_result import JsonMergeJobStartedOutput
+from amarcord.db.orm_utils import determine_point_group_from_indexing_results
 from amarcord.db.orm_utils import determine_run_indexing_metadata
 from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.web.fastapi_utils import get_orm_db
@@ -266,58 +266,6 @@ async def determine_space_group_from_indexing_results(
     return next(iter(space_groups))
 
 
-async def determine_point_group_from_indexing_results(
-    session: AsyncSession,
-    beamtime_id: int,
-    indexing_results_matching_params: list[orm.IndexingResult],
-) -> str:
-    # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
-    chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
-        (
-            orm.RunHasAttributoValue.run_id.in_(
-                ir.run_id for ir in indexing_results_matching_params
-            )
-        )
-        & (orm.RunHasAttributoValue.chemical_value.is_not(None)),
-    )
-    # attributi, plural, but there should be only one since names are hopefully unique
-    point_group_chemical_attributi = (
-        select(orm.Attributo.id)
-        .where(
-            (orm.Attributo.name == POINT_GROUP_ATTRIBUTO)
-            & (orm.Attributo.beamtime_id == beamtime_id),
-        )
-        .scalar_subquery()
-    )
-    select_all_point_groups = select(orm.ChemicalHasAttributoValue.string_value).where(
-        (orm.ChemicalHasAttributoValue.attributo_id == point_group_chemical_attributi)
-        & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs)),
-    )
-    point_groups = set(
-        s.strip()
-        for s in (await session.scalars(select_all_point_groups.distinct()))
-        if s is not None and s.strip()
-    )
-
-    if len(point_groups) > 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Found more than one point group! The runs I chose have (internal) IDs "
-            + ", ".join(str(ir.run_id) for ir in indexing_results_matching_params)
-            + ", which results in the following point groups (determined by going through all chemicals in the runs): "
-            + ", ".join(point_groups)
-            + ". To correct this, you have to either specify a separate point group while merging, or (better choice, probably) take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
-        )
-    if not point_groups:
-        raise HTTPException(
-            status_code=400,
-            detail="found no point groups at all! The runs I chose have (internal) IDs "
-            + ", ".join(str(ir.run_id) for ir in indexing_results_matching_params)
-            + ", which either have no chemicals attached, or the chemicals have no point group inside them.",
-        )
-    return next(iter(point_groups))
-
-
 @router.post(
     "/api/merging",
     tags=["merging"],
@@ -395,11 +343,14 @@ async def queue_merge_job(
         if input_.merge_parameters.point_group:
             point_group = input_.merge_parameters.point_group
         else:
-            point_group = await determine_point_group_from_indexing_results(
-                session,
-                beamtime_id,
-                indexing_results_matching_params,
-            )
+            try:
+                point_group = await determine_point_group_from_indexing_results(
+                    session,
+                    beamtime_id,
+                    indexing_results_matching_params,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=e.args[0])
         # The space group we either get from the user as an input, or
         # from the chemicals attached to the runs, which are, in turn,
         # attached to the indexing results.

@@ -9,9 +9,9 @@ import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CellDescriptionViewer as CellDescriptionViewer
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
-import Amarcord.Crystallography exposing (cellDescriptionToString)
+import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
@@ -23,9 +23,10 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, th, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, th, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
+import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import Maybe
 import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
@@ -562,8 +563,8 @@ viewIndexingResults now results =
         ]
 
 
-mergeActions : { a | id : DataSetId } -> Maybe MergeRequest -> IndexingParametersId -> Html Msg
-mergeActions dataSet mergeRequest indexingParametersId =
+mergeActions : JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
         mergeRequestIsLoading x =
@@ -574,22 +575,55 @@ mergeActions dataSet mergeRequest indexingParametersId =
                 Just { request } ->
                     isLoading request
     in
-    div [ class "btn-group" ]
-        [ button
-            [ type_ "button"
-            , class "btn btn-sm btn-outline-primary"
-            , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
-            , disabled (mergeRequestIsLoading mergeRequest)
-            ]
-            [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
-        , button
-            [ type_ "button"
-            , class "btn btn-sm btn-outline-secondary"
-            , onClick (OpenMergeForm dataSet.id indexingParametersId)
-            , disabled (mergeRequestIsLoading mergeRequest)
-            ]
-            [ icon { name = "send" }, text <| " Merge" ]
-        ]
+    if pointGroupForDs == "" then
+        p [ class "text-danger" ] [ text "Merging not possible: cannot determine point group from chemical information." ]
+
+    else
+        let
+            indexingParametersCellDescription =
+                Maybe.withDefault "" indexingParameters.cellDescription
+        in
+        if indexingParametersCellDescription == "" && cellDescriptionForDs == "" then
+            p [ class "text-danger" ] [ text "Merging not possible: cannot determine cell description from chemical information or indexing information." ]
+
+        else
+            div_
+                [ div [ class "input-group input-group-sm" ]
+                    [ button
+                        [ type_ "button"
+                        , class "btn btn-sm btn-outline-primary"
+                        , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
+                        , disabled (mergeRequestIsLoading mergeRequest)
+                        ]
+                        [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
+                    , button
+                        [ type_ "button"
+                        , class "btn btn-sm btn-outline-secondary"
+                        , onClick (OpenMergeForm dataSet.id indexingParametersId)
+                        , disabled (mergeRequestIsLoading mergeRequest)
+                        ]
+                        [ icon { name = "send" }, text <| " Merge" ]
+                    , span [ class "input-group-text" ] [ text ("Point group: " ++ pointGroupForDs) ]
+                    ]
+                , if indexingParametersCellDescription == "" then
+                    nothing
+
+                  else
+                    viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
+                        (\_ ->
+                            div_
+                                [ em_
+                                    [ small_
+                                        [ text "Warning: The indexing job uses cell "
+                                        , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine indexingParametersCellDescription
+                                        , text ", the chemicals in the data set have cell description "
+                                        , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine cellDescriptionForDs
+                                        , text ", merging will use the first one."
+                                        ]
+                                    ]
+                                ]
+                        )
+                ]
 
 
 foldIntervals : List Int -> List ( Int, Int )
@@ -645,8 +679,8 @@ createRunRanges beamtimeId =
         << List.sort
 
 
-viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParametersWithResults -> List (Html Msg)
-viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexingResults, mergeResults } as p) =
+viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> JsonIndexingParametersWithResults -> List (Html Msg)
+viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             Set.member parametersId model.expandedIndexingParameterIds
@@ -732,7 +766,7 @@ viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexing
             , tr_
                 [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
                     [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model experimentType dataSet parameters mergeResults
+                    , viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs parameters mergeResults
                     ]
                 ]
             ]
@@ -743,19 +777,19 @@ indexingAndMergeResultHeaders =
     List.map text [ "PID", "Runs", "Frames", "Hits", "Ixed" ]
 
 
-viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults =
+viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> Html Msg
+viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs =
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
-        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet) indexingParametersAndResults
+        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs) indexingParametersAndResults
         ]
 
 
 viewMergeResultsTable : Model -> JsonExperimentType -> List JsonMergeResult -> Html Msg
 viewMergeResultsTable model experimentType mergeResults =
     if List.isEmpty mergeResults then
-        text ""
+        nothing
 
     else
         let
@@ -782,49 +816,55 @@ viewMergeResultsTable model experimentType mergeResults =
                     mergeResults
         in
         table
-            [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
+            [ class "table table-sm text-muted mt-3", style "font-size" "0.8rem" ]
             [ thead_ <| [ tr_ (List.map (\header -> th [ class "text-nowrap" ] [ header ]) mergeRowHeaders) ]
             , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
             ]
 
 
-viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
-viewMergeResults model experimentType dataSet indexingParameters mergeResults =
-    div_ <|
-        [ case model.activatedMergeForm of
-            Just { mergeParameters } ->
-                if Just mergeParameters.indexingParametersId == indexingParameters.id then
-                    div_
-                        [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
-                        , div [ class "mb-3 hstack gap-3" ]
-                            [ button [ type_ "button", class "btn btn-primary", onClick (SubmitMerge mergeParameters.dataSetId mergeParameters) ]
-                                [ icon { name = "send" }, text " Start Merge" ]
-                            , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
-                                [ icon { name = "x-lg" }, text " Cancel" ]
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs indexingParameters mergeResults =
+    div [ style "margin-bottom" "4rem" ] <|
+        [ viewMaybe
+            (\{ mergeParameters } ->
+                viewIfLazy (Just mergeParameters.indexingParametersId == indexingParameters.id)
+                    (\_ ->
+                        div_
+                            [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
+                            , div [ class "mb-3 hstack gap-3" ]
+                                [ button
+                                    [ type_ "button"
+                                    , class "btn btn-primary"
+                                    , onClick (SubmitMerge mergeParameters.dataSetId mergeParameters)
+                                    ]
+                                    [ icon { name = "send" }, text " Start Merge" ]
+                                , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
+                                    [ icon { name = "x-lg" }, text " Cancel" ]
+                                ]
                             ]
-                        ]
-
-                else
-                    text ""
-
-            Nothing ->
-                text ""
-        , Maybe.withDefault (text "") <| Maybe.map (mergeActions dataSet model.mergeRequest) indexingParameters.id
-        , case model.mergeRequest of
-            Nothing ->
-                text ""
-
-            Just { request, dataSetId, indexingParametersId } ->
-                if dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id then
+                    )
+            )
+            model.activatedMergeForm
+        , viewMaybe
+            (mergeActions
+                dataSet
+                indexingParameters
+                model.mergeRequest
+                cellDescriptionForDs
+                pointGroupForDs
+            )
+            indexingParameters.id
+        , viewMaybe
+            (\{ request, dataSetId, indexingParametersId } ->
+                viewIf (dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id) <|
                     case request of
                         Failure e ->
                             div_ [ viewAlert [ AlertDanger ] [ showError e ] ]
 
                         _ ->
-                            text ""
-
-                else
-                    text ""
+                            nothing
+            )
+            model.mergeRequest
         , viewMergeResultsTable model experimentType mergeResults
         ]
 
@@ -970,8 +1010,8 @@ viewDataSetProcessingButtons model dataSet =
             text ""
 
 
-viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
+viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> Html Msg
+viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs =
     div_
         [ viewDataSetProcessingButtons model dataSet
         , case model.processingParametersRequest of
@@ -1001,7 +1041,7 @@ viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
 
             Just currentProcessingParameters ->
                 viewProcessingParameterForm model currentProcessingParameters
-        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults ]
+        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs ]
         ]
 
 
@@ -1012,7 +1052,7 @@ viewDataSet :
     -> ChemicalNameDict
     -> JsonDataSetWithIndexingResults
     -> List (Html Msg)
-viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults } =
+viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults, cellDescription, pointGroup } =
     [ h4 [ class "mt-3" ] [ text "Data Set Metadata" ]
     , div [ class "row" ]
         [ div [ class "col-6" ]
@@ -1058,7 +1098,7 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
             , figcaption [ class "figure-caption" ] [ text "In this sample scenario, we have two runs, which were processed using a parameter set with PID 1, and the result is indexing reults IID 1 and 2. Those were then merged in two different ways, resulting in MRID 1 and 2. Moreover, we tried to reprocess the runs using different parameters (PID 2 and IID 3), but the results were not convincing." ]
             ]
         ]
-    , viewProcessingResultsForDataSet model experimentType dataSet indexingResults
+    , viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescription pointGroup
     ]
 
 

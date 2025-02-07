@@ -25,6 +25,8 @@ from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.orm_utils import determine_cell_description_from_runs
+from amarcord.db.orm_utils import determine_point_group_from_runs
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import group_by
@@ -278,7 +280,24 @@ async def read_single_data_set_results(
             ds_attributi_map,
         )
     ]
+
     relevant_run_ids: set[RunInternalId] = set(x.id for x in relevant_runs)
+
+    try:
+        point_group_for_ds = await determine_point_group_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a point group assigned to the chemical
+        point_group_for_ds = ""
+
+    try:
+        cell_description_for_ds = await determine_cell_description_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a point group assigned to the chemical
+        cell_description_for_ds = ""
 
     # The following code is pretty complicated. In the end, it lists
     # all the indexing parameters with corresponding indexing results,
@@ -403,6 +422,8 @@ async def read_single_data_set_results(
             ),
             internal_run_ids=[r.id for r in relevant_runs],
             runs=run_id_to_run_ranges(r.external_id for r in relevant_runs),
+            point_group=point_group_for_ds,
+            cell_description=cell_description_for_ds,
             indexing_results=[
                 JsonIndexingParametersWithResults(
                     parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),
