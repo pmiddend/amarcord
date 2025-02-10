@@ -188,25 +188,27 @@ scaleIntensitiesToString x =
             "Scale intensities"
 
 
-viewMergeParameters : JsonMergeParameters -> Html msg
-viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+viewMergeParameters : String -> JsonMergeParameters -> Html msg
+viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription } =
     let
-        dtClass =
-            []
-
-        ddClass =
-            []
-
         boolDtDl header b =
-            if b then
-                [ dt dtClass [ text header ] ]
+            [ tr_
+                [ td [ class "text-end p-1" ] [ text header ]
+                , td [ class "p-1" ]
+                    [ if b then
+                        text "✔️"
 
-            else
-                []
+                      else
+                        text "✖️"
+                    ]
+                ]
+            ]
 
         dtDl dtContent dlContent =
-            [ dt dtClass [ text dtContent ]
-            , dd ddClass [ dlContent ]
+            [ tr_
+                [ td [ class "text-end p-1" ] [ text dtContent ]
+                , td [ class (bgClass ++ " p-1") ] [ dlContent ]
+                ]
             ]
 
         polarisationToDescription : JsonPolarisation -> String
@@ -240,29 +242,29 @@ viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, 
                 Just realValue ->
                     dtDl header realValue
     in
-    div_
-        [ dl []
-            (dtDl "Model" (text <| mergeModelToString mergeModel)
-                ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
-                ++ boolDtDl "Post refinement" postRefinement
-                ++ dtDl "Iterations" (text <| String.fromInt iterations)
-                ++ maybeDtDl "Polarisation" (Maybe.map (text << polarisationToDescription) polarisation)
-                ++ boolDtDl "Reject bad patterns according to ΔCC½" noDeltaCcHalf
-                ++ maybeDtDl "Detector saturation cutoff" (Maybe.map (text << formatFloatHumanFriendly) maxAdu)
-                ++ dtDl "Minimum number of measurements per merged reflection" (text <| String.fromInt minMeasurements)
-                ++ boolDtDl "Write partiality model diagnostics" logs
-                ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
-                ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
-                ++ maybeDtDl "Indexing assignment refinement" (Maybe.map text w)
-                ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
-                ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
-                ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
-                ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
-            )
-        ]
+    table [ class "table" ] <|
+        dtDl "Cell Description" (CellDescriptionViewer.view cellDescription)
+            ++ dtDl "Point Group" (text pointGroup)
+            ++ maybeDtDl "Space Group" (Maybe.map text spaceGroup)
+            ++ dtDl "Model" (text <| mergeModelToString mergeModel)
+            ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
+            ++ boolDtDl "Post refinement" postRefinement
+            ++ dtDl "Iterations" (text <| String.fromInt iterations)
+            ++ maybeDtDl "Polarisation" (Maybe.map (text << polarisationToDescription) polarisation)
+            ++ boolDtDl "Reject bad patterns according to ΔCC½" noDeltaCcHalf
+            ++ maybeDtDl "Detector saturation cutoff" (Maybe.map (text << formatFloatHumanFriendly) maxAdu)
+            ++ dtDl "Minimum number of measurements per merged reflection" (text <| String.fromInt minMeasurements)
+            ++ boolDtDl "Write partiality model diagnostics" logs
+            ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
+            ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
+            ++ maybeDtDl "Indexing assignment refinement" (Maybe.map text w)
+            ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
+            ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
+            ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
+            ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
 
 
-viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> Html Msg
+viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)
 viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSetId mrw =
     let
         remainingHeaders =
@@ -270,9 +272,6 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
 
         id =
             mrw.mergeResult.id
-
-        parameters =
-            mrw.mergeResult.parameters
 
         runs =
             mrw.mergeResult.runs
@@ -282,118 +281,116 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
 
         mergeResultUnion =
             createMergeResultUnion mrw.mergeResult
-    in
-    tr
-        [ class <|
+
+        rowClass =
             case mergeResultUnion of
                 Just (MergeResultStateError _) ->
                     "table-secondary"
 
                 _ ->
                     ""
-        ]
-    <|
-        [ td_ [ text (String.fromInt id) ]
-        , td_
-            [ span [ class "accordion accordion-flush" ]
-                [ div [ class "accordion-item" ]
-                    [ div [ class "accordion-header" ]
-                        [ button
-                            [ class
-                                ("accordion-button accordion-merge-parameters-header-button"
-                                    ++ (if isShowingMergeParams then
-                                            ""
 
-                                        else
-                                            " collapsed"
-                                       )
-                                )
-                            , type_ "button"
-                            , onClick (ToggleAccordionShowModelParameters id)
-                            ]
-                            [ span [] [ text "Params" ]
-                            ]
+        firstRow =
+            tr [ class rowClass ] <|
+                [ td_ [ text (String.fromInt id) ]
+                , td_
+                    [ button
+                        [ class "btn btn-link p-0 text-nowrap"
+                        , type_ "button"
+                        , onClick (ToggleAccordionShowModelParameters id)
                         ]
-                    , div
-                        [ class
-                            ("accordion-collapse collapse "
-                                ++ (if isShowingMergeParams then
-                                        " show"
+                        [ small_
+                            [ icon
+                                { name =
+                                    if isShowingMergeParams then
+                                        "arrows-angle-contract"
 
                                     else
-                                        ""
-                                   )
-                            )
-                        ]
-                        [ div [ class "accordion-body" ]
-                            [ viewMergeParameters parameters
+                                        "arrows-angle-expand"
+                                }
+                            , span_ [ text " Params" ]
                             ]
                         ]
                     ]
+                , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
                 ]
-            ]
-        , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
-        ]
-            ++ (case mergeResultUnion of
-                    Just (MergeResultStateRunning { started }) ->
-                        [ td
-                            [ colspan remainingHeaders ]
-                            [ div [ class "spinner-border spinner-border-sm text-primary" ] []
-                            , em [ class "mb-3" ]
-                                [ text " Running for "
-                                , text <|
-                                    posixDiffHumanFriendly hereAndNow.now (millisToPosix started)
+                    ++ (case mergeResultUnion of
+                            Just (MergeResultStateRunning { started }) ->
+                                [ td
+                                    [ colspan remainingHeaders ]
+                                    [ div [ class "spinner-border spinner-border-sm text-primary" ] []
+                                    , em [ class "mb-3" ]
+                                        [ text " Running for "
+                                        , text <|
+                                            posixDiffHumanFriendly hereAndNow.now (millisToPosix started)
+                                        ]
+                                    ]
                                 ]
-                            ]
-                        ]
 
-                    Just (MergeResultStateError { error }) ->
-                        [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
+                            Just (MergeResultStateError { error }) ->
+                                [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
 
-                    Just (MergeResultStateDone { started, stopped, result }) ->
-                        let
-                            floatWithShell overall outer =
-                                td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
+                            Just (MergeResultStateDone { started, stopped, result }) ->
+                                let
+                                    floatWithShell overall outer =
+                                        td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
 
-                            fom =
-                                result.fom
+                                    fom =
+                                        result.fom
 
-                            mtzFileId =
-                                result.mtzFileId
-                        in
-                        [ td_ [ text <| String.fromInt (posixDiffMinutes (millisToPosix stopped) (millisToPosix started)), span [ class "form-text" ] [ text "min" ] ]
-                        , td_
-                            [ text <|
-                                formatFloatHumanFriendly fom.oneOverDFrom
-                                    ++ "–"
-                                    ++ formatFloatHumanFriendly fom.oneOverDTo
-                                    ++ " ("
-                                    ++ formatFloatHumanFriendly fom.outerShell.minRes
-                                    ++ "–"
-                                    ++ formatFloatHumanFriendly fom.outerShell.maxRes
-                                    ++ ")"
-                            ]
-                        , td_ [ text <| formatFloatHumanFriendly fom.completeness ++ "% (" ++ formatFloatHumanFriendly fom.outerShell.completeness ++ "%)" ]
-                        , floatWithShell fom.redundancy fom.outerShell.redundancy
-                        , floatWithShell fom.cc fom.outerShell.cc
-                        , floatWithShell fom.ccstar fom.outerShell.ccstar
-                        , td_ [ text <| Maybe.withDefault "" <| Maybe.map (\wilsonReal -> formatFloatHumanFriendly wilsonReal ++ " Å²") fom.wilson ]
-                        , td_
-                            [ icon { name = "file-binary" }
-                            , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
-                            ]
-                        , td_
-                            [ icon { name = "card-list" }
-                            , a [ href (makeLink (MergeResult beamtimeId experimentTypeId dataSetId mrw.mergeResult.id)) ] [ text "Details" ]
-                            ]
-                        ]
+                                    mtzFileId =
+                                        result.mtzFileId
+                                in
+                                [ td_ [ text <| String.fromInt (posixDiffMinutes (millisToPosix stopped) (millisToPosix started)), span [ class "form-text" ] [ text "min" ] ]
+                                , td_
+                                    [ text <|
+                                        formatFloatHumanFriendly fom.oneOverDFrom
+                                            ++ "–"
+                                            ++ formatFloatHumanFriendly fom.oneOverDTo
+                                            ++ " ("
+                                            ++ formatFloatHumanFriendly fom.outerShell.minRes
+                                            ++ "–"
+                                            ++ formatFloatHumanFriendly fom.outerShell.maxRes
+                                            ++ ")"
+                                    ]
+                                , td_ [ text <| formatFloatHumanFriendly fom.completeness ++ "% (" ++ formatFloatHumanFriendly fom.outerShell.completeness ++ "%)" ]
+                                , floatWithShell fom.redundancy fom.outerShell.redundancy
+                                , floatWithShell fom.cc fom.outerShell.cc
+                                , floatWithShell fom.ccstar fom.outerShell.ccstar
+                                , td_ [ text <| Maybe.withDefault "" <| Maybe.map (\wilsonReal -> formatFloatHumanFriendly wilsonReal ++ " Å²") fom.wilson ]
+                                , td_
+                                    [ icon { name = "file-binary" }
+                                    , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
+                                    ]
+                                , td_
+                                    [ icon { name = "card-list" }
+                                    , a [ href (makeLink (MergeResult beamtimeId experimentTypeId dataSetId mrw.mergeResult.id)) ] [ text "Details" ]
+                                    ]
+                                ]
 
-                    _ ->
-                        [ td
-                            [ colspan remainingHeaders ]
-                            [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
-                        ]
-               )
+                            _ ->
+                                [ td
+                                    [ colspan remainingHeaders ]
+                                    [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
+                                ]
+                       )
+    in
+    if isShowingMergeParams then
+        let
+            parameters =
+                mrw.mergeResult.parameters
+
+            secondRow =
+                tr [ class rowClass ]
+                    [ -- keep space for the ID column
+                      td_ []
+                    , td [ colspan 11 ] [ viewMergeParameters rowClass parameters ]
+                    ]
+        in
+        [ firstRow, secondRow ]
+
+    else
+        [ firstRow ]
 
 
 viewJobStatus : Bool -> DBJobStatus -> Html msg
@@ -827,9 +824,9 @@ viewMergeResultsTable model experimentType mergeResults =
                     mergeResults
         in
         table
-            [ class "table table-sm text-muted mt-3", style "font-size" "0.8rem" ]
+            [ class "table table-sm table-borderless text-muted mt-3", style "font-size" "0.8rem" ]
             [ thead_ <| [ tr_ (List.map (\header -> th [ class "text-nowrap" ] [ header ]) mergeRowHeaders) ]
-            , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
+            , tbody_ <| List.concatMap (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
             ]
 
 
