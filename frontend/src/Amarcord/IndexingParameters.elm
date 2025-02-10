@@ -881,7 +881,7 @@ viewCommandLine model =
 viewCellDescription : Model -> Html Msg
 viewCellDescription model =
     div [ class "mb-3" ]
-        [ label [ for "pp-cell-description" ] [ text "Cell Description" ]
+        [ label [] [ text "Cell Description" ]
         , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
         , div
             [ class "form-text"
