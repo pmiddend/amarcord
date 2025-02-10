@@ -89,6 +89,7 @@ type Msg
     | ToggleAsText
     | ChangeAsText String
     | CancelAsText
+    | Clear
 
 
 validateCellDescription : Model -> Result (Html msg) ()
@@ -335,6 +336,14 @@ viewStructured model =
                     ]
                     [ text "As text" ]
                 ]
+            , div_
+                [ button
+                    [ type_ "button"
+                    , class "btn btn-secondary btn-sm text-nowrap"
+                    , onClick Clear
+                    ]
+                    [ text "Clear" ]
+                ]
             ]
         , case parseModel model of
             -- Here we have an incomplete cell description - no need to show parse errors
@@ -495,3 +504,6 @@ update msg model =
 
                 IsTextual _ _ ->
                     { model | asText = IsTextual newText Nothing }
+
+        Clear ->
+            init ""

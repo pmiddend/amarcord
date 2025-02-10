@@ -1303,24 +1303,40 @@ update msg model =
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
-                                Err _ ->
-                                    ( model, Cmd.none )
-
-                                Ok cellDescription ->
-                                    ( { model | submitProcessingRequest = Loading }
-                                    , send
-                                        ProcessingSubmitted
-                                        (indexingJobQueueForDataSetApiIndexingPost
-                                            { dataSetId = dataSetId
-                                            , isOnline = False
-                                            , cellDescription = cellDescriptionToString cellDescription
-                                            , geometryFile = indexingParamFormModel.geometryFile
-                                            , commandLine = coparseCommandLine commandLine
-                                            , source = indexingParamFormModel.source
-                                            }
-                                        )
+                            if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
+                                ( { model | submitProcessingRequest = Loading }
+                                , send
+                                    ProcessingSubmitted
+                                    (indexingJobQueueForDataSetApiIndexingPost
+                                        { dataSetId = dataSetId
+                                        , isOnline = False
+                                        , cellDescription = ""
+                                        , geometryFile = indexingParamFormModel.geometryFile
+                                        , commandLine = coparseCommandLine commandLine
+                                        , source = indexingParamFormModel.source
+                                        }
                                     )
+                                )
+
+                            else
+                                case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
+                                    Err _ ->
+                                        ( model, Cmd.none )
+
+                                    Ok cellDescription ->
+                                        ( { model | submitProcessingRequest = Loading }
+                                        , send
+                                            ProcessingSubmitted
+                                            (indexingJobQueueForDataSetApiIndexingPost
+                                                { dataSetId = dataSetId
+                                                , isOnline = False
+                                                , cellDescription = cellDescriptionToString cellDescription
+                                                , geometryFile = indexingParamFormModel.geometryFile
+                                                , commandLine = coparseCommandLine commandLine
+                                                , source = indexingParamFormModel.source
+                                                }
+                                            )
+                                        )
 
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
