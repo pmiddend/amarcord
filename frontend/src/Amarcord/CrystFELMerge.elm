@@ -1,7 +1,7 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
-import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, p_, sup_)
+import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, form, h2, label, small, span, text)
@@ -321,39 +321,45 @@ view model =
                 model.polarisationPreset
 
         modelSelect =
-            div [ class "row form-floating mb-3" ]
-                [ makeModelSelect
-                , label [ for "crystfel-model" ] [ text "Model" ]
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-model" ] [ text "Model" ]
+                , makeModelSelect
                 ]
 
         scalingAndRefinementCheckboxes =
-            div [ class "row g-2 mb-3" ]
-                [ div [ class "form-check col" ]
+            div [ class "d-flex justify-content-around mb-3" ]
+                [ div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-scaling", type_ "checkbox", checked (model.scaleIntensities /= ScaleIntensitiesOff), onClick ToggleScaleIntensities ]
                     , label [ class "form-check-label", for "crystfel-scaling" ] [ text "Scale intensities" ]
                     ]
-                , div [ class "form-check col" ]
+                , div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-debye-waller-scaling", type_ "checkbox", checked (model.scaleIntensities == ScaleIntensitiesDebyewaller), disabled (model.scaleIntensities == ScaleIntensitiesOff), onClick ToggleDebyeWallerScaling ]
                     , label [ class "form-check-label", for "crystfel-debye-waller-scaling" ] [ text "Debye-Waller scaling" ]
                     ]
-                , div [ class "form-check col" ]
+                , div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-post-refinement", type_ "checkbox", checked model.postRefinement, onClick TogglePostRefinement ]
                     , label [ class "form-check-label", for "crystfel-post-refinement" ] [ text "Post-refinement" ]
                     ]
                 ]
 
         iterationsRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_ [ id "crystfel-iterations", type_ "number", class "form-control", value (String.fromInt model.iterations), onIntInput (\i -> ModelChangeFn (\m -> { m | iterations = i })) ]
-                , label [ for "crystfel-iterations" ] [ text "Number of scaling/post-refinement cycles" ]
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-iterations" ] [ text "Number of scaling/post-refinement cycles" ]
+                , input_
+                    [ id "crystfel-iterations"
+                    , type_ "number"
+                    , class "form-control"
+                    , value (String.fromInt model.iterations)
+                    , onIntInput (\i -> ModelChangeFn (\m -> { m | iterations = i }))
+                    ]
                 ]
 
         polarisationRow =
             div [ class "row mb-3" ] <|
                 div [ class "col" ]
-                    [ div [ class "form-floating" ]
-                        [ makePolarisationPresetSelect
-                        , label [ for "crystfel-polarisation-preset" ] [ text "Polarisation" ]
+                    [ div [ class "mb-3" ]
+                        [ label [ for "crystfel-polarisation-preset" ] [ text "Polarisation" ]
+                        , makePolarisationPresetSelect
                         ]
                     ]
                     :: (case model.polarisationPreset of
@@ -517,27 +523,27 @@ view model =
                 ]
 
         minMeasurementsRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-min-measurements" ] [ text "Minimum number of measurements per merged reflection" ]
+                , input_
                     [ id "crystfel-min-measurements"
                     , type_ "number"
                     , class "form-control"
                     , value (String.fromInt model.minMeasurements)
                     , onIntInput (\i -> ModelChangeFn (\m -> { m | minMeasurements = i }))
                     ]
-                , label [ for "crystfel-min-measurements" ] [ text "Minimum number of measurements per merged reflection" ]
                 ]
 
         relBRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-rel-b" ] [ text "Reject crystals with absolute B factors ≥ Å²" ]
+                , input_
                     [ id "crystfel-rel-b"
                     , type_ "number"
                     , class "form-control"
                     , value (String.fromFloat model.relB)
                     , onFloatInput (\f -> ModelChangeFn (\m -> { m | relB = f }))
                     ]
-                , label [ for "crystfel-rel-b" ] [ text "Reject crystals with absolute B factors ≥ Å²" ]
                 ]
 
         logsRow =
@@ -637,32 +643,32 @@ view model =
 
         cellDescriptionInput =
             div [ class "mb-3" ]
-                [ p_ [ text "Cell description" ]
+                [ label [] [ text "Cell description" ]
                 , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
                 ]
 
         pointGroupInput =
-            div [ class "form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "merge-point-group" ] [ text "Point group" ]
+                , input_
                     [ id "merge-point-group"
                     , type_ "text"
                     , class "form-control"
                     , value model.pointGroup
                     , onInput (\f -> ModelChangeFn (\m -> { m | pointGroup = f }))
                     ]
-                , label [ for "merge-point-group" ] [ text "Point group" ]
                 ]
 
         spaceGroupInput =
-            div [ class "form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "merge-space-group" ] [ text "Space group" ]
+                , input_
                     [ id "merge-space-group"
                     , type_ "text"
                     , class "form-control"
                     , value model.spaceGroup
                     , onInput (\f -> ModelChangeFn (\m -> { m | spaceGroup = f }))
                     ]
-                , label [ for "merge-space-group" ] [ text "Space group" ]
                 , div [ class "form-text" ] [ text "If this is left empty, will derive space group from the point group." ]
                 ]
     in
