@@ -27,6 +27,7 @@ from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import determine_cell_description_from_runs
 from amarcord.db.orm_utils import determine_point_group_from_runs
+from amarcord.db.orm_utils import determine_space_group_from_runs
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import group_by
@@ -292,6 +293,14 @@ async def read_single_data_set_results(
         point_group_for_ds = ""
 
     try:
+        space_group_for_ds = await determine_space_group_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a space group assigned to the chemical
+        space_group_for_ds = ""
+
+    try:
         cell_description_for_ds = await determine_cell_description_from_runs(
             session, beamtimeId, list(relevant_run_ids)
         )
@@ -423,6 +432,7 @@ async def read_single_data_set_results(
             internal_run_ids=[r.id for r in relevant_runs],
             runs=run_id_to_run_ranges(r.external_id for r in relevant_runs),
             point_group=point_group_for_ds,
+            space_group=space_group_for_ds,
             cell_description=cell_description_for_ds,
             indexing_results=[
                 JsonIndexingParametersWithResults(

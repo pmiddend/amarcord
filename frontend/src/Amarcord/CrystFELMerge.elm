@@ -1,11 +1,12 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
-import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
+import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, p_, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, form, h2, label, small, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 
 
@@ -111,6 +112,7 @@ type Msg
     | PointGroupMsg PointGroupChooser.Msg
     | ToggleW
     | ModelChangeFn (Model -> Model)
+    | CellDescriptionChange CellDescriptionEdit.Msg
 
 
 type PolarisationPreset
@@ -229,11 +231,14 @@ type alias Model =
     , minRes : Maybe Float
     , pushRes : Maybe Float
     , w : Maybe PointGroupChooser.Model
+    , cellDescription : CellDescriptionEdit.Model
+    , pointGroup : String
+    , spaceGroup : String
     }
 
 
 modelToMergeParameters : Model -> JsonQueueMergeJobInput
-modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -263,14 +268,14 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
     , dataSetId = dataSetId
     , mergeParameters =
         { mergeModel = mergeModel
+        , pointGroup = pointGroup
+        , spaceGroup =
+            if String.trim spaceGroup /= "" then
+                Just spaceGroup
 
-        -- FIXME: take point group from user or leave it empty to auto-detect
-        , pointGroup = ""
-        , spaceGroup = Nothing
-
-        -- Here it's fine to leave it empty, we don't want it user-defined and it will be filled by the server.
-        -- The only reason this is here is because we have only one class for merge parameters (for input and output).
-        , cellDescription = ""
+            else
+                Nothing
+        , cellDescription = CellDescriptionEdit.modelAsText cellDescription
         , scaleIntensities = scaleIntensities
         , postRefinement = postRefinement
         , iterations = iterations
@@ -629,9 +634,43 @@ view model =
                         ]
                     ]
                 ]
+
+        cellDescriptionInput =
+            div [ class "mb-3" ]
+                [ p_ [ text "Cell description" ]
+                , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
+                ]
+
+        pointGroupInput =
+            div [ class "form-floating mb-3" ]
+                [ input_
+                    [ id "merge-point-group"
+                    , type_ "text"
+                    , class "form-control"
+                    , value model.pointGroup
+                    , onInput (\f -> ModelChangeFn (\m -> { m | pointGroup = f }))
+                    ]
+                , label [ for "merge-point-group" ] [ text "Point group" ]
+                ]
+
+        spaceGroupInput =
+            div [ class "form-floating mb-3" ]
+                [ input_
+                    [ id "merge-space-group"
+                    , type_ "text"
+                    , class "form-control"
+                    , value model.spaceGroup
+                    , onInput (\f -> ModelChangeFn (\m -> { m | spaceGroup = f }))
+                    ]
+                , label [ for "merge-space-group" ] [ text "Space group" ]
+                , div [ class "form-text" ] [ text "If this is left empty, will derive space group from the point group." ]
+                ]
     in
     form [ class "p-3" ]
-        [ modelSelect
+        [ cellDescriptionInput
+        , pointGroupInput
+        , spaceGroupInput
+        , modelSelect
         , scalingAndRefinementCheckboxes
         , iterationsRow
         , polarisationRow
@@ -649,8 +688,8 @@ view model =
         ]
 
 
-init : Int -> Int -> Model
-init dataSetId indexingParametersId =
+init : String -> String -> String -> Int -> Int -> Model
+init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     { dataSetId = dataSetId
     , indexingParametersId = indexingParametersId
     , mergeModel = MergeModelUnity
@@ -673,6 +712,9 @@ init dataSetId indexingParametersId =
     , minRes = Nothing
     , pushRes = Nothing
     , w = Nothing
+    , cellDescription = CellDescriptionEdit.init cellDescription
+    , pointGroup = pointGroup
+    , spaceGroup = spaceGroup
     }
 
 
@@ -738,6 +780,9 @@ update msg model =
     case msg of
         ModelChange mergeModel ->
             ( { model | mergeModel = mergeModel }, Cmd.none )
+
+        CellDescriptionChange subMsg ->
+            ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
 
         ModelChangeFn f ->
             ( f model, Cmd.none )

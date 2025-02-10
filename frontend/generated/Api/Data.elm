@@ -1026,6 +1026,7 @@ type alias JsonDataSetWithIndexingResults =
     , internalRunIds : List Int
     , runs : List JsonRunRange
     , pointGroup : String
+    , spaceGroup : String
     , cellDescription : String
     , indexingResults : List JsonIndexingParametersWithResults
     }
@@ -3207,6 +3208,7 @@ encodeJsonDataSetWithIndexingResultsPairs model =
             , encode "internal_run_ids" (Json.Encode.list Json.Encode.int) model.internalRunIds
             , encode "runs" (Json.Encode.list encodeJsonRunRange) model.runs
             , encode "point_group" Json.Encode.string model.pointGroup
+            , encode "space_group" Json.Encode.string model.spaceGroup
             , encode "cell_description" Json.Encode.string model.cellDescription
             , encode "indexing_results" (Json.Encode.list encodeJsonIndexingParametersWithResults) model.indexingResults
             ]
@@ -6179,6 +6181,7 @@ jsonDataSetWithIndexingResultsDecoder =
         |> decode "internal_run_ids" (Json.Decode.list Json.Decode.int) 
         |> decode "runs" (Json.Decode.list jsonRunRangeDecoder) 
         |> decode "point_group" Json.Decode.string 
+        |> decode "space_group" Json.Decode.string 
         |> decode "cell_description" Json.Decode.string 
         |> decode "indexing_results" (Json.Decode.list jsonIndexingParametersWithResultsDecoder) 
 

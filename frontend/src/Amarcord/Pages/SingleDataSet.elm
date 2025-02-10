@@ -56,7 +56,7 @@ type alias ProcessingParametersInput =
 type Msg
     = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
     | CopyToClipboard String
-    | OpenMergeForm DataSetId IndexingParametersId
+    | OpenMergeForm DataSetId IndexingParametersId String String String
     | OpenProcessingFormWithExisting JsonIndexingParameters DataSetId
     | ToggleIndexingParameterExpansion Int
     | IndexingParametersMsg IndexingParameters.Msg
@@ -563,8 +563,8 @@ viewIndexingResults now results =
         ]
 
 
-mergeActions : JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> IndexingParametersId -> Html Msg
-mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs indexingParametersId =
+mergeActions : JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
         mergeRequestIsLoading x =
@@ -599,11 +599,10 @@ mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointG
                     , button
                         [ type_ "button"
                         , class "btn btn-sm btn-outline-secondary"
-                        , onClick (OpenMergeForm dataSet.id indexingParametersId)
+                        , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
                         , disabled (mergeRequestIsLoading mergeRequest)
                         ]
                         [ icon { name = "send" }, text <| " Merge" ]
-                    , span [ class "input-group-text" ] [ text ("Point group: " ++ pointGroupForDs) ]
                     ]
                 , if indexingParametersCellDescription == "" then
                     nothing
@@ -679,8 +678,8 @@ createRunRanges beamtimeId =
         << List.sort
 
 
-viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> JsonIndexingParametersWithResults -> List (Html Msg)
-viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs ({ parameters, indexingResults, mergeResults } as p) =
+viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> JsonIndexingParametersWithResults -> List (Html Msg)
+viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             Set.member parametersId model.expandedIndexingParameterIds
@@ -766,7 +765,7 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
             , tr_
                 [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
                     [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs parameters mergeResults
+                    , viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs parameters mergeResults
                     ]
                 ]
             ]
@@ -777,12 +776,12 @@ indexingAndMergeResultHeaders =
     List.map text [ "PID", "Runs", "Frames", "Hits", "Ixed" ]
 
 
-viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> Html Msg
-viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs =
+viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
-        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs) indexingParametersAndResults
+        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs) indexingParametersAndResults
         ]
 
 
@@ -822,8 +821,8 @@ viewMergeResultsTable model experimentType mergeResults =
             ]
 
 
-viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
-viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs indexingParameters mergeResults =
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParameters mergeResults =
     div [ style "margin-bottom" "4rem" ] <|
         [ viewMaybe
             (\{ mergeParameters } ->
@@ -852,6 +851,7 @@ viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupFor
                 model.mergeRequest
                 cellDescriptionForDs
                 pointGroupForDs
+                spaceGroupForDs
             )
             indexingParameters.id
         , viewMaybe
@@ -1010,8 +1010,8 @@ viewDataSetProcessingButtons model dataSet =
             text ""
 
 
-viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> Html Msg
-viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs =
+viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     div_
         [ viewDataSetProcessingButtons model dataSet
         , case model.processingParametersRequest of
@@ -1041,7 +1041,7 @@ viewProcessingResultsForDataSet model experimentType dataSet indexingResults cel
 
             Just currentProcessingParameters ->
                 viewProcessingParameterForm model currentProcessingParameters
-        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs ]
+        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs spaceGroupForDs ]
         ]
 
 
@@ -1052,7 +1052,7 @@ viewDataSet :
     -> ChemicalNameDict
     -> JsonDataSetWithIndexingResults
     -> List (Html Msg)
-viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults, cellDescription, pointGroup } =
+viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults, cellDescription, pointGroup, spaceGroup } =
     [ h4 [ class "mt-3" ] [ text "Data Set Metadata" ]
     , div [ class "row" ]
         [ div [ class "col-6" ]
@@ -1098,7 +1098,13 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
             , figcaption [ class "figure-caption" ] [ text "In this sample scenario, we have two runs, which were processed using a parameter set with PID 1, and the result is indexing reults IID 1 and 2. Those were then merged in two different ways, resulting in MRID 1 and 2. Moreover, we tried to reprocess the runs using different parameters (PID 2 and IID 3), but the results were not convincing." ]
             ]
         ]
-    , viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescription pointGroup
+    , viewProcessingResultsForDataSet model
+        experimentType
+        dataSet
+        indexingResults
+        cellDescription
+        pointGroup
+        spaceGroup
     ]
 
 
@@ -1309,11 +1315,11 @@ update msg model =
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
 
-        OpenMergeForm dataSetId indexingParametersId ->
+        OpenMergeForm dataSetId indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs ->
             ( { model
                 | activatedMergeForm =
                     Just
-                        { mergeParameters = CrystFELMerge.init dataSetId indexingParametersId
+                        { mergeParameters = CrystFELMerge.init cellDescriptionForDs pointGroupForDs spaceGroupForDs dataSetId indexingParametersId
                         }
               }
             , Cmd.none

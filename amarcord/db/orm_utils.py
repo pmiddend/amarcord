@@ -27,6 +27,7 @@ from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
+from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
 from amarcord.web.json_models import JsonAttributoValue
@@ -573,6 +574,32 @@ async def determine_point_group_from_runs(
             + ", which either have no chemicals attached, or the chemicals have no point group inside them.",
         )
     return next(iter(point_groups))
+
+
+async def determine_space_group_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    space_groups = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, SPACE_GROUP_ATTRIBUTO
+    )
+
+    if len(space_groups) > 1:
+        raise ValueError(
+            "Found more than one space group! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following space groups (determined by going through all chemicals in the runs): "
+            + ", ".join(space_groups)
+            + ". To correct this, you have to either specify a separate space group while merging, or (better choice, probably) take care of the space groups for your chemicals: you should have exactly one space group for all chemicals for all runs.",
+        )
+    if not space_groups:
+        raise ValueError(
+            "found no space groups at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no space group inside them.",
+        )
+    return next(iter(space_groups))
 
 
 async def determine_cell_description_from_runs(
