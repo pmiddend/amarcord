@@ -4,6 +4,7 @@ import Amarcord.Crystallography exposing (bravaisLatticeToStringNoUnknownAxis, p
 import Amarcord.Html exposing (br_, div_, span_)
 import Html exposing (Html, div, small, span, text)
 import Html.Attributes exposing (class)
+import Html.Extra exposing (nothing)
 
 
 type CellDescriptionViewerMultiline
@@ -18,25 +19,29 @@ view =
 
 viewColor : String -> CellDescriptionViewerMultiline -> String -> Html msg
 viewColor badgeColor lines cd =
-    case parseCellDescription cd of
-        Err e ->
-            if lines == MultiLine then
-                div_
-                    [ span_ [ text cd ]
-                    , br_
-                    , small [ class "text-danger" ] [ text e ]
-                    ]
+    if String.trim cd == "" then
+        nothing
 
-            else
-                span_ [ text (cd ++ " ("), span [ class "text-danger" ] [ text e ], text ")" ]
+    else
+        case parseCellDescription cd of
+            Err e ->
+                if lines == MultiLine then
+                    div_
+                        [ span_ [ text cd ]
+                        , br_
+                        , small [ class "text-danger" ] [ text e ]
+                        ]
 
-        Ok { bravaisLattice, cellA, cellB, cellC, cellAlpha, cellBeta, cellGamma } ->
-            div [ class "d-inline-flex gap-1" ]
-                [ span [ class ("badge text-bg-" ++ badgeColor) ] [ text (bravaisLatticeToStringNoUnknownAxis bravaisLattice) ]
-                , span [ class ("badge text-bg-" ++ badgeColor ++ " text-nowrap") ]
-                    [ text (String.fromFloat cellA ++ " " ++ String.fromFloat cellB ++ " " ++ String.fromFloat cellC ++ " Å")
+                else
+                    span_ [ text (cd ++ " ("), span [ class "text-danger" ] [ text e ], text ")" ]
+
+            Ok { bravaisLattice, cellA, cellB, cellC, cellAlpha, cellBeta, cellGamma } ->
+                div [ class "d-inline-flex gap-1" ]
+                    [ span [ class ("badge text-bg-" ++ badgeColor) ] [ text (bravaisLatticeToStringNoUnknownAxis bravaisLattice) ]
+                    , span [ class ("badge text-bg-" ++ badgeColor ++ " text-nowrap") ]
+                        [ text (String.fromFloat cellA ++ " " ++ String.fromFloat cellB ++ " " ++ String.fromFloat cellC ++ " Å")
+                        ]
+                    , span [ class ("badge text-bg-" ++ badgeColor ++ " text-nowrap") ]
+                        [ text (String.fromFloat cellAlpha ++ " " ++ String.fromFloat cellBeta ++ " " ++ String.fromFloat cellGamma ++ " °")
+                        ]
                     ]
-                , span [ class ("badge text-bg-" ++ badgeColor ++ " text-nowrap") ]
-                    [ text (String.fromFloat cellAlpha ++ " " ++ String.fromFloat cellBeta ++ " " ++ String.fromFloat cellGamma ++ " °")
-                    ]
-                ]
