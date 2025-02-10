@@ -904,7 +904,7 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
 
                     Just cellDescription ->
                         span [ class "d-flex" ]
-                            [ CellDescriptionViewer.view cellDescription
+                            [ div_ [ CellDescriptionViewer.view cellDescription ]
                             , copyToClipboardButton (CopyToClipboard cellDescription)
                             ]
                 ]
