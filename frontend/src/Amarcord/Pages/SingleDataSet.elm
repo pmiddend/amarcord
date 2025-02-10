@@ -28,6 +28,7 @@ import Html.Attributes exposing (class, colspan, disabled, href, id, src, style,
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import Maybe
+import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result.Extra
@@ -563,8 +564,8 @@ viewIndexingResults now results =
         ]
 
 
-mergeActions : JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
-mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
+mergeActions : Bool -> JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
         mergeRequestIsLoading x =
@@ -593,16 +594,20 @@ mergeActions dataSet indexingParameters mergeRequest cellDescriptionForDs pointG
                         [ type_ "button"
                         , class "btn btn-sm btn-outline-primary"
                         , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
-                        , disabled (mergeRequestIsLoading mergeRequest)
+                        , disabled (mergeRequestIsLoading mergeRequest || isActive)
                         ]
                         [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
                     , button
                         [ type_ "button"
                         , class "btn btn-sm btn-outline-secondary"
                         , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
-                        , disabled (mergeRequestIsLoading mergeRequest)
+                        , disabled (mergeRequestIsLoading mergeRequest || isActive)
                         ]
                         [ icon { name = "send" }, text <| " Merge" ]
+                    , viewIf isActive
+                        (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
+                            [ icon { name = "x-lg" }, text " Cancel" ]
+                        )
                     ]
                 , if indexingParametersCellDescription == "" then
                     nothing
@@ -765,7 +770,14 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
             , tr_
                 [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
                     [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs parameters mergeResults
+                    , viewMergeResults model
+                        experimentType
+                        dataSet
+                        cellDescriptionForDs
+                        pointGroupForDs
+                        spaceGroupForDs
+                        parameters
+                        mergeResults
                     ]
                 ]
             ]
@@ -825,6 +837,17 @@ viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> Strin
 viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParameters mergeResults =
     div [ style "margin-bottom" "4rem" ] <|
         [ viewMaybe
+            (mergeActions
+                (isJust model.activatedMergeForm)
+                dataSet
+                indexingParameters
+                model.mergeRequest
+                cellDescriptionForDs
+                pointGroupForDs
+                spaceGroupForDs
+            )
+            indexingParameters.id
+        , viewMaybe
             (\{ mergeParameters } ->
                 viewIfLazy (Just mergeParameters.indexingParametersId == indexingParameters.id)
                     (\_ ->
@@ -844,16 +867,6 @@ viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupFor
                     )
             )
             model.activatedMergeForm
-        , viewMaybe
-            (mergeActions
-                dataSet
-                indexingParameters
-                model.mergeRequest
-                cellDescriptionForDs
-                pointGroupForDs
-                spaceGroupForDs
-            )
-            indexingParameters.id
         , viewMaybe
             (\{ request, dataSetId, indexingParametersId } ->
                 viewIf (dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id) <|
