@@ -437,7 +437,7 @@ bravaisLatticeParser =
             Orthorhombic
             |. Parser.keyword "orthorhombic"
             |. spaces1
-            |= centeringParser [ CentPrimitive, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+            |= centeringParser [ CentPrimitive, CentBody, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
             |. spaces1
             |. Parser.oneOf [ Parser.keyword "*", Parser.keyword "?" ]
         , Parser.succeed
@@ -619,7 +619,7 @@ centeringsForSystem s =
             [ CentPrimitive, CentBody ]
 
         LatticeOrthorhombic ->
-            [ CentPrimitive, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
+            [ CentPrimitive, CentBody, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
 
         LatticeMonoclinic ->
             [ CentPrimitive, CentBody, CentFace, CentBase AxisA, CentBase AxisB, CentBase AxisC ]
