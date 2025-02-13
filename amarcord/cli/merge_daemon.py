@@ -67,12 +67,13 @@ _ZOMBIE_TIME_SECONDS = 10
 class Arguments(Tap):
     workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
     amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
-    ccp4_path: str | None = None
-    overwrite_interpreter: str | None = None
-    amarcord_url_for_spawned_job: str | None = None
     crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
         Path
     )
+    ccp4_path: str | None = None
+    overwrite_interpreter: str | None = None
+    amarcord_url_for_spawned_job: str | None = None
+    gnuplot_path: Path | None = None
 
 
 def merge_parameters_to_crystfel_parameters(p: JsonMergeParameters) -> list[str]:
@@ -237,10 +238,15 @@ async def start_merge_job(
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_PARTIALATOR_ADDITIONAL: shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE: merge_result.parameters.ambigator_command_line,
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_CRYSTFEL_PATH: str(
                     args.crystfel_path
                 ),
             }
+            if args.gnuplot_path is not None:
+                env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_GNUPLOT_PATH] = str(
+                    args.gnuplot_path
+                )
             # optional parameters
             if args.ccp4_path is not None:
                 env[amarcord.cli.crystfel_merge.MERGE_ENVIRON_CCP4_PATH] = (

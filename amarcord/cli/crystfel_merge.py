@@ -6,12 +6,13 @@ import multiprocessing
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
-from tempfile import NamedTemporaryFile
+from typing import IO
 from typing import Any
 from typing import BinaryIO
 from typing import Final
@@ -272,13 +273,16 @@ class ParsedArgs:
     ccp4_path: None | Path
     partialator_additional: None | str
     crystfel_path: Path
+    gnuplot_path: Path | None
     pdb_file_id: None | int
     restraints_cif_file_id: None | int
     random_cut_length: None | int
     space_group: None | str
+    ambigator_command_line: str
 
 
 MERGE_ENVIRON_CRYSTFEL_PATH = "AMARCORD_CRYSTFEL_PATH"
+MERGE_ENVIRON_GNUPLOT_PATH = "AMARCORD_GNUPLOT_PATH"
 MERGE_ENVIRON_CCP4_PATH = "AMARCORD_CCP4_PATH"
 MERGE_ENVIRON_STREAM_FILES = "AMARCORD_STREAM_FILES"
 MERGE_ENVIRON_API_URL = "AMARCORD_API_URL"
@@ -290,6 +294,7 @@ MERGE_ENVIRON_CELL_FILE_ID = "AMARCORD_CELL_FILE_ID"
 MERGE_ENVIRON_POINT_GROUP = "AMARCORD_POINT_GROUP"
 MERGE_ENVIRON_HKL_FILE = "AMARCORD_HKL_FILE"
 MERGE_ENVIRON_PARTIALATOR_ADDITIONAL = "AMARCORD_PARTIALATOR_ADDITIONAL"
+MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE = "AMARCORD_AMBIGATOR_COMMAND_LINE"
 MERGE_ENVIRON_PDB_FILE_ID = "AMARCORD_PDB_FILE_ID"
 
 
@@ -323,6 +328,7 @@ def parse_args() -> ParsedArgs:
     restraints_cif_file_id_str = os.environ.get(MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID)
     random_cut_length_str = os.environ.get(MERGE_ENVIRON_RANDOM_CUT_LENGTH)
     pdb_file_id_str = os.environ.get(MERGE_ENVIRON_PDB_FILE_ID)
+    gnuplot_path_str = os.environ.get(MERGE_ENVIRON_GNUPLOT_PATH)
     return ParsedArgs(
         crystfel_path=crystfel_path,
         ccp4_path=ccp4_path if ccp4_path else None,
@@ -343,6 +349,8 @@ def parse_args() -> ParsedArgs:
         if random_cut_length_str is not None
         else None,
         space_group=os.environ.get(MERGE_ENVIRON_SPACE_GROUP),
+        ambigator_command_line=os.environ.get(MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE, ""),
+        gnuplot_path=Path(gnuplot_path_str) if gnuplot_path_str else None,
     )
 
 
@@ -871,14 +879,121 @@ def write_random_chunks(
             current_file_obj.close()
 
 
+def write_ambigator_gnuplot_script(target: IO[bytes]) -> None:
+    # this is taken straight out of CrystFEL's scripts/fg-graph folder
+    target.write(
+        b"""
+set terminal pngcairo size 1600,1000 enhanced font 'Verdana,20' linewidth 2
+set output myoutput
+set xlabel "Number of crystals"
+set ylabel "Correlation"
+rnd(x) = x - floor(x) < 0.5 ? floor(x) : ceil(x)
+cfround(x1,x2) = rnd(10**x2*x1)/10.0**x2
+set xzeroaxis lc rgb "black" lt 1
+set key top left
+set xrange [0:myniter*mynpatt]
+set yrange [mycmin:mycmax]
+set ytics nomirror
+set xtics nomirror
+set x2tics nomirror
+
+set x2range [0:myniter]
+set x2label "Number of passes over all crystals"
+set arrow from mynpatt,mycmin to mynpatt,mycmax nohead lc rgb "black"
+
+plot\
+ 1 lc rgb "black" lt 1 notitle,\\
+ inputfile u 0:1 ps 0.2 pt 7 lc rgb "orange" notitle,\\
+ inputfile u 0:2 ps 0.2 pt 7 lc rgb "#0088FF" notitle,\\
+ inputfile u 0:(rand(0)>0.5?$1:1/0) ps 0.2 pt 7 lc rgb "orange" notitle ,\\
+ inputfile u (cfround($0, -3)):($1>$2?$1:$2) lw 3 lc rgb "black" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):($1<$2?$1:$2) lw 3 lc rgb "black" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):1 lw 3 lc rgb "red" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):2 lw 3 lc rgb "blue" smooth unique notitle
+        """,
+    )
+
+
+def write_fg_graph(args: ParsedArgs, fg_graph_file: Path) -> Path:
+    gnuplot_script_path = Path("fg-graph.gnuplot")
+    logger.info(f"writing to file {gnuplot_script_path}")
+    with gnuplot_script_path.open("wb+") as gnuplot_script:
+        write_ambigator_gnuplot_script(gnuplot_script)
+
+    def run_gnuplot(output_file: Path) -> None:
+        gnuplot_args: list[str] = [
+            "gnuplot" if args.gnuplot_path is None else str(args.gnuplot_path),
+            "-e",
+            f"myoutput='{output_file}'",
+            "-e",
+            f"inputfile='{fg_graph_file}'",
+            "-e",
+            "mynpatt=4000",
+            "-e",
+            "myniter=4",
+            "-e",
+            "mycmin=-0.1",
+            "-e",
+            "mycmax=0.3",
+            str(gnuplot_script_path),
+        ]
+        logger.info(f"gnuplot arguments: {gnuplot_args}")
+        subprocess.check_output(gnuplot_args)  # noqa: S603
+
+    output_image = Path("fg-graph.png")
+
+    run_gnuplot(output_image)
+
+    return output_image
+
+
+def run_ambigator(
+    args: ParsedArgs, input_stream_files: list[Path]
+) -> tuple[Path, None | Path]:
+    if len(input_stream_files) == 1:
+        single_input_stream = input_stream_files[0]
+    else:
+        single_input_stream = Path("ambigator-input.stream")
+        with single_input_stream.open("wb") as fout:
+            for fpath in input_stream_files:
+                with fpath.open(mode="rb") as fin:
+                    shutil.copyfileobj(fin, fout)
+
+    output_stream = Path("ambigator-output.stream")
+    fg_graph_output = Path("ambigator-fg.txt")
+    ambigator_args: list[str] = [
+        f"{args.crystfel_path}/bin/ambigator",
+        f"--output={output_stream}",
+        f"-j{os.cpu_count()}",
+        f"--fg-graph={fg_graph_output}",
+        str(single_input_stream),
+    ]
+    ambigator_args.extend(shlex.split(args.ambigator_command_line))
+    ambigator_result = subprocess.run(  # noqa: S603
+        ambigator_args, check=False
+    )
+
+    if ambigator_result.returncode != 0:
+        exit_with_error(args, "ambigator failed - check the output")
+
+    try:
+        output_plot = write_fg_graph(args, fg_graph_output)
+    except:
+        output_plot = None
+
+    return output_stream, output_plot
+
+
 def generate_output(args: ParsedArgs) -> None:
     merge_subdirectory = Path(f"./merging-{args.merge_result_id}")
 
     merge_subdirectory.mkdir(parents=True, exist_ok=True)
     os.chdir(merge_subdirectory)
 
+    input_stream_files: list[Path] = []
     if args.random_cut_length is not None:
-        with NamedTemporaryFile(dir=str(Path.cwd())) as random_chunks_file:
+        random_chunks_file = Path("random-chunks.stream")
+        with random_chunks_file.open("rb", encoding="utf-8") as random_chunks_file_obj:
             with args.stream_files[0].open("r", encoding="utf-8") as first_file:
                 header = ""
                 for line in first_file:
@@ -886,7 +1001,7 @@ def generate_output(args: ParsedArgs) -> None:
                         break
                     header += line
 
-            random_chunks_file.write(header.encode("utf-8"))
+            random_chunks_file_obj.write(header.encode("utf-8"))
             write_random_chunks(
                 file_list=args.stream_files,
                 max_chunks=args.random_cut_length,
@@ -894,10 +1009,21 @@ def generate_output(args: ParsedArgs) -> None:
                 # in the default mode.
                 target=random_chunks_file,  # type: ignore
             )
-            random_chunks_file.flush()
-            run_partialator(args, Path(random_chunks_file.name))
+            random_chunks_file_obj.flush()
+        input_stream_files.append(random_chunks_file)
     else:
-        run_partialator(args, None)
+        input_stream_files.extend(args.stream_files)
+
+    if args.ambigator_command_line.strip():
+        ambigator_stream_file, ambigator_plot_file = run_ambigator(
+            args, input_stream_files
+        )
+        input_stream_files.clear()
+        input_stream_files.append(ambigator_stream_file)
+    else:
+        ambigator_plot_file = None
+
+    run_partialator(args, input_stream_files)
 
     cell_file = retrieve_file(args, args.cell_file_id, "cell")
 
@@ -1026,6 +1152,9 @@ def generate_output(args: ParsedArgs) -> None:
         "latest_log": "\n".join(log_list),
         "mtz_file_id": upload_file(args, mtz_path),
         "detailed_foms": extract_shell_resolutions(args),
+        "ambigator_fg_graph_file_id": upload_file(args, ambigator_plot_file)
+        if ambigator_plot_file is not None
+        else None,
         "refinement_results": (
             [
                 {
@@ -1233,7 +1362,7 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     # )
 
 
-def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
+def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
     partialator_command_line_args = [
         f"{args.crystfel_path}/bin/partialator",
         "-y",
@@ -1245,17 +1374,8 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
     ]
     if args.partialator_additional:
         partialator_command_line_args.extend(shlex.split(args.partialator_additional))
-    # This is implemented a little lazily, to be honest. If we have a "random cut file", meaning we stitched
-    # together stream fils into a temporary new stream file, then run partialator on that
-    # otherwise run it on the input stream files.
-    #
-    # This is lazy, because this file choosing should really be in this funciton, rather than the one on top of
-    # it. But there you go.
-    if random_cut_file is not None:
-        partialator_command_line_args.extend(["-i", str(random_cut_file)])
-    else:
-        for f in args.stream_files:
-            partialator_command_line_args.extend(["-i", str(f)])
+    for f in input_stream_files:
+        partialator_command_line_args.extend(["-i", str(f)])
     logging.info(
         f"starting partialator with command line: {partialator_command_line_args}",
     )

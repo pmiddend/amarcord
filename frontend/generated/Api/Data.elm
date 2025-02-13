@@ -1356,6 +1356,7 @@ type alias JsonMergeParameters =
     , minRes : Maybe Float
     , pushRes : Maybe Float
     , w : Maybe String
+    , ambigatorCommandLine : String
     }
 
 
@@ -1403,6 +1404,7 @@ type alias JsonMergeResultFom =
 type alias JsonMergeResultInternal =
     { mtzFileId : Int
     , fom : JsonMergeResultFom
+    , ambigatorFgGraphFileId : Maybe Int
     , detailedFoms : List JsonMergeResultShell
     , refinementResults : List JsonRefinementResultInternal
     }
@@ -4123,6 +4125,7 @@ encodeJsonMergeParametersPairs model =
             , maybeEncode "min_res" Json.Encode.float model.minRes
             , maybeEncode "push_res" Json.Encode.float model.pushRes
             , maybeEncode "w" Json.Encode.string model.w
+            , encode "ambigator_command_line" Json.Encode.string model.ambigatorCommandLine
             ]
     in
     pairs
@@ -4215,6 +4218,7 @@ encodeJsonMergeResultInternalPairs model =
         pairs =
             [ encode "mtz_file_id" Json.Encode.int model.mtzFileId
             , encode "fom" encodeJsonMergeResultFom model.fom
+            , maybeEncode "ambigator_fg_graph_file_id" Json.Encode.int model.ambigatorFgGraphFileId
             , encode "detailed_foms" (Json.Encode.list encodeJsonMergeResultShell) model.detailedFoms
             , encode "refinement_results" (Json.Encode.list encodeJsonRefinementResultInternal) model.refinementResults
             ]
@@ -6550,6 +6554,7 @@ jsonMergeParametersDecoder =
         |> maybeDecode "min_res" Json.Decode.float Nothing
         |> maybeDecode "push_res" Json.Decode.float Nothing
         |> maybeDecode "w" Json.Decode.string Nothing
+        |> decode "ambigator_command_line" Json.Decode.string 
 
 
 jsonMergeResultDecoder : Json.Decode.Decoder JsonMergeResult
@@ -6600,6 +6605,7 @@ jsonMergeResultInternalDecoder =
     Json.Decode.succeed JsonMergeResultInternal
         |> decode "mtz_file_id" Json.Decode.int 
         |> decode "fom" jsonMergeResultFomDecoder 
+        |> maybeDecode "ambigator_fg_graph_file_id" Json.Decode.int Nothing
         |> decode "detailed_foms" (Json.Decode.list jsonMergeResultShellDecoder) 
         |> decode "refinement_results" (Json.Decode.list jsonRefinementResultInternalDecoder) 
 

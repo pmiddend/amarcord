@@ -337,6 +337,9 @@ def orm_encode_json_merge_parameters_to_json(
         scale_intensities=mr.input_scale_intensities,
         post_refinement=mr.input_post_refinement,
         iterations=mr.input_iterations,
+        ambigator_command_line=mr.ambigator_command_line
+        if mr.ambigator_command_line is not None
+        else "",
         polarisation=(
             JsonPolarisation(
                 angle=mr.input_polarisation_angle,
@@ -439,6 +442,7 @@ def orm_encode_merge_result_to_json(
                         for rr in mr.refinement_results
                     ],
                     mtz_file_id=cast(int, mr.mtz_file_id),
+                    ambigator_fg_graph_file_id=mr.ambigator_fg_graph_file_id,
                     fom=JsonMergeResultFom(
                         snr=mr.fom_snr,  # type: ignore
                         wilson=mr.fom_wilson,

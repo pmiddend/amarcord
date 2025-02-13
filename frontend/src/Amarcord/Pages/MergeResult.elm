@@ -7,13 +7,14 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHuman
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert)
 import Amarcord.Html exposing (div_, h5_, span_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
-import Amarcord.Route exposing (MergeFilter(..), Route(..), makeFilesLink, makeLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), makeFilesLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow)
-import Api.Data exposing (JsonExperimentType, JsonMergeResultFom, JsonMergeResultShell, JsonReadSingleMergeResult, JsonRefinementResult)
+import Api.Data exposing (JsonExperimentType, JsonMergeResultShell, JsonMergeResultStateDone, JsonReadSingleMergeResult, JsonRefinementResult)
 import Api.Request.Analysis exposing (readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet)
 import Browser.Navigation as Nav
-import Html exposing (Html, a, div, h4, li, nav, node, ol, p, sup, table, text, tr)
-import Html.Attributes exposing (attribute, class, href)
+import Html exposing (Html, a, div, h4, img, li, nav, node, ol, p, sup, table, text, tr)
+import Html.Attributes exposing (attribute, class, href, src)
+import Html.Extra exposing (nothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
 
@@ -75,14 +76,16 @@ modalMergeResultDetail m { experimentType, result } =
                 experimentType
                 m.dataSetId
                 m.mergeResultId
-                mr.result.fom
-                mr.result.detailedFoms
+                mr
                 result.refinementResults
 
 
-modalBodyShells : BeamtimeId -> JsonExperimentType -> DataSetId -> MergeResultId -> JsonMergeResultFom -> List JsonMergeResultShell -> List JsonRefinementResult -> Html Msg
-modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells refinementResults =
+modalBodyShells : BeamtimeId -> JsonExperimentType -> DataSetId -> MergeResultId -> JsonMergeResultStateDone -> List JsonRefinementResult -> Html Msg
+modalBodyShells beamtimeId experimentType dataSetId mergeResultId { result } refinementResults =
     let
+        fom =
+            result.fom
+
         singleShellRow : JsonMergeResultShell -> Html Msg
         singleShellRow shellRow =
             tr_
@@ -161,6 +164,16 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
                 , li [ class "breadcrumb-item" ] [ text ("Merge Result ID " ++ String.fromInt mergeResultId) ]
                 ]
             ]
+        , a [ href (makeMergeIdLogLink mergeResultId) ] [ icon { name = "link-45deg" }, text " Job log" ]
+        , case result.ambigatorFgGraphFileId of
+            Nothing ->
+                nothing
+
+            Just fileId ->
+                div_
+                    [ h5_ [ text "Ambigator plot" ]
+                    , img [ src (makeFilesLink fileId Nothing), class "w-100" ] []
+                    ]
         , h5_ [ text "Figures of merit" ]
         , table [ class "table table-striped table-sm" ]
             [ thead_
@@ -176,7 +189,7 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
                     , th_ [ text "CC", sup [] [ text "*" ] ]
                     ]
                 ]
-            , tbody_ (List.append (List.map singleShellRow (List.sortBy .oneOverDCentre shells)) [ overallRow ])
+            , tbody_ (List.append (List.map singleShellRow (List.sortBy .oneOverDCentre result.detailedFoms)) [ overallRow ])
             ]
         ]
             ++ (if List.isEmpty refinementResults then

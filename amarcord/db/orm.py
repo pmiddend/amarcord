@@ -775,9 +775,13 @@ class MergeResult(Base):
     fom_outer_snr: Mapped[None | float] = mapped_column(init=False)
     fom_outer_min_res: Mapped[None | float] = mapped_column(init=False)
     fom_outer_max_res: Mapped[None | float] = mapped_column(init=False)
+    ambigator_command_line: Mapped[None | str] = mapped_column()
+    ambigator_fg_graph_file_id: Mapped[None | int] = mapped_column(
+        ForeignKey("File.id", ondelete="cascade"),
+    )
 
     # Relationships
-    mtz_file: Mapped[None | File] = relationship(init=False)
+    mtz_file: Mapped[None | File] = relationship(init=False, foreign_keys=[mtz_file_id])
     refinement_results: Mapped[list["RefinementResult"]] = relationship(
         back_populates="merge_result",
         cascade="all, delete, delete-orphan",

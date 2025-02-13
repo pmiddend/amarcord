@@ -253,6 +253,7 @@ class JsonMergeParameters(BaseModel):
     min_res: None | float
     push_res: None | float
     w: None | str
+    ambigator_command_line: str
 
 
 class JsonMergeResult(BaseModel):

@@ -189,7 +189,7 @@ scaleIntensitiesToString x =
 
 
 viewMergeParameters : String -> JsonMergeParameters -> Html msg
-viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription } =
+viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine } =
     let
         boolDtDl header b =
             [ tr_
@@ -246,6 +246,12 @@ viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iter
         dtDl "Cell Description" (CellDescriptionViewer.view cellDescription)
             ++ dtDl "Point Group" (text pointGroup)
             ++ maybeDtDl "Space Group" (Maybe.map text spaceGroup)
+            ++ (if ambigatorCommandLine == "" then
+                    []
+
+                else
+                    dtDl "Ambigator parameters" (text ambigatorCommandLine)
+               )
             ++ dtDl "Model" (text <| mergeModelToString mergeModel)
             ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
             ++ boolDtDl "Post refinement" postRefinement

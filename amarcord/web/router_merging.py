@@ -1,4 +1,5 @@
 import datetime
+import re
 from typing import Annotated
 
 import structlog
@@ -151,6 +152,8 @@ async def merge_job_finished(
 
         r = json_result.result
         cmrs = current_merge_result_status
+        if r.ambigator_fg_graph_file_id is not None:
+            cmrs.ambigator_fg_graph_file_id = r.ambigator_fg_graph_file_id
         cmrs.mtz_file_id = r.mtz_file_id
         cmrs.fom_snr = r.fom.snr
         cmrs.fom_wilson = r.fom.wilson
@@ -266,6 +269,111 @@ async def determine_space_group_from_indexing_results(
     return next(iter(space_groups))
 
 
+CRYSTFEL_POINT_GROUPS = [
+    "1",
+    "-1",
+    "2/m",
+    "2",
+    "m",
+    "mmm",
+    "222",
+    "mm2",
+    "4/m",
+    "4",
+    "-4",
+    "4/mmm",
+    "422",
+    "-42m",
+    "-4m2",
+    "4mm",
+    "3_R",
+    "-3_R",
+    "32_R",
+    "3m_R",
+    "-3m_R",
+    "3_H",
+    "-3_H",
+    "321_H",
+    "312_H",
+    "3m1_H",
+    "31m_H",
+    "-3m1_H",
+    "-31m_H",
+    "6/m",
+    "6",
+    "-6",
+    "6/mmm",
+    "622",
+    "-62m",
+    "-6m2",
+    "6mm",
+    "23",
+    "m-3",
+    "432",
+    "-43m",
+    "m-3m",
+]
+
+CRYSTFEL_SYMMETRY_RE = re.compile(r"-?[hkl],-?[hkl],-?[hkl](;-?[hkl],-?[hkl],-?[hkl])*")
+
+
+def validate_ambigator_command_line(s: str) -> None:
+    if s.strip() == "":
+        return
+
+    args = s.split(" ")
+
+    current_index = 0
+    while current_index < len(args):
+        thisarg = args[current_index]
+        if thisarg == "-w":
+            if current_index == len(args) - 1:
+                raise ValueError(
+                    "nothing after -w, should be followed by a point group"
+                )
+            pg = args[current_index + 1]
+            if pg not in CRYSTFEL_POINT_GROUPS:
+                raise ValueError(f"after -w: {pg} not a valid point group")
+            current_index += 2
+            continue
+
+        current_index += 1
+
+        if thisarg == "--really-random":
+            continue
+
+        equal_split = thisarg.split("=", maxsplit=2)
+        if len(equal_split) != 2:
+            raise ValueError(
+                f"argument {thisarg} not valid (should contain an equal sign)"
+            )
+
+        key_with_dashes, value = equal_split
+
+        if not key_with_dashes.startswith("--"):
+            raise ValueError(f"unknown argument {key_with_dashes}")
+
+        key = key_with_dashes[2:]
+
+        if key == "symmetry":
+            if value not in CRYSTFEL_POINT_GROUPS:
+                raise ValueError(f"after --symmetry: {value} not a valid point group")
+        elif key == "operator":
+            if not CRYSTFEL_SYMMETRY_RE.fullmatch(value):
+                raise ValueError(
+                    f"after --operator: {value} not a valid symmetry operator"
+                )
+        elif key == "iterations":
+            # stupid, but that's enough (not a good error message maybe, but that's for the malicious user)
+            int(value)
+        elif key in ("highres", "lowres"):
+            float(value)
+        elif key == "ncorr":
+            int(value)
+        else:
+            raise ValueError(f"unknown argument: {thisarg}")
+
+
 @router.post(
     "/api/merging",
     tags=["merging"],
@@ -285,6 +393,13 @@ async def queue_merge_job(
         # that match the data set first, which is the most
         # time-consuming step.
         merge_params = input_.merge_parameters
+        try:
+            validate_ambigator_command_line(
+                input_.merge_parameters.ambigator_command_line
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"ambigator issue: {e.args[0]}")
+
         data_set = (
             await session.scalars(
                 select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id),
@@ -403,6 +518,8 @@ async def queue_merge_job(
             job_id=None,
             job_error=None,
             mtz_file_id=None,
+            ambigator_fg_graph_file_id=None,
+            ambigator_command_line=merge_params.ambigator_command_line.strip(),
             input_merge_model=orm.MergeModel(merge_params.merge_model),
             input_scale_intensities=ScaleIntensities(merge_params.scale_intensities),
             input_post_refinement=merge_params.post_refinement,

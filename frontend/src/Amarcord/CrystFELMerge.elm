@@ -113,6 +113,7 @@ type Msg
     | ToggleW
     | ModelChangeFn (Model -> Model)
     | CellDescriptionChange CellDescriptionEdit.Msg
+    | ToggleAmbigator
 
 
 type PolarisationPreset
@@ -234,11 +235,12 @@ type alias Model =
     , cellDescription : CellDescriptionEdit.Model
     , pointGroup : String
     , spaceGroup : String
+    , ambigatorCommandLine : Maybe String
     }
 
 
 modelToMergeParameters : Model -> JsonQueueMergeJobInput
-modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup } =
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup, ambigatorCommandLine } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -295,6 +297,7 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
         , pushRes = pushRes
         , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
         , negativeHandling = Just MergeNegativeHandlingIgnore
+        , ambigatorCommandLine = Maybe.withDefault "" ambigatorCommandLine
         }
     }
 
@@ -671,11 +674,27 @@ view model =
                     ]
                 , div [ class "form-text" ] [ text "If this is left empty, will derive space group from the point group." ]
                 ]
+
+        ambigatorInput =
+            div [ class "mb-3 d-flex align-items-center" ]
+                [ div [ class "form-check me-3" ]
+                    [ input_ [ type_ "checkbox", class "form-check-input", id "ambigator-label", onClick ToggleAmbigator ]
+                    , label [ for "ambigator-label", class "form-check-label text-nowrap" ] [ text "Use ambigator" ]
+                    ]
+                , input_
+                    [ type_ "text"
+                    , class "form-control"
+                    , onInput (\f -> ModelChangeFn (\m -> { m | ambigatorCommandLine = Just f }))
+                    , disabled (isNothing model.ambigatorCommandLine)
+                    , value (Maybe.withDefault "" model.ambigatorCommandLine)
+                    ]
+                ]
     in
     form [ class "p-3" ]
         [ cellDescriptionInput
         , pointGroupInput
         , spaceGroupInput
+        , ambigatorInput
         , modelSelect
         , scalingAndRefinementCheckboxes
         , iterationsRow
@@ -721,6 +740,7 @@ init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     , cellDescription = CellDescriptionEdit.init cellDescription
     , pointGroup = pointGroup
     , spaceGroup = spaceGroup
+    , ambigatorCommandLine = Nothing
     }
 
 
@@ -757,6 +777,7 @@ quickMergeParameters dataSetId indexingParametersId =
         , pushRes = Nothing
         , w = Nothing
         , negativeHandling = Just MergeNegativeHandlingIgnore
+        , ambigatorCommandLine = ""
         }
     }
 
@@ -784,6 +805,18 @@ toggleFloat v =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleAmbigator ->
+            ( { model
+                | ambigatorCommandLine =
+                    if isJust model.ambigatorCommandLine then
+                        Nothing
+
+                    else
+                        Just ""
+              }
+            , Cmd.none
+            )
+
         ModelChange mergeModel ->
             ( { model | mergeModel = mergeModel }, Cmd.none )
 

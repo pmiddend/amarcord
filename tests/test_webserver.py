@@ -1922,6 +1922,7 @@ def test_indexing_result_with_two_equal_parameter(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
         ).json(),
@@ -2235,6 +2236,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
         ).json(),
@@ -2365,6 +2367,7 @@ def test_queue_then_start_then_finish_merge_job(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
         ).json(),
@@ -2395,6 +2398,7 @@ def test_queue_then_start_then_finish_merge_job(
 
     merge_result = JsonMergeResultInternal(
         mtz_file_id=test_file,
+        ambigator_fg_graph_file_id=None,
         fom=JsonMergeResultFom(
             # Again, more or less completely random stuff here
             snr=1.0,
@@ -2535,6 +2539,7 @@ def test_queue_then_start_then_finish_merge_job(
         min_res=None,
         push_res=None,
         w=None,
+        ambigator_command_line="",
     )
     assert len(first_mr.refinement_results) == 1
     refinement_result_id = first_mr.refinement_results[0].id
@@ -3837,6 +3842,7 @@ async def test_merge_daemon(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
         ).json(),
