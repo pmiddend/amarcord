@@ -1,7 +1,7 @@
 # Python setup
 
 (PythonSetup)=
-## Poetry
+## uv
 AMARCORD uses [uv](https://docs.astral.sh/uv/) for managing its dependencies. So either install that and run:
 
 ```
@@ -26,7 +26,7 @@ pip install -r requirements.txt
 
 ## Notes for Microsoft Windows users
 
-We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue (note that we did not include the dependency with the `platform` poetry flag, because that breaks the Nix build).
+We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue.
 
 If you manually created your virtual environment, the way to activate it on Windows is not
 
