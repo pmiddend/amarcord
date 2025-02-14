@@ -24,7 +24,6 @@ from functools import reduce
 from itertools import islice
 from pathlib import Path
 from statistics import mean
-from tempfile import NamedTemporaryFile
 from tempfile import TemporaryDirectory
 from time import monotonic_ns
 from time import sleep
@@ -590,83 +589,84 @@ def initialize_db(
     geometry_hash: str,
     db: sqlite3.Connection,
 ) -> set[int]:
-    with NamedTemporaryFile() as input_files_file:
+    input_files_path = Path("input.lst")
+    with input_files_path.open("w", encoding="utf-8") as input_files_file:
         for input_file in args.input_files:
-            input_files_file.write((str(input_file) + "\n").encode("utf-8"))
+            input_files_file.write(str(input_file) + "\n")
         input_files_file.flush()
-        with NamedTemporaryFile() as output_file:
-            logger.info(f"=> listing events into {output_file}")
+        output_file_name = Path("output.lst")
+        logger.info(f"=> listing events into {output_file_name}")
 
-            list_events_args: list[str] = [
-                f"{args.crystfel_path}/bin/list_events",
-                "-i",
-                input_files_file.name,
-                "-g",
-                str(args.geometry_file),
-                "-o",
-                output_file.name,
-            ]
-            logger.info("list_events args: " + " ".join(list_events_args))
-            result = subprocess.run(list_events_args, check=True)  # noqa: S603
-            logger.info(f"list events completed: {result}")
-            # This used to be a FIFO, but due to a bug that wasn't
-            # diagnosed completely, for now it's a regular file. Which
-            # is a bummer, because with a FIFO you could do parallel
-            # processing, but whatever.
-            with Path(output_file.name).open(encoding="utf-8") as fifo_file_obj:
-                logger.info(f"opened list files: {output_file}")
-                job_array_id = 0
-                indexamajig_job_id = 0
-                job_array_ids: set[int] = {0}
-                logger.info(
-                    f"start adding indexamajig jobs to DB ({IMAGES_PER_JOB} images per job)",
-                )
-                for event_batch in batched(
-                    (x.strip() for x in fifo_file_obj),
-                    IMAGES_PER_JOB,
-                ):
-                    if indexamajig_job_id % 50 == 0:
-                        logger.info(
-                            f"{indexamajig_job_id} indexamajig jobs added so far...",
-                        )
-                        write_status_still_running(
-                            args,
-                            geometry_hash,
-                            IndexingFom(
-                                frames=0,
-                                hits=0,
-                                indexed_frames=0,
-                                indexed_crystals=0,
-                                detector_shift_x_mm=None,
-                                detector_shift_y_mm=None,
-                            ),
-                        )
-                    images_total = 0
-                    with Path(f"job-{indexamajig_job_id}.lst").open(
-                        "w",
-                        encoding="utf-8",
-                    ) as input_file:
-                        for event_line in event_batch:
-                            input_file.write(f"{event_line}\n")
-                            images_total += 1
-                    with db:
-                        db.execute(
-                            "INSERT INTO IndexamajigJob (job_array_id, job_id, start_idx, state, images_total, images_processed) VALUES (?, ?, ?, ?, ?, ?)",
-                            (
-                                job_array_id,
-                                indexamajig_job_id,
-                                indexamajig_job_id * IMAGES_PER_JOB,
-                                "queued",
-                                images_total,
-                                0,
-                            ),
-                        )
-                    indexamajig_job_id += 1
-                    if indexamajig_job_id % INDEXAMAJIG_JOBS_PER_JOB_ARRAY == 0:
-                        job_array_id += 1
-                        job_array_ids.add(job_array_id)
-                logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
-                logger.info("<= list_events finished!")
+        list_events_args: list[str] = [
+            f"{args.crystfel_path}/bin/list_events",
+            "-i",
+            input_files_file.name,
+            "-g",
+            str(args.geometry_file),
+            "-o",
+            str(output_file_name),
+        ]
+        logger.info("list_events args: " + " ".join(list_events_args))
+        result = subprocess.run(list_events_args, check=True)  # noqa: S603
+        logger.info(f"list events completed: {result}")
+        # This used to be a FIFO, but due to a bug that wasn't
+        # diagnosed completely, for now it's a regular file. Which
+        # is a bummer, because with a FIFO you could do parallel
+        # processing, but whatever.
+        with output_file_name.open(encoding="utf-8") as fifo_file_obj:
+            logger.info(f"opened list files: {output_file_name}")
+            job_array_id = 0
+            indexamajig_job_id = 0
+            job_array_ids: set[int] = {0}
+            logger.info(
+                f"start adding indexamajig jobs to DB ({IMAGES_PER_JOB} images per job)",
+            )
+            for event_batch in batched(
+                (x.strip() for x in fifo_file_obj),
+                IMAGES_PER_JOB,
+            ):
+                if indexamajig_job_id % 50 == 0:
+                    logger.info(
+                        f"{indexamajig_job_id} indexamajig jobs added so far...",
+                    )
+                    write_status_still_running(
+                        args,
+                        geometry_hash,
+                        IndexingFom(
+                            frames=0,
+                            hits=0,
+                            indexed_frames=0,
+                            indexed_crystals=0,
+                            detector_shift_x_mm=None,
+                            detector_shift_y_mm=None,
+                        ),
+                    )
+                images_total = 0
+                with Path(f"job-{indexamajig_job_id}.lst").open(
+                    "w",
+                    encoding="utf-8",
+                ) as input_file:
+                    for event_line in event_batch:
+                        input_file.write(f"{event_line}\n")
+                        images_total += 1
+                with db:
+                    db.execute(
+                        "INSERT INTO IndexamajigJob (job_array_id, job_id, start_idx, state, images_total, images_processed) VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            job_array_id,
+                            indexamajig_job_id,
+                            indexamajig_job_id * IMAGES_PER_JOB,
+                            "queued",
+                            images_total,
+                            0,
+                        ),
+                    )
+                indexamajig_job_id += 1
+                if indexamajig_job_id % INDEXAMAJIG_JOBS_PER_JOB_ARRAY == 0:
+                    job_array_id += 1
+                    job_array_ids.add(job_array_id)
+            logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
+            logger.info("<= list_events finished!")
     return job_array_ids
 
 
