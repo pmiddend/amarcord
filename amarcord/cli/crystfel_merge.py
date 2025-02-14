@@ -418,6 +418,7 @@ def write_output_json(
             {
                 "error": 'The merge result contained invalid statistics (probably CC* is "not a number"). Try collecting more data, using different merge parameters or indexing prior runs manually to fix this. The full output of this merge job contains the final JSON with the invalid stats, you can take a look if you have access to it.',
                 "result": None,
+                "latest_log": "\n".join(log_list),
             },
             allow_nan=False,
             indent=2,
