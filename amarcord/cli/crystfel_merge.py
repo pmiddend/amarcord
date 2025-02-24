@@ -77,7 +77,7 @@ def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str
         )
         if result.returncode != 0:
             logger.exception(
-                f"calling {args} didn't work: {result.stderr}, stderr: {result.stdout}",
+                f"calling {args} didn't work: stderr {result.stderr}, stdout: {result.stdout}",
             )
             raise Exception()
         return result.stdout
@@ -407,7 +407,8 @@ def write_output_json(
         ).encode("utf-8")
     except ValueError:
         result_json_with_nan = json.dumps(
-            {"error": error, "result": result, "latest_log": "\n".join(log_list)},
+            # latest log deliberately empty here since this JSON is output to the log, meaning we will repeat log output in this log (recursively)
+            {"error": error, "result": result, "latest_log": ""},
             allow_nan=True,
             indent=2,
         ).encode("utf-8")
@@ -971,11 +972,18 @@ def run_ambigator(
     ]
     ambigator_args.extend(shlex.split(args.ambigator_command_line))
     ambigator_result = subprocess.run(  # noqa: S603
-        ambigator_args, check=False
+        ambigator_args, check=False, capture_output=True
     )
 
+    logger.info(
+        f"ambigator output stderr:\n{ambigator_result.stderr.decode('utf-8')}\n\nstdout:\n{ambigator_result.stdout.decode('utf-8')}"
+    )
     if ambigator_result.returncode != 0:
-        exit_with_error(args, "ambigator failed - check the output")
+        logger.error("ambigator didn't work: check the log")
+        exit_with_error(
+            args,
+            "ambigator didn't work, check the log",
+        )
 
     try:
         output_plot = write_fg_graph(args, fg_graph_output)
