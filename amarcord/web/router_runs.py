@@ -1214,7 +1214,7 @@ async def bulk_import(
 ) -> JsonRunsBulkImportOutput:
     async with session.begin():
         logger.info("starting bulk import")
-        wb = load_workbook(filename=BytesIO(file.file.read()))
+        wb = load_workbook(filename=BytesIO(file.file.read()), data_only=True)
 
         parsed_wb = parse_run_spreadsheet_workbook(wb)
 
