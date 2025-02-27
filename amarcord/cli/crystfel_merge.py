@@ -1002,7 +1002,7 @@ def generate_output(args: ParsedArgs) -> None:
     input_stream_files: list[Path] = []
     if args.random_cut_length is not None:
         random_chunks_file = Path("random-chunks.stream")
-        with random_chunks_file.open("rb", encoding="utf-8") as random_chunks_file_obj:
+        with random_chunks_file.open("wb") as random_chunks_file_obj:
             with args.stream_files[0].open("r", encoding="utf-8") as first_file:
                 header = ""
                 for line in first_file:
@@ -1016,7 +1016,7 @@ def generate_output(args: ParsedArgs) -> None:
                 max_chunks=args.random_cut_length,
                 # How do you type the output of NamedTemporaryFile? It's obviously a binary file object
                 # in the default mode.
-                target=random_chunks_file,  # type: ignore
+                target=random_chunks_file_obj,  # type: ignore
             )
             random_chunks_file_obj.flush()
         input_stream_files.append(random_chunks_file)
