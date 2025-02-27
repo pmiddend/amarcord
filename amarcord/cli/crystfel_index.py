@@ -607,8 +607,8 @@ def initialize_db(
             str(output_file_name),
         ]
         logger.info("list_events args: " + " ".join(list_events_args))
-        result = subprocess.run(list_events_args, check=True)  # noqa: S603
-        logger.info(f"list events completed: {result}")
+        result = subprocess.run(list_events_args, check=True, capture_output=True)  # noqa: S603
+        logger.info(f"list events completed, return code: {result.returncode}")
         # This used to be a FIFO, but due to a bug that wasn't
         # diagnosed completely, for now it's a regular file. Which
         # is a bummer, because with a FIFO you could do parallel
