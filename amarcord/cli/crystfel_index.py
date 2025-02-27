@@ -1868,7 +1868,9 @@ def run_primary(args: PrimaryArgs) -> None:
 
     if not args.input_files:
         logger.error("input file list empty, exiting immediately")
-        sys.exit(1)
+        exit_with_error(
+            args, "input file list empty - maybe the run has the wrong files entered?"
+        )
 
     if args.geometry_file is None:
         resolved_geometry = find_geometry(args.input_files[0])
@@ -1877,7 +1879,10 @@ def run_primary(args: PrimaryArgs) -> None:
 
     if resolved_geometry is None:
         logger.error("did not find any geometry file, exiting.")
-        sys.exit(1)
+        exit_with_error(
+            args,
+            "geometry file not found - either specify one explicitly, or put it under the shared/ directory",
+        )
 
     args = replace(args, geometry_file=resolved_geometry)
     logger.info(f"using the following geometry: {resolved_geometry}")
@@ -1886,17 +1891,26 @@ def run_primary(args: PrimaryArgs) -> None:
         geometry_hash = crystfel_geometry_hash(resolved_geometry)
     except:
         logger.exception("cannot resolve geometry hash")
-        sys.exit(1)
+        exit_with_error(
+            args,
+            "cannot resolve geometry hash - maybe the mask files aren't where they are supposed to be?",
+        )
 
     if not args.crystfel_path.is_dir():
         logger.error(f"crystfel path {args.crystfel_path} doesn't exist, exiting.")
-        sys.exit(1)
+        exit_with_error(
+            args,
+            f"cannot find CrystFEL under {args.crystfel_path} - is the path correct?",
+        )
 
     try:
         crystfel_version = determine_crystfel_version(args.crystfel_path)
     except:
         logger.exception("cannot resolve CrystFEL version")
-        sys.exit(1)
+        exit_with_error(
+            args,
+            f"cannot resolve CrystFEL version - check that the files under {args.crystfel_path}/bin are correct",
+        )
 
     logger.info(f"determined CrystFEL version {crystfel_version}")
 
@@ -1910,7 +1924,10 @@ def run_primary(args: PrimaryArgs) -> None:
         parsed_cell_description = parse_cell_description(args.cell_description)
         if parsed_cell_description is None:
             logger.error(f"cell description {args.cell_description} is invalid")
-            sys.exit(1)
+            exit_with_error(
+                args,
+                f"cell description {args.cell_description} is invalid",
+            )
         cell_file = Path(f"{args.amarcord_indexing_result_id}.cell")
         write_cell_file(parsed_cell_description, cell_file)
     else:
