@@ -308,6 +308,21 @@ forgetMsgInput =
     Result.map (always {})
 
 
+withLeftNeighbor : List a -> (Maybe a -> a -> b) -> List b
+withLeftNeighbor xs f =
+    let
+        transducer : a -> ( Maybe a, List b ) -> ( Maybe a, List b )
+        transducer new priorMaybeAndList =
+            case first priorMaybeAndList of
+                Nothing ->
+                    ( Just new, [ f Nothing new ] )
+
+                Just prior ->
+                    ( Just new, f (Just prior) new :: second priorMaybeAndList )
+    in
+    List.reverse <| second <| List.foldl transducer ( Nothing, [] ) xs
+
+
 foldPairs : List a -> (( a, a ) -> b) -> List b
 foldPairs xs f =
     let

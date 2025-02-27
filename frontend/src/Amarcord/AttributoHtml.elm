@@ -86,7 +86,7 @@ viewAttributoCell props zone chemicalIds attributiValues { id, name, group, type
                 if name == "cell description" then
                     case v of
                         ValueString s ->
-                            CellDescriptionViewer.view s
+                            CellDescriptionViewer.view CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors s
 
                         _ ->
                             viewAttributoValue props zone chemicalIds type_ v

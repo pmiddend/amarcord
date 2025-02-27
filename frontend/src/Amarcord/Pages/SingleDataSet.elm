@@ -7,7 +7,7 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHuman
 import Amarcord.Bootstrap exposing (AlertProperty(..), copyToClipboardButton, icon, loadingBar, viewAlert, viewHelpButton)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CellDescriptionViewer as CellDescriptionViewer
-import Amarcord.CommandLineParser exposing (coparseCommandLine)
+import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, parseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -15,14 +15,14 @@ import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, small_, span_, st
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
-import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
+import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
 import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
-import Dict
+import Dict exposing (Dict)
 import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, th, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
@@ -243,7 +243,7 @@ viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iter
                     dtDl header realValue
     in
     table [ class "table" ] <|
-        dtDl "Cell Description" (CellDescriptionViewer.view cellDescription)
+        dtDl "Cell Description" (CellDescriptionViewer.view CellDescriptionViewer.MultiLine CellDescriptionViewer.WithErrors cellDescription)
             ++ dtDl "Point Group" (text pointGroup)
             ++ maybeDtDl "Space Group" (Maybe.map text spaceGroup)
             ++ (if ambigatorCommandLine == "" then
@@ -437,7 +437,7 @@ viewIndexingResults now results =
     let
         tableHeaders : List String
         tableHeaders =
-            [ "IID", "Run", "Status", "Frames", "Hits", "Ixed", "Other" ]
+            [ "IID", "Run", "Status", "Frames", "Hits", "Ixed" ]
 
         viewHistogram fileId =
             div [ class "col" ]
@@ -467,9 +467,17 @@ viewIndexingResults now results =
                     started
                 )
 
-        viewIndexingResultRow : JsonIndexingResult -> Html Msg
+        viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
         viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
-            tr_
+            [ tr
+                [ class
+                    (if hasError then
+                        "table-secondary"
+
+                     else
+                        ""
+                    )
+                ]
                 [ td_ [ text (String.fromInt id) ]
                 , td_ [ text (String.fromInt runExternalId) ]
                 , td [ class "text-nowrap" ]
@@ -502,68 +510,69 @@ viewIndexingResults now results =
                         , viewRate indexedFrames frames
                         ]
                     )
-                , td_
-                    [ table [ class "table table-sm table-borderless" ]
-                        [ tbody_
-                            [ Maybe.withDefault (text "") <|
-                                Maybe.map2
-                                    (\x y ->
-                                        tr_
-                                            [ td_ [ strongText "Detector shift" ]
-                                            , td_ [ text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm") ]
-                                            ]
-                                    )
-                                    detectorShiftXMm
-                                    detectorShiftYMm
-                            , if String.isEmpty programVersion then
-                                text ""
+                ]
+            , tr
+                [ class
+                    (if hasError then
+                        "table-secondary"
+
+                     else
+                        ""
+                    )
+                ]
+                [ td_ []
+                , td [ colspan 5 ]
+                    [ div_
+                        [ span [ class "hstack gap-1" ]
+                            [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                            , if hasError then
+                                a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
                               else
-                                tr_ [ td_ [ strongText "CrystFEL version: " ], td_ [ text programVersion ] ]
-                            , tr_
-                                [ td_ [ strongText "Logs" ]
-                                , td_
-                                    [ span [ class "hstack gap-1" ]
-                                        [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
-                                        , if hasError then
-                                            a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
-
-                                          else
-                                            text ""
-                                        ]
-                                    ]
-                                ]
-                            , case unitCellHistogramsFileId of
-                                Nothing ->
-                                    text ""
-
-                                Just ucFileId ->
-                                    tr_
-                                        [ td [ colspan 2 ]
-                                            [ strongText "Unit cell histograms"
-                                            , viewHistogram ucFileId
-                                            ]
-                                        ]
-                            , if String.isEmpty generatedGeometryFile then
                                 text ""
-
-                              else
-                                tr_
-                                    [ td [ colspan 2 ]
-                                        [ strongText "Geometry file: "
-                                        , br_
-                                        , span [ class "font-monospace" ] [ text generatedGeometryFile ]
-                                        , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
-                                        ]
-                                    ]
                             ]
                         ]
+                    , Maybe.withDefault (text "") <|
+                        Maybe.map2
+                            (\x y ->
+                                div_
+                                    [ strongText "Detector shift: "
+                                    , text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm")
+                                    ]
+                            )
+                            detectorShiftXMm
+                            detectorShiftYMm
+                    , if String.isEmpty programVersion then
+                        text ""
+
+                      else
+                        div_ [ strongText "CrystFEL version: ", text programVersion ]
+                    , if String.isEmpty generatedGeometryFile then
+                        text ""
+
+                      else
+                        div_
+                            [ strongText "Geometry file: "
+                            , br_
+                            , span [ class "text-break" ] [ text generatedGeometryFile ]
+                            , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
+                            ]
+                    , case unitCellHistogramsFileId of
+                        Nothing ->
+                            text ""
+
+                        Just ucFileId ->
+                            div_
+                                [ strongText "Unit cell histograms"
+                                , viewHistogram ucFileId
+                                ]
                     ]
                 ]
+            ]
     in
-    table [ class "table table-sm" ]
+    table [ class "table table-sm  table-borderless" ]
         [ thead_ [ tr_ (List.map (th_ << List.singleton << text) tableHeaders) ]
-        , tbody_ (List.map viewIndexingResultRow results)
+        , tbody_ (List.concatMap viewIndexingResultRow results)
         ]
 
 
@@ -578,59 +587,54 @@ mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionFor
 
                 Just { request } ->
                     isLoading request
+
+        indexingParametersCellDescription =
+            Maybe.withDefault "" indexingParameters.cellDescription
     in
-    if pointGroupForDs == "" then
-        p [ class "text-danger" ] [ text "Merging not possible: cannot determine point group from chemical information." ]
+    if indexingParametersCellDescription == "" && cellDescriptionForDs == "" then
+        p [ class "text-danger" ] [ text "Merging not possible: cannot determine cell description from chemical information or indexing information." ]
 
     else
-        let
-            indexingParametersCellDescription =
-                Maybe.withDefault "" indexingParameters.cellDescription
-        in
-        if indexingParametersCellDescription == "" && cellDescriptionForDs == "" then
-            p [ class "text-danger" ] [ text "Merging not possible: cannot determine cell description from chemical information or indexing information." ]
-
-        else
-            div_
-                [ div [ class "input-group input-group-sm" ]
-                    [ button
-                        [ type_ "button"
-                        , class "btn btn-sm btn-outline-primary"
-                        , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
-                        , disabled (mergeRequestIsLoading mergeRequest || isActive)
-                        ]
-                        [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
-                    , button
-                        [ type_ "button"
-                        , class "btn btn-sm btn-outline-secondary"
-                        , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
-                        , disabled (mergeRequestIsLoading mergeRequest || isActive)
-                        ]
-                        [ icon { name = "send" }, text <| " Merge" ]
-                    , viewIf isActive
-                        (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
-                            [ icon { name = "x-lg" }, text " Cancel" ]
-                        )
+        div_
+            [ div [ class "input-group input-group-sm" ]
+                [ button
+                    [ type_ "button"
+                    , class "btn btn-sm btn-outline-primary"
+                    , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
+                    , disabled (mergeRequestIsLoading mergeRequest || isActive)
                     ]
-                , if indexingParametersCellDescription == "" then
-                    nothing
+                    [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
+                , button
+                    [ type_ "button"
+                    , class "btn btn-sm btn-outline-secondary"
+                    , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
+                    , disabled (mergeRequestIsLoading mergeRequest || isActive)
+                    ]
+                    [ icon { name = "send" }, text <| " Merge" ]
+                , viewIf isActive
+                    (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
+                        [ icon { name = "x-lg" }, text " Cancel" ]
+                    )
+                ]
+            , if indexingParametersCellDescription == "" then
+                nothing
 
-                  else
-                    viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
-                        (\_ ->
-                            div_
-                                [ em_
-                                    [ small_
-                                        [ text "Warning: The indexing job uses cell "
-                                        , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine indexingParametersCellDescription
-                                        , text ", the chemicals in the data set have cell description "
-                                        , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine cellDescriptionForDs
-                                        , text ", merging will use the first one."
-                                        ]
+              else
+                viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
+                    (\_ ->
+                        div_
+                            [ em_
+                                [ small_
+                                    [ text "Warning: The indexing job uses cell "
+                                    , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors indexingParametersCellDescription
+                                    , text ", the chemicals in the data set have cell description "
+                                    , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors cellDescriptionForDs
+                                    , text ", merging will default to the first one."
                                     ]
                                 ]
-                        )
-                ]
+                            ]
+                    )
+            ]
 
 
 foldIntervals : List Int -> List ( Int, Int )
@@ -686,8 +690,204 @@ createRunRanges beamtimeId =
         << List.sort
 
 
-viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> JsonIndexingParametersWithResults -> List (Html Msg)
-viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs ({ parameters, indexingResults, mergeResults } as p) =
+viewCommandLineDiff : String -> String -> Html msg
+viewCommandLineDiff priorCmdLine newCmdLine =
+    let
+        priorParsed =
+            parseCommandLine priorCmdLine
+
+        longFolder new oldDict =
+            case new of
+                LongOption name value ->
+                    Dict.insert name value oldDict
+
+                _ ->
+                    oldDict
+
+        longSwitchFolder new oldSet =
+            case new of
+                LongSwitch name ->
+                    Set.insert name oldSet
+
+                _ ->
+                    oldSet
+    in
+    case priorParsed of
+        Err _ ->
+            text ""
+
+        Ok priorParsedReal ->
+            let
+                newParsed =
+                    parseCommandLine newCmdLine
+            in
+            case newParsed of
+                Err _ ->
+                    text ""
+
+                Ok newParsedReal ->
+                    let
+                        priorLongSwitches : Set String
+                        priorLongSwitches =
+                            List.foldl longSwitchFolder Set.empty priorParsedReal
+
+                        priorLongOptions : Dict String String
+                        priorLongOptions =
+                            List.foldl longFolder Dict.empty priorParsedReal
+
+                        newLongSwitches : Set String
+                        newLongSwitches =
+                            List.foldl longSwitchFolder Set.empty newParsedReal
+
+                        newLongOptions : Dict String String
+                        newLongOptions =
+                            List.foldl longFolder Dict.empty newParsedReal
+
+                        priorLongOptionNames =
+                            Set.fromList (Dict.keys priorLongOptions)
+
+                        newLongOptionNames =
+                            Set.fromList (Dict.keys newLongOptions)
+
+                        newOptions =
+                            Set.diff newLongOptionNames priorLongOptionNames
+
+                        droppedOptions =
+                            Set.diff priorLongOptionNames newLongOptionNames
+
+                        newSwitches =
+                            Set.diff newLongSwitches priorLongSwitches
+
+                        droppedSwitches =
+                            Set.diff priorLongSwitches newLongSwitches
+
+                        changedOptions =
+                            Set.filter
+                                (\optionName ->
+                                    Dict.get optionName priorLongOptions /= Dict.get optionName newLongOptions
+                                )
+                                (Set.intersect priorLongOptionNames newLongOptionNames)
+                    in
+                    div_
+                        [ if not (Set.isEmpty newOptions) || not (Set.isEmpty newSwitches) then
+                            div_
+                                [ text
+                                    ("New options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions)) (Set.toList newOptions))
+                                        ++ (if Set.isEmpty newSwitches then
+                                                ""
+
+                                            else
+                                                (if Set.isEmpty newOptions then
+                                                    ""
+
+                                                 else
+                                                    ", "
+                                                )
+                                                    ++ String.join ", " (Set.toList newSwitches)
+                                           )
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        , if not (Set.isEmpty droppedOptions) || not (Set.isEmpty droppedSwitches) then
+                            div_
+                                [ text
+                                    ("Dropped options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions)) (Set.toList droppedOptions))
+                                        ++ (if Set.isEmpty droppedSwitches then
+                                                ""
+
+                                            else
+                                                (if Set.isEmpty droppedOptions then
+                                                    ""
+
+                                                 else
+                                                    ", "
+                                                )
+                                                    ++ String.join ", " (Set.toList droppedSwitches)
+                                           )
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        , if not (Set.isEmpty changedOptions) then
+                            div_
+                                [ text
+                                    ("Changed options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ " “" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions) ++ "” → “" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions) ++ "”") (Set.toList changedOptions))
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        ]
+
+
+viewRowDiff : JsonIndexingParameters -> JsonIndexingParameters -> Html msg
+viewRowDiff pparams params =
+    let
+        viewCellDescription d =
+            case d of
+                Nothing ->
+                    em_ [ text "auto-detect" ]
+
+                Just descriptionReal ->
+                    if String.trim descriptionReal == "" then
+                        em_ [ text "auto-detect" ]
+
+                    else
+                        CellDescriptionViewer.view CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors descriptionReal
+    in
+    tr_
+        [ td [ colspan 5 ]
+            [ div [ class "alert alert-dark" ]
+                [ if pparams.geometryFile /= params.geometryFile then
+                    div_ [ em_ [ text "Geometry file changed" ] ]
+
+                  else
+                    text ""
+                , if pparams.cellDescription /= params.cellDescription then
+                    div_
+                        [ text "Cell description: "
+                        , viewCellDescription pparams.cellDescription
+                        , span [ class "ms-1 me-1" ] [ text "→" ]
+                        , viewCellDescription params.cellDescription
+                        ]
+
+                  else
+                    text ""
+                , if pparams.isOnline /= params.isOnline then
+                    div_ [ text "Online → Offline" ]
+
+                  else
+                    text ""
+                , if pparams.commandLine /= params.commandLine then
+                    viewCommandLineDiff pparams.commandLine params.commandLine
+
+                  else
+                    text ""
+                ]
+            ]
+        ]
+
+
+viewSingleIndexingResultRow :
+    Model
+    -> JsonExperimentType
+    -> JsonDataSet
+    -> String
+    -> String
+    -> String
+    -> Maybe JsonIndexingParametersWithResults
+    -> JsonIndexingParametersWithResults
+    -> List (Html Msg)
+viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs priorParametersAndResults ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             Set.member parametersId model.expandedIndexingParameterIds
@@ -752,8 +952,17 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
                 indexedFrames : Int
                 indexedFrames =
                     List.foldr (\new old -> new.indexedFrames + old) 0 successfulResults
+
+                priorRowDiff =
+                    case priorParametersAndResults of
+                        Nothing ->
+                            text ""
+
+                        Just priorParametersAndResultsReal ->
+                            viewRowDiff priorParametersAndResultsReal.parameters parameters
             in
-            [ tr_
+            [ priorRowDiff
+            , tr_
                 [ td_ [ text (String.fromInt parametersId) ]
                 , td_ [ createRunRanges model.beamtimeId (List.map .runExternalId successfulResults) ]
                 , td_ [ text (formatIntHumanFriendly frames) ]
@@ -796,7 +1005,9 @@ viewIndexingAndMergeResultsTable model experimentType dataSet indexingParameters
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
-        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs) indexingParametersAndResults
+        , tbody_ <|
+            List.concat <|
+                withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs)
         ]
 
 
@@ -910,7 +1121,12 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
 
                     Just cellDescription ->
                         span [ class "d-flex" ]
-                            [ div_ [ CellDescriptionViewer.view cellDescription ]
+                            [ div_
+                                [ CellDescriptionViewer.view
+                                    CellDescriptionViewer.MultiLine
+                                    CellDescriptionViewer.WithErrors
+                                    cellDescription
+                                ]
                             , copyToClipboardButton (CopyToClipboard cellDescription)
                             ]
                 ]
@@ -920,7 +1136,7 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                     text "auto-detect"
 
                   else
-                    span [ class "d-flex" ]
+                    span [ class "d-flex text-break" ]
                         [ text parameters.geometryFile
                         , copyToClipboardButton (CopyToClipboard parameters.geometryFile)
                         ]
