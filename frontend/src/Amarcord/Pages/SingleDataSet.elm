@@ -468,7 +468,7 @@ viewIndexingResults now results =
                 )
 
         viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
             [ tr
                 [ class
                     (if hasError then
@@ -547,6 +547,12 @@ viewIndexingResults now results =
 
                       else
                         div_ [ strongText "CrystFEL version: ", text programVersion ]
+                    , div_
+                        [ strongText "Stream file: "
+                        , br_
+                        , span [ class "text-break" ] [ text streamFile ]
+                        , copyToClipboardButton (CopyToClipboard streamFile)
+                        ]
                     , if String.isEmpty generatedGeometryFile then
                         text ""
 

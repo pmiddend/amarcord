@@ -332,6 +332,7 @@ class JsonIndexingResult(BaseModel):
     started: None | int
     stopped: None | int
     parameters: JsonIndexingParameters
+    stream_file: str
     program_version: str
     run_internal_id: int
     run_external_id: int

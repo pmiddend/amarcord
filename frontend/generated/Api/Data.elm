@@ -1223,6 +1223,7 @@ type alias JsonIndexingResult =
     , started : Maybe Int
     , stopped : Maybe Int
     , parameters : JsonIndexingParameters
+    , streamFile : String
     , programVersion : String
     , runInternalId : Int
     , runExternalId : Int
@@ -3827,6 +3828,7 @@ encodeJsonIndexingResultPairs model =
             , maybeEncode "started" Json.Encode.int model.started
             , maybeEncode "stopped" Json.Encode.int model.stopped
             , encode "parameters" encodeJsonIndexingParameters model.parameters
+            , encode "stream_file" Json.Encode.string model.streamFile
             , encode "program_version" Json.Encode.string model.programVersion
             , encode "run_internal_id" Json.Encode.int model.runInternalId
             , encode "run_external_id" Json.Encode.int model.runExternalId
@@ -6410,6 +6412,7 @@ jsonIndexingResultDecoder =
         |> maybeDecode "started" Json.Decode.int Nothing
         |> maybeDecode "stopped" Json.Decode.int Nothing
         |> decode "parameters" jsonIndexingParametersDecoder 
+        |> decode "stream_file" Json.Decode.string 
         |> decode "program_version" Json.Decode.string 
         |> decode "run_internal_id" Json.Decode.int 
         |> decode "run_external_id" Json.Decode.int 

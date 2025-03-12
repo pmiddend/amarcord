@@ -573,6 +573,7 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             command_line=ip.command_line,
             geometry_file=ip.geometry_file if ip.geometry_file is not None else "",
         ),
+        stream_file=ir.stream_file if ir.stream_file is not None else "",
         program_version=ir.program_version if ir.program_version is not None else "",
         run_internal_id=ir.run_id,
         run_external_id=ir.run.external_id,
