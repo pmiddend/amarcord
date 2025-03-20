@@ -3,7 +3,7 @@ module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineT
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
-import Amarcord.Html exposing (div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
 import Amarcord.Indexing.PeakDetection as PeakDetection
@@ -14,7 +14,7 @@ import Amarcord.Indexing.Xgandalf as Xgandalf
 import Amarcord.Util exposing (collectResults, deadEndsToString, join3)
 import Dict exposing (Dict)
 import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, table, td, text, textarea, ul)
-import Html.Attributes exposing (checked, class, disabled, for, id, selected, style, type_, value)
+import Html.Attributes exposing (checked, class, for, id, rows, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
 import Maybe.Extra
@@ -232,6 +232,15 @@ toCommandLine ip =
                    ]
 
 
+
+-- When we enter a new command line, we want to start from an empty model and fill it with the options given.
+
+
+makeEmptyModel : Model -> Model
+makeEmptyModel m =
+    init m.sources (CellDescriptionEdit.modelAsText m.cellDescription) m.geometryFile m.mutableCellDescription
+
+
 convertCommandLineToModel : Model -> String -> Result String Model
 convertCommandLineToModel model cli =
     let
@@ -400,7 +409,7 @@ convertCommandLineToModel model cli =
             Err (deadEndsToString e)
 
         Ok options ->
-            List.foldl convertSingle (Ok model) options
+            List.foldl convertSingle (Ok (makeEmptyModel model)) options
 
 
 init : List String -> String -> String -> Bool -> Model
@@ -854,20 +863,26 @@ viewCommandLine model =
                 [ p_ [ text "Command line:" ]
                 , case model.commandLineEdit of
                     Nothing ->
-                        div [ class "input-group" ]
-                            [ textarea [ class "form-control", disabled True ] [ text (coparseCommandLine commandLine) ]
+                        div_
+                            [ div [ class "mb-2" ] [ code_ [ text (coparseCommandLine commandLine) ] ]
                             , button [ class "btn btn-outline-primary", type_ "button", onClick StartCommandLineEdit ] [ text "Edit" ]
                             ]
 
                     Just editValue ->
-                        div [ class "input-group" ]
-                            [ textarea
-                                [ class "form-control"
-                                , onInput (\newCommandLine -> Change (\m -> { m | commandLineEdit = Just newCommandLine }))
+                        div_
+                            [ div [ class "mb-2" ]
+                                [ textarea
+                                    [ class "form-control"
+                                    , id "command-line-edit"
+                                    , rows 5
+                                    , onInput (\newCommandLine -> Change (\m -> { m | commandLineEdit = Just newCommandLine }))
+                                    ]
+                                    [ text editValue ]
                                 ]
-                                [ text editValue ]
-                            , button [ class "btn btn-outline-primary", type_ "button", onClick (FinishCommandLineEdit editValue) ] [ text "Apply" ]
-                            , button [ class "btn btn-outline-secondary", type_ "button", onClick CancelCommandLineEdit ] [ text "Cancel" ]
+                            , div [ class "hstack gap-3" ]
+                                [ button [ class "btn btn-outline-primary", type_ "button", onClick (FinishCommandLineEdit editValue) ] [ text "Apply" ]
+                                , button [ class "btn btn-outline-secondary", type_ "button", onClick CancelCommandLineEdit ] [ text "Cancel" ]
+                                ]
                             ]
                 , case model.commandLineEditError of
                     Nothing ->
