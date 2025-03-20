@@ -459,8 +459,19 @@ def convert_value(
             chemical_value=None,
         )
     if isinstance(atype, AttributoTypeBoolean):
-        return ConversionError.singleton(
-            "boolean attributi are not supported right now"
+        if not isinstance(value, str):
+            return ConversionError.singleton(
+                f'is a boolean, but value is "{value}", cannot convert this (has to be a string yes/no)'
+            )
+        return orm.RunHasAttributoValue(
+            attributo_id=a.id,
+            integer_value=None,
+            float_value=None,
+            string_value=None,
+            bool_value=value == "yes",
+            datetime_value=None,
+            list_value=None,
+            chemical_value=None,
         )
     if isinstance(atype, AttributoTypeDateTime):
         return ConversionError.singleton(
