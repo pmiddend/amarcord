@@ -14,6 +14,7 @@ from typing import Iterable
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 
@@ -114,6 +115,12 @@ class LocalWorkloadManager(WorkloadManager):
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
+        try:
+            working_directory.mkdir(exist_ok=True, parents=True)
+        except:
+            raise JobStartError(
+                f"couldn't create working directory {working_directory}"
+            )
         process, _, script_path = await start_process_locally(
             output_base_dir_str=str(working_directory),
             script=script,
