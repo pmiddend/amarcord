@@ -1013,7 +1013,8 @@ viewIndexingAndMergeResultsTable model experimentType dataSet indexingParameters
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
         , tbody_ <|
             List.concat <|
-                withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs)
+                List.reverse <|
+                    withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs)
         ]
 
 
@@ -1314,7 +1315,18 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
                             )
                         )
                     ]
-                    (List.intersperse br_ <| List.map (\{ runFrom, runTo } -> text (String.fromInt runFrom ++ "-" ++ String.fromInt runTo)) runs)
+                    (List.intersperse br_ <|
+                        List.map
+                            (\{ runFrom, runTo } ->
+                                text <|
+                                    if runFrom == runTo then
+                                        String.fromInt runFrom
+
+                                    else
+                                        String.fromInt runFrom ++ "-" ++ String.fromInt runTo
+                            )
+                            runs
+                    )
                 ]
             ]
         ]

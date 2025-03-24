@@ -74,7 +74,7 @@ attributoTypeEnumToString : AttributoTypeEnum -> String
 attributoTypeEnumToString x =
     case x of
         ATInt ->
-            "int"
+            "integer"
 
         ATDateTime ->
             "date-time"
@@ -574,6 +574,9 @@ viewTypeSpecificForm toleranceChecker x =
                 , text " attributi. In the simplest case, just give one chemical attributo to signify the chemical that is to be screened. But it's up to you designing the experiment."
                 ]
 
+        AugSimple Int ->
+            span [ class "form-text" ] [ text "Choosing an integer makes sense if you have integral numbers, and you want to make sure to have no rounding errors and inaccuracies. This can happen if you choose the “number” type, especially with bigger numbers." ]
+
         AugSimple _ ->
             text ""
 
@@ -598,7 +601,8 @@ viewTypeSpecificForm toleranceChecker x =
                     Maybe.withDefault True <| Maybe.map3 toleranceMatches (String.toFloat toleranceInput) (String.toFloat toleranceChecker.runValue) (String.toFloat toleranceChecker.dsValue)
             in
             div_
-                [ div [ class "mb-3" ]
+                [ p [ class "form-text" ] [ text "Note: if you have integral numbers (no decimal places) and want to avoid rounding errors and inaccuracies, consider choosing the “integral” type instead." ]
+                , div [ class "mb-3" ]
                     [ label [ class "form-label", for "range" ] [ text "Range" ]
                     , input_
                         [ type_ "text"
