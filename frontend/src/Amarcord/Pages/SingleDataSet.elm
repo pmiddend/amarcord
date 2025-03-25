@@ -23,7 +23,7 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, th, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, th, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
@@ -596,51 +596,50 @@ mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionFor
 
         indexingParametersCellDescription =
             Maybe.withDefault "" indexingParameters.cellDescription
+
+        noCellDescription =
+            indexingParametersCellDescription == "" && cellDescriptionForDs == ""
     in
-    if indexingParametersCellDescription == "" && cellDescriptionForDs == "" then
-        p [ class "text-danger" ] [ text "Merging not possible: cannot determine cell description from chemical information or indexing information." ]
-
-    else
-        div_
-            [ div [ class "input-group input-group-sm" ]
-                [ button
-                    [ type_ "button"
-                    , class "btn btn-sm btn-outline-primary"
-                    , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
-                    , disabled (mergeRequestIsLoading mergeRequest || isActive)
-                    ]
-                    [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
-                , button
-                    [ type_ "button"
-                    , class "btn btn-sm btn-outline-secondary"
-                    , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
-                    , disabled (mergeRequestIsLoading mergeRequest || isActive)
-                    ]
-                    [ icon { name = "send" }, text <| " Merge" ]
-                , viewIf isActive
-                    (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
-                        [ icon { name = "x-lg" }, text " Cancel" ]
-                    )
+    div_
+        [ div [ class "input-group input-group-sm" ]
+            [ button
+                [ type_ "button"
+                , class "btn btn-sm btn-outline-primary"
+                , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
+                , disabled (mergeRequestIsLoading mergeRequest || isActive || noCellDescription)
                 ]
-            , if indexingParametersCellDescription == "" then
-                nothing
+                [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
+            , button
+                [ type_ "button"
+                , class "btn btn-sm btn-outline-secondary"
+                , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
+                , disabled (mergeRequestIsLoading mergeRequest || isActive)
+                ]
+                [ icon { name = "send" }, text <| " Merge" ]
+            , viewIf isActive
+                (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
+                    [ icon { name = "x-lg" }, text " Cancel" ]
+                )
+            ]
+        , if indexingParametersCellDescription == "" then
+            nothing
 
-              else
-                viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
-                    (\_ ->
-                        div_
-                            [ em_
-                                [ small_
-                                    [ text "Warning: The indexing job uses cell "
-                                    , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors indexingParametersCellDescription
-                                    , text ", the chemicals in the data set have cell description "
-                                    , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors cellDescriptionForDs
-                                    , text ", merging will default to the first one."
-                                    ]
+          else
+            viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
+                (\_ ->
+                    div_
+                        [ em_
+                            [ small_
+                                [ text "Warning: The indexing job uses cell "
+                                , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors indexingParametersCellDescription
+                                , text ", the chemicals in the data set have cell description "
+                                , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors cellDescriptionForDs
+                                , text ", merging will default to the first one."
                                 ]
                             ]
-                    )
-            ]
+                        ]
+                )
+        ]
 
 
 foldIntervals : List Int -> List ( Int, Int )
