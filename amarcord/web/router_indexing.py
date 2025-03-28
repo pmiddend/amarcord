@@ -160,14 +160,12 @@ async def indexing_job_queue_for_data_set(
 
     beamtime_id = (await data_set.awaitable_attrs.experiment_type).beamtime_id
     runs_in_data_set: list[orm.Run] = await retrieve_runs_matching_data_set(
-        session,
-        input_.data_set_id,
-        beamtime_id,
+        session, input_.data_set_id, beamtime_id, source=input_.source.strip()
     )
     if not runs_in_data_set:
         raise HTTPException(
             status_code=400,
-            detail=f"data set {input_.data_set_id} doesn't have any runs (that have finished)",
+            detail=f"data set {input_.data_set_id} doesn't have any runs that have finished and that have files attached to them",
         )
 
     existing_indexing_results: list[orm.IndexingResult] = list(

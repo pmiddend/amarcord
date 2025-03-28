@@ -15,6 +15,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
@@ -504,9 +505,7 @@ def orm_encode_merge_result_to_json(
 
 
 async def retrieve_runs_matching_data_set(
-    session: AsyncSession,
-    data_set_id: int,
-    beamtime_id: int,
+    session: AsyncSession, data_set_id: int, beamtime_id: int, source: None | str = None
 ) -> list[orm.Run]:
     data_set = (
         await session.scalars(select(orm.DataSet).where(orm.DataSet.id == data_set_id))
@@ -517,7 +516,11 @@ async def retrieve_runs_matching_data_set(
             detail=f'Data set with ID "{data_set_id}" not found',
         )
     all_runs = (
-        await session.scalars(select(orm.Run).where(orm.Run.beamtime_id == beamtime_id))
+        await session.scalars(
+            select(orm.Run)
+            .where(orm.Run.beamtime_id == beamtime_id)
+            .options(selectinload(orm.Run.files))
+        )
     ).all()
     attributi = list(
         (
@@ -546,6 +549,7 @@ async def retrieve_runs_matching_data_set(
             run_attributi_maps[r.id],
             data_set_attributi_map,
         )
+        and (source is None or any(f.source == source for f in r.files))
     ]
 
 
