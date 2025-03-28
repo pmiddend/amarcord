@@ -1319,6 +1319,59 @@ def enable_crystfel_online(client: TestClient, beamtime_id: BeamtimeId) -> None:
     assert option_set_result.value_bool
 
 
+def test_create_and_update_run_adding_some_files_later(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,  # noqa: ARG001
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                # Initially no files
+                files=[],
+                attributi=[],
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert response.run_created
+
+    # Now same request, but with some files!
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                # Initially no files
+                files=[JsonRunFile(id=0, source="h5", glob="hehe")],
+                attributi=[],
+                # Keep started/stopped by setting to None
+                started=None,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert not response.run_created
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 1
+    assert len(read_runs_output.runs[0].files) == 1
+
+
 def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     client: TestClient,
     beamtime_id: BeamtimeId,

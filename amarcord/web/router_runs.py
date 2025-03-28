@@ -340,6 +340,12 @@ async def create_or_update_run(
                     )
                 },
             )
+            if input_.files is not None and input_.files:
+                # This only adds new files. If we wanted to replace, we need another flag
+                for f in input_.files:
+                    run_in_db.files.append(
+                        orm.RunHasFiles(glob=f.glob, source=f.source)
+                    )
             if input_.started is not None:
                 run_in_db.started = datetime_from_attributo_int(input_.started)
             if input_.stopped is not None:
