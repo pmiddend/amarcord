@@ -458,7 +458,7 @@ bravaisLatticeParser =
             Hexagonal
             |. Parser.keyword "hexagonal"
             |. spaces1
-            |= centeringParser [ CentHexagonal ]
+            |= centeringParser [ CentPrimitive, CentHexagonal ]
             |. spaces1
             |= axisParser
         , Parser.succeed
@@ -610,7 +610,7 @@ centeringsForSystem s =
             [ CentBody, CentFace, CentPrimitive ]
 
         LatticeHexagonal ->
-            [ CentHexagonal ]
+            [ CentPrimitive, CentHexagonal ]
 
         LatticeRhombohedral ->
             [ CentRhombohedral ]

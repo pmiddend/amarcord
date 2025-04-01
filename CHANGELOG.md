@@ -32,7 +32,7 @@ Now, the Data Set view shows which parameters have changed since the previous in
 
 As you can see, for the geometry file, we only get “changed” for now. In the future we might be more specific.
 
-### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435))
+### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435), [#452](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/452))
 
 Editing a unit cell (UC) description was a purely text-based affair previously. You had an input field and had to fill it correctly. There was no feedback on whether what you typed was actually a valid unit cell!
 
