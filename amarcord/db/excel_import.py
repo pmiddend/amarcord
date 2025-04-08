@@ -23,6 +23,7 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.orm_utils import data_sets_are_equal
 from amarcord.db.orm_utils import run_has_attributo_to_data_set_has_attributo
 from amarcord.db.run_external_id import RunExternalId
 from amarcord.util import check_consecutive
@@ -627,28 +628,6 @@ def create_runs_from_spreadsheet(
     if not errors.is_empty():
         return SpreadsheetValidationErrors(errors=errors.error_messages)
     return SpreadsheetValidationResult(runs=orm_runs, warnings=warnings)
-
-
-def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
-    if a.experiment_type_id != b.experiment_type_id:
-        return False
-
-    a_attributi: dict[int, orm.DataSetHasAttributoValue] = {
-        av.attributo_id: av for av in a.attributo_values
-    }
-    b_attributi: dict[int, orm.DataSetHasAttributoValue] = {
-        av.attributo_id: av for av in b.attributo_values
-    }
-
-    if a_attributi.keys() != b_attributi.keys():
-        return False
-
-    for aid, av in a_attributi.items():
-        bv = b_attributi[aid]
-
-        if not av.is_value_equal(bv):
-            return False
-    return True
 
 
 def create_data_set_for_runs(

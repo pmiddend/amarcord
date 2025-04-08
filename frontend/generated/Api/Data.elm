@@ -986,6 +986,7 @@ type alias JsonCreateOrUpdateRun =
     , files : Maybe ( List JsonRunFile )
     , started : Maybe Int
     , stopped : Maybe Int
+    , createDataSet : Maybe Bool
     }
 
 
@@ -3097,6 +3098,7 @@ encodeJsonCreateOrUpdateRunPairs model =
             , maybeEncode "files" (Json.Encode.list encodeJsonRunFile) model.files
             , maybeEncode "started" Json.Encode.int model.started
             , maybeEncode "stopped" Json.Encode.int model.stopped
+            , maybeEncode "create_data_set" Json.Encode.bool model.createDataSet
             ]
     in
     pairs
@@ -6144,6 +6146,7 @@ jsonCreateOrUpdateRunDecoder =
         |> maybeDecode "files" (Json.Decode.list jsonRunFileDecoder) Nothing
         |> maybeDecode "started" Json.Decode.int Nothing
         |> maybeDecode "stopped" Json.Decode.int Nothing
+        |> maybeDecode "create_data_set" Json.Decode.bool (Just False)
 
 
 jsonCreateOrUpdateRunOutputDecoder : Json.Decode.Decoder JsonCreateOrUpdateRunOutput

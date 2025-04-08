@@ -46,12 +46,14 @@ from amarcord.db.excel_import import parse_run_spreadsheet_workbook
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import data_sets_are_equal
 from amarcord.db.orm_utils import default_online_indexing_parameters
 from amarcord.db.orm_utils import determine_run_indexing_metadata
 from amarcord.db.orm_utils import duplicate_run_attributo
 from amarcord.db.orm_utils import live_stream_image_name
 from amarcord.db.orm_utils import retrieve_latest_config
 from amarcord.db.orm_utils import retrieve_latest_run
+from amarcord.db.orm_utils import run_has_attributo_to_data_set_has_attributo
 from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_external_id import RunExternalId
 from amarcord.db.run_internal_id import RunInternalId
@@ -199,6 +201,56 @@ async def stop_latest_run(
         return JsonStopRunOutput(result=False)
 
 
+async def _create_data_set_for_run(
+    session: AsyncSession,
+    latest_config: orm.UserConfiguration,
+    run: orm.Run,
+) -> None:
+    current_experiment_type = (
+        await latest_config.awaitable_attrs.current_experiment_type
+    )
+    new_data_set = orm.DataSet(experiment_type_id=current_experiment_type.id)
+    for et_attributo in current_experiment_type.attributi:
+        for run_attributo in run.attributo_values:
+            if run_attributo.attributo_id == et_attributo.attributo_id:
+                new_data_set.attributo_values.append(
+                    run_has_attributo_to_data_set_has_attributo(run_attributo),
+                )
+    if len(new_data_set.attributo_values) != len(current_experiment_type.attributi):
+        for existing_attributo in run.experiment_type.attributi:
+            found = False
+            for data_set_attributo in new_data_set.attributo_values:
+                if data_set_attributo.attributo_id == existing_attributo.attributo_id:
+                    found = True
+                    break
+            if not found:
+                raise Exception(
+                    f"run {run.external_id}: tried to create a data set for experiment type “{run.experiment_type.name}”, but attributo “{existing_attributo.attributo.name}” not found in this run"
+                )
+    if not new_data_set.attributo_values:
+        raise Exception(
+            f"run {run.external_id}: found no attributo values to create the data set"
+        )
+    existing_data_sets: list[orm.DataSet] = list(
+        (
+            await session.scalars(
+                select(orm.DataSet, orm.ExperimentType)
+                .join(orm.DataSet.experiment_type)
+                .where(
+                    orm.ExperimentType.beamtime_id
+                    == current_experiment_type.beamtime_id
+                ),
+            )
+        ).all()
+    )
+    have_equal = False
+    for existing_ds in existing_data_sets:
+        if data_sets_are_equal(existing_ds, new_data_set):
+            have_equal = True
+    if not have_equal:
+        session.add(new_data_set)
+
+
 @router.post(
     "/api/runs/{runExternalId}",
     tags=["runs"],
@@ -255,6 +307,7 @@ async def create_or_update_run(
                 ),
                 modified=datetime.datetime.now(datetime.timezone.utc),
             )
+
             attributi_by_id: dict[int, orm.Attributo] = {
                 orm_attributo.id: orm_attributo
                 for orm_attributo in (
@@ -350,6 +403,9 @@ async def create_or_update_run(
                 run_in_db.started = datetime_from_attributo_int(input_.started)
             if input_.stopped is not None:
                 run_in_db.stopped = datetime_from_attributo_int(input_.stopped)
+
+        if input_.create_data_set:
+            await _create_data_set_for_run(session, latest_config, run_in_db)
 
         async def _inner_create_new_event(text: str) -> None:
             run_logger.error(text)

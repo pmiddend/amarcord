@@ -636,3 +636,25 @@ async def determine_point_group_from_indexing_results(
     return await determine_point_group_from_runs(
         session, beamtime_id, [ir.run_id for ir in indexing_results_matching_params]
     )
+
+
+def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
+    if a.experiment_type_id != b.experiment_type_id:
+        return False
+
+    a_attributi: dict[int, orm.DataSetHasAttributoValue] = {
+        av.attributo_id: av for av in a.attributo_values
+    }
+    b_attributi: dict[int, orm.DataSetHasAttributoValue] = {
+        av.attributo_id: av for av in b.attributo_values
+    }
+
+    if a_attributi.keys() != b_attributi.keys():
+        return False
+
+    for aid, av in a_attributi.items():
+        bv = b_attributi[aid]
+
+        if not av.is_value_equal(bv):
+            return False
+    return True

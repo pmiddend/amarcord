@@ -131,6 +131,7 @@ This view now also sorts events in reverse chronological order.
 - Merging now also outputs a log file ([\#437](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/437), [\#438](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/438))
 - Indexing jobs will now output a nicer error message if things go “expectedly” wrong ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/431))
 - Indexing jobs now show the resulting `.stream` file ([\#444](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/444))
+- API: When creating (or updating) a run, you can instruct it to create a Data Set for the run as well ([#457](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/457))
 
 ## Fixes
 

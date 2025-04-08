@@ -450,6 +450,7 @@ class JsonCreateOrUpdateRun(BaseModel):
     files: None | list[JsonRunFile]
     started: None | int = None
     stopped: None | int = None
+    create_data_set: bool = False
 
 
 class JsonCreateOrUpdateRunOutput(BaseModel):
