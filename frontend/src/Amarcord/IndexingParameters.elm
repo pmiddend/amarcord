@@ -9,7 +9,7 @@ import Amarcord.Indexing.Integration as Integration
 import Amarcord.Indexing.PeakDetection as PeakDetection
 import Amarcord.Indexing.PinkIndexer as PinkIndexer
 import Amarcord.Indexing.TakeTwo as TakeTwo
-import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, mapMaybe, viewCitation)
+import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, mapMaybe, numberToCommandLine, viewCitation, viewNumericInput)
 import Amarcord.Indexing.Xgandalf as Xgandalf
 import Amarcord.Util exposing (collectResults, deadEndsToString, join3)
 import Dict exposing (Dict)
@@ -88,6 +88,8 @@ type alias Model =
     { openTab : TabType
     , peakDetection : PeakDetection.Model
     , sources : List String
+    , maxMilleLevel : String
+    , highRes : String
 
     -- for online indexing, the cell description is inferred, so we don't want the user to be able to change it
     , mutableCellDescription : Bool
@@ -212,6 +214,24 @@ toCommandLine ip =
                 ++ [ mapMaybe (indexingMethodsToCommandLine << Dict.values) ip.indexingMethods
                    , boolToSwitchCommandLine "multi" ip.multi
                    , boolToSwitchCommandLine "mille" ip.mille
+                   , integerToCommandLine "max mille level"
+                        ip.maxMilleLevel
+                        (\n ->
+                            if String.trim n /= "" then
+                                [ LongOption "max-mille-level" n ]
+
+                            else
+                                []
+                        )
+                   , numberToCommandLine "highres"
+                        ip.highRes
+                        (\n ->
+                            if String.trim n /= "" then
+                                [ LongOption "highres" n ]
+
+                            else
+                                []
+                        )
                    , boolToSwitchCommandLine "asdf-fast" ip.asdfFast
                    , boolToSwitchCommandLine "peakfinder8-fast" ip.peakDetection.peakfinder8Fast
                    , boolToSwitchCommandLine "no-refine" ip.noRefine
@@ -298,10 +318,46 @@ convertCommandLineToModel model cli =
                             in
                             Ok { priorModel | indexingMethods = Just allMethods }
 
+                LongOption "max-mille-level" maxMilleLevelString ->
+                    case String.toInt maxMilleLevelString of
+                        Nothing ->
+                            Err ("max-mille-level must be empty or an integer, not: " ++ maxMilleLevelString)
+
+                        Just _ ->
+                            Ok
+                                { priorModel
+                                    | maxMilleLevel = maxMilleLevelString
+                                }
+
+                LongOption "highres" highResString ->
+                    case String.toFloat highResString of
+                        Nothing ->
+                            Err ("highres must be empty or a decimal, not: " ++ highResString)
+
+                        Just _ ->
+                            Ok
+                                { priorModel
+                                    | highRes = highResString
+                                }
+
                 LongOption "tolerance" toleranceString ->
                     case Maybe.Extra.combineMap String.toFloat (String.split "," toleranceString) of
                         Nothing ->
                             Err ("tolerances are not all comma-separated numbers: " ++ toleranceString)
+
+                        Just [ a, b, c, al ] ->
+                            Ok
+                                { priorModel
+                                    | customTolerances =
+                                        Just
+                                            { toleranceAPercent = String.fromFloat a
+                                            , toleranceBPercent = String.fromFloat b
+                                            , toleranceCPercent = String.fromFloat c
+                                            , toleranceAlphaDegrees = String.fromFloat al
+                                            , toleranceBetaDegrees = String.fromFloat 1.5
+                                            , toleranceGammaDegrees = String.fromFloat 1.5
+                                            }
+                                }
 
                         Just [ a, b, c, al, be, ga ] ->
                             Ok
@@ -417,6 +473,8 @@ init sources cellDescription geometryFile mutableCellDescription =
     { peakDetector = Nothing
     , peakDetection = PeakDetection.init
     , sources = sources
+    , maxMilleLevel = ""
+    , highRes = ""
     , mutableCellDescription = mutableCellDescription
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
@@ -769,9 +827,27 @@ viewMiscParameters model =
                 (Just (span_ [ text "Write detector calibration data in Millepede-II format." ]))
                 model.mille
                 (\m -> { m | mille = not m.mille })
+
+        viewMilleLevelInput =
+            Html.map Change <|
+                viewNumericInput
+                    "max-mille-level"
+                    model.maxMilleLevel
+                    "Maximum millepede level"
+                    Nothing
+                    (\newValue priorModel -> { priorModel | maxMilleLevel = newValue })
+
+        viewHighResInput =
+            Html.map Change <|
+                viewNumericInput
+                    "highres"
+                    model.highRes
+                    "Mark all pixels on the detector higher than this Angstroms as bad"
+                    (Just "This might be useful when you have noisy patterns and don't expect any signal above a certain resolution.")
+                    (\newValue priorModel -> { priorModel | highRes = newValue })
     in
     div [ class "mb-3" ]
-        [ viewProfileCheckbox, viewMilleCheckbox ]
+        [ viewProfileCheckbox, viewMilleCheckbox, viewMilleLevelInput, viewHighResInput ]
 
 
 viewIndexingMethods : Model -> Html Msg

@@ -146,6 +146,7 @@ This view now also sorts events in reverse chronological order.
 - The indexing-specific call to `list_events` used to fail because of some problems with temporary files. ([\#436](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/436), [\#441](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/441))
 - Editing the indexing command-line previously just added and changed options, and didn’t remove any ([\#447](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/447))
 - Runs API: you can now add new files to an existing run ([\#450](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/450))
+- Indexing UI: added missing CrystFEL indexamajig parameters `--highres` and `--max-mille-level` ([\#459](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/459))
 
 ## Development changes
 
