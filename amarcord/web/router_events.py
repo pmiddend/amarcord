@@ -13,6 +13,7 @@ from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.orm_utils import live_stream_image_name
+from amarcord.web.constants import DATE_FORMAT
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.json_models import JsonDeleteEventInput
 from amarcord.web.json_models import JsonDeleteEventOutput
@@ -113,15 +114,18 @@ async def read_events(
     beamtimeId: BeamtimeId,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadEvents:
+    events = list(
+        await session.scalars(
+            select(orm.EventLog)
+            .where(orm.EventLog.beamtime_id == beamtimeId)
+            .order_by(orm.EventLog.created.desc())
+            # The list contains the files for each event, so we might as well load it here directly
+            .options(selectinload(orm.EventLog.files)),
+        )
+    )
     return JsonReadEvents(
-        events=[
-            encode_event(e)
-            for e in await session.scalars(
-                select(orm.EventLog)
-                .where(orm.EventLog.beamtime_id == beamtimeId)
-                .order_by(orm.EventLog.created)
-                # The list contains the files for each event, so we might as well load it here directly
-                .options(selectinload(orm.EventLog.files)),
-            )
-        ],
+        events=[encode_event(e) for e in events],
+        filter_dates=sorted(
+            set(e.created.strftime(DATE_FORMAT) for e in events), reverse=True
+        ),
     )

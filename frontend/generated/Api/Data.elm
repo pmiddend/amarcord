@@ -1543,6 +1543,7 @@ type alias JsonReadDataSets =
 
 type alias JsonReadEvents =
     { events : List JsonEvent
+    , filterDates : List String
     }
 
 
@@ -4600,6 +4601,7 @@ encodeJsonReadEventsPairs model =
     let
         pairs =
             [ encode "events" (Json.Encode.list encodeJsonEvent) model.events
+            , encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
             ]
     in
     pairs
@@ -6766,6 +6768,7 @@ jsonReadEventsDecoder : Json.Decode.Decoder JsonReadEvents
 jsonReadEventsDecoder =
     Json.Decode.succeed JsonReadEvents
         |> decode "events" (Json.Decode.list jsonEventDecoder) 
+        |> decode "filter_dates" (Json.Decode.list Json.Decode.string) 
 
 
 jsonReadExperimentTypesDecoder : Json.Decode.Decoder JsonReadExperimentTypes

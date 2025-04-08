@@ -806,6 +806,7 @@ class JsonDeleteEventOutput(BaseModel):
 
 class JsonReadEvents(BaseModel):
     events: list[JsonEvent]
+    filter_dates: list[str]
 
 
 class JsonDeleteFileInput(BaseModel):

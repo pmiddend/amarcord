@@ -17,6 +17,10 @@ Via a wizard, you will be guided through the discrete steps in order to import y
 ![Last step in the import](changelog-assets/import-step-3.png){width=388 height=510px}
 <figcaption>The last step of the import: actually uploading the Excel file, with a description of the columns needed and possible.</figcaption>
 </figure>
+<figure>
+![Last step in the import](changelog-assets/import-step-3.png){width=388 height=510px}
+<figcaption>The last step of the import: actually uploading the Excel file, with a description of the columns needed and possible.</figcaption>
+</figure>
 
 The import can be _simulated_ first, to see which Data Sets would be generated, and how many runs. There are also a lot of sanity checks in place to guarantee you’re importing something correctly.
 ### Data Set view: Indexing parameter differences ([\#439](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/439))
@@ -107,6 +111,15 @@ This currently does not have a nice UI yet, and you cannot pass _all_ ambigator 
 If you do, then the “Details” view contains the fg-graph plot and can tell you more about the outcome:
 
 ![ambigator output graph](changelog-assets/ambigator-output.png){width=650 height=510px}
+
+### Event log: Date filter ([#456](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/456))
+The under-used “Events” view (accessible via the menu “Admin” → “Event Log”) now has a date filter just like the run table:
+
+<figure>
+![Event with with filter](changelog-assets/event-log-date-filter.png){width=721 height=422}
+</figure>
+
+This view now also sorts events in reverse chronological order.
 
 ### Miscellaneous features
 
