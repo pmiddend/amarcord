@@ -8,20 +8,20 @@ from pytest_subprocess import FakeProcess
 
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    MAXWELL_SLURM_URL,  # NOQA
+    MAXWELL_SLURM_URL,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     DynamicTokenRetriever,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import SlurmHttpWrapper
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    SlurmRestWorkloadManager,  # NOQA
+    SlurmRestWorkloadManager,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    retrieve_jwt_token_on_maxwell_node,  # NOQA
+    retrieve_jwt_token_on_maxwell_node,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    slurm_token_command,  # NOQA
+    slurm_token_command,
 )
 from amarcord.json_types import JSONDict
 
@@ -30,7 +30,7 @@ _TIME_LIMIT = timedelta(minutes=60)
 
 
 # Is a function because then it's awaitable and we can use it for the token retriever callback
-async def _TEST_TOKEN_RETRIEVER() -> str:
+async def _test_token_retriever() -> str:
     return "token"
 
 
@@ -41,7 +41,10 @@ _REST_USER = "pmidden"
 
 class MockResponse:
     def __init__(
-        self, json_data: None | JSONDict, text: None | str, status_code: int
+        self,
+        json_data: None | JSONDict,
+        text: None | str,
+        status_code: int,
     ) -> None:
         self.json_data = json_data
         self.status_code = status_code
@@ -72,7 +75,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
         partition=_TEST_PARTITION,
         reservation=None,
         explicit_node=None,
-        token_retriever=_TEST_TOKEN_RETRIEVER,
+        token_retriever=_test_token_retriever,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
@@ -96,7 +99,7 @@ async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
         partition=_TEST_PARTITION,
         reservation=None,
         explicit_node=None,
-        token_retriever=_TEST_TOKEN_RETRIEVER,
+        token_retriever=_test_token_retriever,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
@@ -114,7 +117,7 @@ async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> 
         partition=_TEST_PARTITION,
         reservation=None,
         explicit_node=None,
-        token_retriever=_TEST_TOKEN_RETRIEVER,
+        token_retriever=_test_token_retriever,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
@@ -130,7 +133,7 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
         partition=_TEST_PARTITION,
         reservation=None,
         explicit_node=None,
-        token_retriever=_TEST_TOKEN_RETRIEVER,
+        token_retriever=_test_token_retriever,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
@@ -144,9 +147,9 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
                     "job_id": 1,
                     "job_state": "RUNNING",
                     "start_time": 1625570627,
-                }
-            ]
-        }
+                },
+            ],
+        },
     )
     jobs = await controller.list_jobs()
     assert len(jobs) == 1
@@ -163,7 +166,8 @@ async def test_dynamic_token_retriever_wrong_output(fake_process: FakeProcess) -
 
 async def test_dynamic_token_retriever_jwt_output(fake_process: FakeProcess) -> None:
     fake_process.register_subprocess(
-        slurm_token_command(86400), stdout=b"SLURM_TOKEN=lol"
+        slurm_token_command(86400),
+        stdout=b"SLURM_TOKEN=lol",
     )
 
     tr = DynamicTokenRetriever(retrieve_jwt_token_on_maxwell_node)

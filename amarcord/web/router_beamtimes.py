@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +20,8 @@ router = APIRouter()
 
 @router.post("/api/beamtimes", tags=["beamtimes"])
 async def create_beamtime(
-    input_: JsonUpdateBeamtimeInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateBeamtimeInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonBeamtimeOutput:
     async with session.begin():
         new_beamtime = orm.Beamtime(
@@ -29,6 +32,7 @@ async def create_beamtime(
             comment=input_.comment,
             start=datetime_from_attributo_int(input_.start),
             end=datetime_from_attributo_int(input_.end),
+            analysis_output_path=input_.analysis_output_path,
         )
         session.add(new_beamtime)
         # we need to the ID in the next line, so have to flush
@@ -38,12 +42,13 @@ async def create_beamtime(
 
 @router.patch("/api/beamtimes", tags=["beamtimes"])
 async def update_beamtime(
-    input_: JsonUpdateBeamtimeInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateBeamtimeInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonBeamtimeOutput:
     async with session.begin():
         existing_beamtime = (
             await session.scalars(
-                select(orm.Beamtime).where(orm.Beamtime.id == input_.id)
+                select(orm.Beamtime).where(orm.Beamtime.id == input_.id),
             )
         ).one()
 
@@ -54,12 +59,13 @@ async def update_beamtime(
         existing_beamtime.comment = input_.comment
         existing_beamtime.start = datetime_from_attributo_int(input_.start)
         existing_beamtime.end = datetime_from_attributo_int(input_.end)
+        existing_beamtime.analysis_output_path = input_.analysis_output_path
         return JsonBeamtimeOutput(id=input_.id)
 
 
 @router.get("/api/beamtimes", tags=["beamtimes"], response_model_exclude_defaults=True)
 async def read_beamtimes(
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadBeamtime:
     return JsonReadBeamtime(
         beamtimes=[
@@ -67,9 +73,9 @@ async def read_beamtimes(
             for bt in await session.scalars(
                 select(orm.Beamtime)
                 .options(selectinload(orm.Beamtime.chemicals))
-                .order_by(orm.Beamtime.start.desc())
+                .order_by(orm.Beamtime.start.desc()),
             )
-        ]
+        ],
     )
 
 
@@ -79,14 +85,15 @@ async def read_beamtimes(
     response_model_exclude_defaults=True,
 )
 async def read_beamtime(
-    beamtimeId: int, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonBeamtime:
     return encode_beamtime(
         (
             await session.scalars(
                 select(orm.Beamtime)
                 .where(orm.Beamtime.id == beamtimeId)
-                .options(selectinload(orm.Beamtime.chemicals))
+                .options(selectinload(orm.Beamtime.chemicals)),
             )
-        ).one()
+        ).one(),
     )

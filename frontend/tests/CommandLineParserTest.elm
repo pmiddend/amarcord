@@ -6,24 +6,6 @@ import Fuzz exposing (Fuzzer)
 import Test exposing (..)
 
 
-notContains : String -> String -> Bool
-notContains needle haystack =
-    not (String.contains needle haystack)
-
-
-goodItemFuzzer : (a -> Bool) -> Fuzzer a -> Fuzzer a
-goodItemFuzzer predicate itemFuzzer =
-    itemFuzzer
-        |> Fuzz.andThen
-            (\item ->
-                if predicate item then
-                    Fuzz.constant item
-
-                else
-                    goodItemFuzzer predicate itemFuzzer
-            )
-
-
 optionFuzzer : Fuzzer CommandLineOption
 optionFuzzer =
     let

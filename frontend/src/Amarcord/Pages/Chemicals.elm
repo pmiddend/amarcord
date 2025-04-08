@@ -3,10 +3,11 @@ module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, ChemicalNameDict, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical, mapAttributo)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, extractCellDescriptionAttributo, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
+import Amarcord.CellDescriptionEdit exposing (validateCellDescription)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
-import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
+import Amarcord.Crystallography exposing (validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, onIntInput, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
@@ -146,7 +147,7 @@ getChemicalsAndRuns : BeamtimeId -> Cmd Msg
 getChemicalsAndRuns beamtimeId =
     Cmd.batch
         [ send ChemicalsReceived (readChemicalsApiChemicalsBeamtimeIdGet beamtimeId)
-        , send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
+        , send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing Nothing)
         ]
 
 
@@ -247,7 +248,7 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                     Nop
 
         attributiFormEntries =
-            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] ChemicalTypeCrystal attributo)) editingChemical.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] Nothing attributo)) editingChemical.attributi.editableAttributi
 
         otherChemicalsNames =
             List.map .name <|
@@ -514,7 +515,14 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                 ]
             ]
         , table [ class "table table-sm" ]
-            [ tbody_ (List.map viewAttributiGroup <| ListExtra.greedyGroupsOf noAttributoColumns (virtualIdAttributo :: virtualTypeAttributo :: virtualResponsiblePersonAttributo :: attributi))
+            [ tbody_
+                (List.map
+                    viewAttributiGroup
+                 <|
+                    ListExtra.greedyGroupsOf
+                        noAttributoColumns
+                        (virtualIdAttributo :: virtualTypeAttributo :: virtualResponsiblePersonAttributo :: attributi)
+                )
             ]
         , files
         ]
@@ -595,7 +603,13 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
             filteredChemicals =
                 List.filter chemicalFilter chemicals
         in
-        div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: viewTypeFilter :: viewResponsiblePersonFilter :: hr_ :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) filteredChemicals)
+        div [ class "mt-3" ]
+            (h2_ [ text "Available chemicals" ]
+                :: viewTypeFilter
+                :: viewResponsiblePersonFilter
+                :: hr_
+                :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) filteredChemicals
+            )
 
 
 viewChemicalTypeIcon : ChemicalType -> Html msg
@@ -833,7 +847,7 @@ validatePointGroupAndCellDescription { attributi } =
                     Ok ()
 
                 foundCellDescription ->
-                    foundCellDescription |> Result.andThen extractStringAttributo |> Result.andThen validateCellDescription
+                    foundCellDescription |> Result.andThen extractCellDescriptionAttributo |> Result.andThen validateCellDescription
     in
     Result.map (always ()) <| ResultExtra.combine [ pointGroupResult, cellDescriptionResult ]
 

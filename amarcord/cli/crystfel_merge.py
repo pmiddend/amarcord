@@ -9,19 +9,24 @@ import shlex
 import shutil
 import subprocess
 import sys
-from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
-from tempfile import NamedTemporaryFile
+from typing import IO
 from typing import Any
 from typing import BinaryIO
 from typing import Final
 from typing import Generator
 from typing import Iterable
+from typing import MutableSequence
 from typing import NoReturn
 from typing import TypeVar
 from urllib import request
+
+_R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
+_R_FREE_REGEX = re.compile(r"R free\s+(\S+)\s+(\S+)")
+_RMS_BOND_ANGLE_REGEX = re.compile(r"Rms BondAngle\s+(\S+)\s+(\S+)")
+_RMS_BOND_LENGTH_REGEX = re.compile(r"Rms BondLength\s+(\S+)\s+(\S+)")
 
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
@@ -52,26 +57,27 @@ DIMPLE_OUT_PDB = "output-dimple.pdb"
 
 def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str:
     current_path = os.environ["PATH"]
-    ccp4_env = {
+    ccp4_env: dict[str, str] = {
         "CLIBD": f"{ccp4_path}/lib/data",
         "CLIBD_MON": f"{ccp4_path}/lib/data/monomers/",
         "CINCL": f"{ccp4_path}/include",
-        "CCP4_SCR": "/tmp",
-        "CCP4": ccp4_path,
+        "CCP4_SCR": "/tmp",  # noqa: S108
+        "CCP4": str(ccp4_path),
         "PATH": f"{ccp4_path}/bin:{current_path}",
     }
     logger.info(f"running {args}")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             args,
             capture_output=True,
             input=input_,
             encoding="utf-8",
             env=ccp4_env,
+            check=False,
         )
         if result.returncode != 0:
             logger.exception(
-                f"calling {args} didn't work: {result.stderr}, stderr: {result.stdout}"
+                f"calling {args} didn't work: stderr {result.stderr}, stdout: {result.stdout}",
             )
             raise Exception()
         return result.stdout
@@ -87,159 +93,6 @@ def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
     if not input_mtz_labels_lines:
         raise Exception("couldn't parse mtzinfo output, no line starting with LABELS!")
     return input_mtz_labels_lines[0].split(" ")[1:]
-
-
-def uniqify(
-    ccp4_path: Path, rfree_mtz: Path, input_mtz: Path, resolution_cut: float
-) -> Path:
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/pointless",
-            "hklref",
-            str(rfree_mtz),
-            "hklin",
-            str(input_mtz),
-            "hklout",
-            POINTLESS_MTZ,
-        ],
-    )
-
-    mtzinfo_input_mtz = ccp4_run(ccp4_path, [f"{ccp4_path}/bin/mtzinfo", POINTLESS_MTZ])
-
-    input_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_input_mtz)
-
-    input_mtz_rfree_labels = [
-        label for label in input_mtz_labels if "free" in label.lower()
-    ]
-    if len(input_mtz_rfree_labels) > 1:
-        raise Exception(
-            f'couldn\'t do refinement, there is more than one "free" in "{POINTLESS_MTZ}": '
-            + ", ".join(input_mtz_rfree_labels)
-        )
-    if input_mtz_rfree_labels:
-        logger.info(
-            f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call'
-        )
-        ccp4_run(
-            ccp4_path,
-            [
-                f"{ccp4_path}/bin/mtzutils",
-                "hklin",
-                POINTLESS_MTZ,
-                "hklout",
-                EXCLUSION_MTZ,
-            ],
-            input_=f"exclude {input_mtz_rfree_labels[0]}",
-        )
-    else:
-        logger.info(
-            f"Input MTZ doesn't contain RFree flags column (columns are {input_mtz_labels}), just copying"
-        )
-        shutil.copyfile(POINTLESS_MTZ, EXCLUSION_MTZ)
-    xdata_lines = [
-        line for line in mtzinfo_input_mtz.split("\n") if line.startswith("XDATA ")
-    ]
-    if not xdata_lines:
-        raise Exception("couldn't parse mtzinfo output, no line starting with XDATA!")
-    xdata_line = re.split(r" +", xdata_lines[0])
-    logger.info(f"xdata line is {xdata_lines[0]} ({len(xdata_line)} component(s))")
-
-    mtzinfo_rfree_mtz = ccp4_run(
-        ccp4_path, [f"{ccp4_path}/bin/mtzinfo", str(rfree_mtz)]
-    )
-    rfree_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_rfree_mtz)
-    rfree_mtz_rfree_labels = [
-        label for label in rfree_mtz_labels if "free" in label.lower()
-    ]
-    if not rfree_mtz_rfree_labels:
-        raise Exception(
-            f'couldn\'t find a "free" column in "{rfree_mtz}", columns are: '
-            + ",".join(rfree_mtz_labels)
-        )
-    rfree_mtz_column = rfree_mtz_rfree_labels[0]
-    logger.info(f"using column {rfree_mtz_column} as free flag in {rfree_mtz}")
-
-    unique_cell_information = f"CELL {xdata_line[1]} {xdata_line[2]} {xdata_line[3]} {xdata_line[4]} {xdata_line[5]} {xdata_line[6]} {xdata_line[7]} SYMMETRY {xdata_line[9]}"
-    logger.info(f"unique cell information: {unique_cell_information}")
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/unique",
-            "HKLOUT",
-            UNIQUE_MTZ,
-        ],
-        input_=f"""{unique_cell_information}
-    LABOUT F=FUNI SIGF=SIGFUNI
-    RESOLUTION {xdata_line[8]}
-    SYMM {xdata_line[9]}""",
-    )
-
-    cad_input = f"""
-    LABIN FILE 1  ALLIN
-    LABIN FILE 2  ALLIN
-    LABIN FILE 3 E1 = {rfree_mtz_column}
-    """
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/cad",
-            "HKLIN1",
-            EXCLUSION_MTZ,
-            "HKLIN2",
-            UNIQUE_MTZ,
-            "HKLIN3",
-            str(rfree_mtz),
-            "HKLOUT",
-            CAD_MTZ,
-        ],
-        input_=cad_input,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/freerflag",
-            "HKLIN",
-            CAD_MTZ,
-            "HKLOUT",
-            FREER_MTZ,
-        ],
-        input_=f"""
-    COMPLETE FREE={rfree_mtz_column}
-            """,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/mtzutils",
-            "hklin",
-            FREER_MTZ,
-            "hklout",
-            UNIQIFIED_MTZ,
-        ],
-        input_=f"""
-    EXCLUDE FUNI SIGFUNI
-    SYMM {xdata_line[9]}
-            """,
-    )
-
-    ccp4_run(
-        ccp4_path,
-        [
-            f"{ccp4_path}/bin/mtzutils",
-            "hklin",
-            UNIQIFIED_MTZ,
-            "hklout",
-            RESCUT_MTZ,
-        ],
-        input_=f"""
-    resolution {resolution_cut}
-            """,
-    )
-
-    return Path(UNIQIFIED_MTZ)
 
 
 @dataclass(frozen=True)
@@ -262,13 +115,11 @@ def parse_refmac_log(p: Path) -> RefinementFom:
     r_free: None | float = None
     rms_bond_length: None | float = None
     rms_bond_angle: None | float = None
-    R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
-    R_FREE_REGEX = re.compile(r"R free\s+(\S+)\s+(\S+)")
-    RMS_BOND_ANGLE_REGEX = re.compile(r"Rms BondAngle\s+(\S+)\s+(\S+)")
-    RMS_BOND_LENGTH_REGEX = re.compile(r"Rms BondLength\s+(\S+)\s+(\S+)")
 
     def extract_final_result(
-        regex: re.Pattern[str], this_line: str, previous_result: None | float
+        regex: re.Pattern[str],
+        this_line: str,
+        previous_result: None | float,
     ) -> None | float:
         regex_result = regex.search(this_line)
         if regex_result is not None:
@@ -280,13 +131,17 @@ def parse_refmac_log(p: Path) -> RefinementFom:
 
     with p.open("r") as f:
         for line in f:
-            r_work = extract_final_result(R_WORK_REGEX, line, r_work)
-            r_free = extract_final_result(R_FREE_REGEX, line, r_free)
+            r_work = extract_final_result(_R_WORK_REGEX, line, r_work)
+            r_free = extract_final_result(_R_FREE_REGEX, line, r_free)
             rms_bond_angle = extract_final_result(
-                RMS_BOND_ANGLE_REGEX, line, rms_bond_angle
+                _RMS_BOND_ANGLE_REGEX,
+                line,
+                rms_bond_angle,
             )
             rms_bond_length = extract_final_result(
-                RMS_BOND_LENGTH_REGEX, line, rms_bond_length
+                _RMS_BOND_LENGTH_REGEX,
+                line,
+                rms_bond_length,
             )
 
     if (
@@ -303,7 +158,7 @@ def parse_refmac_log(p: Path) -> RefinementFom:
         )
 
     raise Exception(
-        f"not all of the figures of merit are given: Rwork={r_work}, Rfree={r_free}, RMS bond length={rms_bond_length}, RMS bond angle={rms_bond_angle}"
+        f"not all of the figures of merit are given: Rwork={r_work}, Rfree={r_free}, RMS bond length={rms_bond_length}, RMS bond angle={rms_bond_angle}",
     )
 
 
@@ -359,16 +214,16 @@ def quick_refine(
         ],
     )
 
-    REFMAC_LOG_GLOB = "*refmac5_restr*.log"
-    refmac_log_files = list(Path("./").glob(REFMAC_LOG_GLOB))
+    refmac_log_glob = "*refmac5_restr*.log"
+    refmac_log_files = list(Path("./").glob(refmac_log_glob))
 
     if not refmac_log_files:
-        error = f"dimple ran successfully, but didn't produce file matching {REFMAC_LOG_GLOB}, please check the output"
+        error = f"dimple ran successfully, but didn't produce file matching {refmac_log_glob}, please check the output"
         raise Exception(error)
 
     if len(refmac_log_files) > 1:
         logging.info(
-            f"found multiple refmac log files: {refmac_log_files}, taking the first one"
+            f"found multiple refmac log files: {refmac_log_files}, taking the first one",
         )
 
     return RefinementResult(
@@ -378,9 +233,32 @@ def quick_refine(
     )
 
 
+# We want to log to a list of lines, so we can then send it from the
+# secondary to the primary job and output it there.
+#
+# Source:
+# https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
+class ListHandler(logging.Handler):
+    def __init__(self, log_list_: MutableSequence[str]) -> None:
+        # run the regular Handler __init__
+        logging.Handler.__init__(self)
+        # Our custom argument
+        self.log_list = log_list_
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # record.message is the log message
+        self.log_list.append(self.format(record).rstrip("\n"))
+
+
 logger = logging.getLogger(__name__)
+# Better to do it like this, but for now...
+# log_list: Deque[str] = deque(maxlen=20)
+# ...save the whole log
+log_list: list[str] = []
 logging.basicConfig(
-    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
+    format="%(asctime)-15s %(levelname)s %(message)s",
+    level=logging.INFO,
+    handlers=[logging.StreamHandler(), ListHandler(log_list)],
 )
 
 
@@ -395,95 +273,93 @@ class ParsedArgs:
     ccp4_path: None | Path
     partialator_additional: None | str
     crystfel_path: Path
+    gnuplot_path: Path | None
     pdb_file_id: None | int
     restraints_cif_file_id: None | int
     random_cut_length: None | int
+    space_group: None | str
+    ambigator_command_line: str
 
 
-def parse_predefined(s: bytes) -> ParsedArgs:
-    j = json.loads(b64decode(s))
-    assert isinstance(j, dict)
-    crystfel_path_str = j.get("crystfel-path")
-    if crystfel_path_str is None:
-        exit_with_error(None, "crystfel-path missing in input")
-    if not isinstance(crystfel_path_str, str):
-        exit_with_error(None, f"crystfel-path not a string but {crystfel_path_str}")
-    crystfel_path = Path(crystfel_path_str)
+MERGE_ENVIRON_CRYSTFEL_PATH = "AMARCORD_CRYSTFEL_PATH"
+MERGE_ENVIRON_GNUPLOT_PATH = "AMARCORD_GNUPLOT_PATH"
+MERGE_ENVIRON_CCP4_PATH = "AMARCORD_CCP4_PATH"
+MERGE_ENVIRON_STREAM_FILES = "AMARCORD_STREAM_FILES"
+MERGE_ENVIRON_API_URL = "AMARCORD_API_URL"
+MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID = "AMARCORD_RESTRAINTS_CIF_FILE_ID"
+MERGE_ENVIRON_RANDOM_CUT_LENGTH = "AMARCORD_RANDOM_CUT_LENGTH"
+MERGE_ENVIRON_SPACE_GROUP = "AMARCORD_SPACE_GROUP"
+MERGE_ENVIRON_MERGE_RESULT_ID = "AMARCORD_RESULT_ID"
+MERGE_ENVIRON_CELL_FILE_ID = "AMARCORD_CELL_FILE_ID"
+MERGE_ENVIRON_POINT_GROUP = "AMARCORD_POINT_GROUP"
+MERGE_ENVIRON_HKL_FILE = "AMARCORD_HKL_FILE"
+MERGE_ENVIRON_PARTIALATOR_ADDITIONAL = "AMARCORD_PARTIALATOR_ADDITIONAL"
+MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE = "AMARCORD_AMBIGATOR_COMMAND_LINE"
+MERGE_ENVIRON_PDB_FILE_ID = "AMARCORD_PDB_FILE_ID"
+
+
+def parse_args() -> ParsedArgs:
+    crystfel_path = Path(os.environ[MERGE_ENVIRON_CRYSTFEL_PATH])
     if not crystfel_path.is_dir():
         exit_with_error(
-            None, f"CrystFEL path {crystfel_path} must be a valid directory"
+            None,
+            f"CrystFEL path {crystfel_path} must be a valid directory",
         )
-
-    ccp4_path_str = j.get("ccp4-path")
-    if ccp4_path_str is None:
-        exit_with_error(None, "ccp4-path missing in input")
-    if not isinstance(ccp4_path_str, str):
-        exit_with_error(None, f"ccp4-path not a string but {ccp4_path_str}")
-    ccp4_path = Path(ccp4_path_str) if ccp4_path_str else None
+    ccp4_path_str = os.environ.get(MERGE_ENVIRON_CCP4_PATH)
+    ccp4_path = Path(ccp4_path_str) if ccp4_path_str is not None else None
     if ccp4_path and not ccp4_path.is_dir():
         exit_with_error(
-            None, f"ccp4 path {ccp4_path} must be a valid directory or empty"
+            None,
+            f"CCP4 path {ccp4_path} must be a valid directory (or empty)",
         )
-
-    stream_files_raw = j.get("stream-files")
-    if stream_files_raw is None:
-        exit_with_error(None, "stream-files missing in input")
-    if not isinstance(stream_files_raw, list):
-        exit_with_error(None, f"stream-files not a list but {stream_files_raw}")
-    for idx, sf in enumerate(
-        stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
-    ):
-        if not isinstance(sf, str):
-            exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
-    stream_files = [
-        Path(p) for p in stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
-    ]
+    stream_files_raw = os.environ[MERGE_ENVIRON_STREAM_FILES]
+    stream_files = [Path(p.strip()) for p in stream_files_raw.split(",")]
     if not stream_files:
         exit_with_error(None, "no input stream files given")
-
     invalid_paths = set(f for f in stream_files if not f.is_file())
     if invalid_paths:
         logger.warning(
             "the following file(s) are not valid stream files: "
-            + ", ".join(str(f) for f in stream_files if not f.is_file())
+            + ", ".join(str(f) for f in stream_files if not f.is_file()),
         )
         if invalid_paths == set(stream_files):
             exit_with_error(None, "none of the input stream files is a valid file")
     valid_paths = [f for f in stream_files if f.is_file()]
+    restraints_cif_file_id_str = os.environ.get(MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID)
+    random_cut_length_str = os.environ.get(MERGE_ENVIRON_RANDOM_CUT_LENGTH)
+    pdb_file_id_str = os.environ.get(MERGE_ENVIRON_PDB_FILE_ID)
+    gnuplot_path_str = os.environ.get(MERGE_ENVIRON_GNUPLOT_PATH)
     return ParsedArgs(
-        stream_files=valid_paths,
-        api_url=j.get("api-url"),  # type: ignore
-        merge_result_id=j.get("merge-result-id"),  # type: ignore
-        cell_file_id=j.get("cell-file-id"),  # type: ignore
-        point_group=j.get("point-group"),  # type: ignore
-        ccp4_path=ccp4_path,
-        hkl_file=Path(
-            j.get(
-                "hkl-file", "partialator.hkl"
-            )  # pyright: ignore [reportUnknownArgumentType]
-        ),
-        partialator_additional=j.get(
-            "partialator-additional"
-        ),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
-        pdb_file_id=j.get("pdb-file-id"),  # pyright: ignore [reportUnknownArgumentType]
-        restraints_cif_file_id=j.get(
-            "restraints-cif-file-id"
-        ),  # pyright: ignore [reportUnknownArgumentType]
-        random_cut_length=j.get("random-cut-length"),  # type: ignore
+        ccp4_path=ccp4_path if ccp4_path else None,
+        stream_files=valid_paths,
+        api_url=os.environ[MERGE_ENVIRON_API_URL],
+        merge_result_id=int(os.environ[MERGE_ENVIRON_MERGE_RESULT_ID]),
+        cell_file_id=int(os.environ[MERGE_ENVIRON_CELL_FILE_ID]),
+        point_group=os.environ[MERGE_ENVIRON_POINT_GROUP],
+        hkl_file=Path(
+            os.environ.get(MERGE_ENVIRON_HKL_FILE, "partialator.hkl"),
+        ),
+        partialator_additional=os.environ.get(MERGE_ENVIRON_PARTIALATOR_ADDITIONAL),
+        pdb_file_id=int(pdb_file_id_str) if pdb_file_id_str is not None else None,
+        restraints_cif_file_id=int(restraints_cif_file_id_str)
+        if restraints_cif_file_id_str is not None
+        else None,
+        random_cut_length=int(random_cut_length_str)
+        if random_cut_length_str is not None
+        else None,
+        space_group=os.environ.get(MERGE_ENVIRON_SPACE_GROUP),
+        ambigator_command_line=os.environ.get(MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE, ""),
+        gnuplot_path=Path(gnuplot_path_str) if gnuplot_path_str else None,
     )
-
-
-predefined_args: None | bytes = None
 
 
 def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
     url = f"{args.api_url}/api/files/{file_id}"
     req = request.Request(url, method="GET")
     logger.info(f"requesting file on {url}")
-    with request.urlopen(req) as response:
-        with Path(name).open("wb") as output_file:
-            output_file.write(response.read())
+    with request.urlopen(req) as response, Path(name).open("wb") as output_file:
+        output_file.write(response.read())
     return Path(name)
 
 
@@ -519,23 +395,31 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 
 
 def write_output_json(
-    args: ParsedArgs, error: None | str, result: None | dict[str, Any]
+    args: ParsedArgs,
+    error: None | str,
+    result: None | dict[str, Any],
 ) -> None:
     try:
         result_json = json.dumps(
-            {"error": error, "result": result}, allow_nan=False, indent=2
+            {"error": error, "result": result, "latest_log": "\n".join(log_list)},
+            allow_nan=False,
+            indent=2,
         ).encode("utf-8")
     except ValueError:
         result_json_with_nan = json.dumps(
-            {"error": error, "result": result}, allow_nan=True, indent=2
+            # latest log deliberately empty here since this JSON is output to the log, meaning we will repeat log output in this log (recursively)
+            {"error": error, "result": result, "latest_log": ""},
+            allow_nan=True,
+            indent=2,
         ).encode("utf-8")
         logger.info(
-            f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}"
+            f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}",
         )
         result_json = json.dumps(
             {
                 "error": 'The merge result contained invalid statistics (probably CC* is "not a number"). Try collecting more data, using different merge parameters or indexing prior runs manually to fix this. The full output of this merge job contains the final JSON with the invalid stats, you can take a look if you have access to it.',
                 "result": None,
+                "latest_log": "\n".join(log_list),
             },
             allow_nan=False,
             indent=2,
@@ -564,7 +448,7 @@ def first_group(output: str, regex: str) -> str:
     reg = re.compile(regex, re.MULTILINE).search(output)
     if reg is None:
         raise Exception(
-            f"regular expression...\n\n{regex}\n\n...matches nowhere in output:\n\n{output}"
+            f"regular expression...\n\n{regex}\n\n...matches nowhere in output:\n\n{output}",
         )
     return reg.group(1)
 
@@ -575,7 +459,7 @@ def first_group_as_float(output: str, regex: str) -> float:
         return float(result)
     except:
         raise Exception(
-            f'regular expression "{regex}" doesn\'t match a float value but {result}'
+            f'regular expression "{regex}" doesn\'t match a float value but {result}',
         )
 
 
@@ -585,7 +469,7 @@ def first_group_as_int(output: str, regex: str) -> int:
         return int(result)
     except:
         raise Exception(
-            f'regular expression "{regex}" doesn\'t match an int value but {result}'
+            f'regular expression "{regex}" doesn\'t match an int value but {result}',
         )
 
 
@@ -691,7 +575,7 @@ def run_compare_hkl_single_fom(
     search_term: str,
     highres: None | float,
     nshells: int,
-    may_fail: bool = False,
+    may_fail: bool = False,  # noqa: FBT002
     output_file: None | Path = None,
 ) -> None | float:
     compare_hkl_command_line_args = compare_hkl_args_to_list(
@@ -705,17 +589,18 @@ def run_compare_hkl_single_fom(
             shell_file=output_file,
             highres=highres,
             nshells=nshells,
-        )
+        ),
     )
     logging.info(
-        f"starting compare_hkl with command line: {compare_hkl_command_line_args}"
+        f"starting compare_hkl with command line: {compare_hkl_command_line_args}",
     )
     try:
-        compare_hkl_result = subprocess.run(
+        compare_hkl_result = subprocess.run(  # noqa: S603
             compare_hkl_command_line_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
 
         if compare_hkl_result.returncode != 0:
@@ -777,7 +662,7 @@ def read_shells_file(args: ParsedArgs, file_path: Path) -> list[CheckShellLine]:
                         d_a=float(split_line[8]),
                         min_1_nm=float(split_line[9]),
                         max_1_nm=float(split_line[10]),
-                    )
+                    ),
                 )
             except:
                 exit_with_error(
@@ -798,7 +683,8 @@ class CompareShellLine:
 
 
 def read_compare_shells_file(
-    args: ParsedArgs, file_path: Path
+    args: ParsedArgs,
+    file_path: Path,
 ) -> list[CompareShellLine]:
     with file_path.open("r", encoding="utf-8") as shells_file:
         result: list[CompareShellLine] = []
@@ -820,7 +706,7 @@ def read_compare_shells_file(
                         d_over_a=float(split_line[3]),
                         min_1_nm=float(split_line[4]),
                         max_1_nm=float(split_line[5]),
-                    )
+                    ),
                 )
             except:
                 exit_with_error(
@@ -834,11 +720,12 @@ def run_check_hkl(args: ParsedArgs, check_hkl_args: CheckHklArgs) -> str:
     check_hkl_command_line_args = check_hkl_args_to_list(check_hkl_args)
     logging.info(f"starting check_hkl with command line: {check_hkl_command_line_args}")
     try:
-        check_hkl_result = subprocess.run(
+        check_hkl_result = subprocess.run(  # noqa: S603
             check_hkl_command_line_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
 
         if check_hkl_result.returncode != 0:
@@ -864,17 +751,24 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             str(output_path),
             "--output-format=mtz",
         ]
+        if args.space_group is not None:
+            cli_args.append(f"--space-group={args.space_group}")
+
         logging.info(f"starting get_hkl with command line: {cli_args}")
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             cli_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
+            check=False,
         )
+
+        logger.info(f"get_hkl output: {result.stdout}")
 
         if result.returncode != 0:
             exit_with_error(
-                args, f"error running get_hkl, error code is {result.returncode}"
+                args,
+                f"error running get_hkl, error code is {result.returncode}",
             )
     except:
         exit_with_error(args, "error running get_hkl")
@@ -910,11 +804,11 @@ def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
 
                     if indexed_by is None:
                         logger.warning(
-                            f"{p}:{line_number}: chunk without indexed_by, start {start}, end {end}: {line}"
+                            f"{p}:{line_number}: chunk without indexed_by, start {start}, end {end}: {line}",
                         )
                     elif start is None:
                         logger.warning(
-                            f"{p}:{line_number}: chunk end without start, end {end}: {line}"
+                            f"{p}:{line_number}: chunk end without start, end {end}: {line}",
                         )
                     else:
                         yield Chunk(
@@ -928,7 +822,7 @@ def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
                 elif line.startswith(_INDEXED_BY_PREFIX):
                     if start is None:
                         logger.warning(
-                            f"{p}:{line_number}: indexed_by without chunk found: {line}"
+                            f"{p}:{line_number}: indexed_by without chunk found: {line}",
                         )
                     else:
                         indexed_by = line[len(_INDEXED_BY_PREFIX) :].strip()
@@ -938,7 +832,7 @@ T = TypeVar("T")
 
 
 def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
-    rng = Random(rng_seed)
+    rng = Random(rng_seed)  # noqa: S311
 
     result: list[T] = []
     for x in xs:
@@ -954,7 +848,9 @@ def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
 
 
 def write_random_chunks(
-    file_list: list[Path], max_chunks: int, target: BinaryIO
+    file_list: list[Path],
+    max_chunks: int,
+    target: BinaryIO,
 ) -> None:
     current_file_obj: None | BinaryIO = None
     try:
@@ -967,7 +863,7 @@ def write_random_chunks(
                 bytearray(
                     "".join(str(single_file) for single_file in file_list),
                     encoding="utf-8",
-                )
+                ),
             ),
         ):
             if chunk.file != current_file_path:
@@ -985,14 +881,128 @@ def write_random_chunks(
             current_file_obj.close()
 
 
+def write_ambigator_gnuplot_script(target: IO[bytes]) -> None:
+    # this is taken straight out of CrystFEL's scripts/fg-graph folder
+    target.write(
+        b"""
+set terminal pngcairo size 1600,1000 enhanced font 'Verdana,20' linewidth 2
+set output myoutput
+set xlabel "Number of crystals"
+set ylabel "Correlation"
+rnd(x) = x - floor(x) < 0.5 ? floor(x) : ceil(x)
+cfround(x1,x2) = rnd(10**x2*x1)/10.0**x2
+set xzeroaxis lc rgb "black" lt 1
+set key top left
+set xrange [0:myniter*mynpatt]
+set yrange [mycmin:mycmax]
+set ytics nomirror
+set xtics nomirror
+set x2tics nomirror
+
+set x2range [0:myniter]
+set x2label "Number of passes over all crystals"
+set arrow from mynpatt,mycmin to mynpatt,mycmax nohead lc rgb "black"
+
+plot\
+ 1 lc rgb "black" lt 1 notitle,\\
+ inputfile u 0:1 ps 0.2 pt 7 lc rgb "orange" notitle,\\
+ inputfile u 0:2 ps 0.2 pt 7 lc rgb "#0088FF" notitle,\\
+ inputfile u 0:(rand(0)>0.5?$1:1/0) ps 0.2 pt 7 lc rgb "orange" notitle ,\\
+ inputfile u (cfround($0, -3)):($1>$2?$1:$2) lw 3 lc rgb "black" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):($1<$2?$1:$2) lw 3 lc rgb "black" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):1 lw 3 lc rgb "red" smooth unique notitle,\\
+ inputfile u (cfround($0, -3)):2 lw 3 lc rgb "blue" smooth unique notitle
+        """,
+    )
+
+
+def write_fg_graph(args: ParsedArgs, fg_graph_file: Path) -> Path:
+    gnuplot_script_path = Path("fg-graph.gnuplot")
+    logger.info(f"writing to file {gnuplot_script_path}")
+    with gnuplot_script_path.open("wb+") as gnuplot_script:
+        write_ambigator_gnuplot_script(gnuplot_script)
+
+    def run_gnuplot(output_file: Path) -> None:
+        gnuplot_args: list[str] = [
+            "gnuplot" if args.gnuplot_path is None else str(args.gnuplot_path),
+            "-e",
+            f"myoutput='{output_file}'",
+            "-e",
+            f"inputfile='{fg_graph_file}'",
+            "-e",
+            "mynpatt=4000",
+            "-e",
+            "myniter=4",
+            "-e",
+            "mycmin=-0.1",
+            "-e",
+            "mycmax=0.3",
+            str(gnuplot_script_path),
+        ]
+        logger.info(f"gnuplot arguments: {gnuplot_args}")
+        subprocess.check_output(gnuplot_args)  # noqa: S603
+
+    output_image = Path("fg-graph.png")
+
+    run_gnuplot(output_image)
+
+    return output_image
+
+
+def run_ambigator(
+    args: ParsedArgs, input_stream_files: list[Path]
+) -> tuple[Path, None | Path]:
+    if len(input_stream_files) == 1:
+        single_input_stream = input_stream_files[0]
+    else:
+        single_input_stream = Path("ambigator-input.stream")
+        with single_input_stream.open("wb") as fout:
+            for fpath in input_stream_files:
+                with fpath.open(mode="rb") as fin:
+                    shutil.copyfileobj(fin, fout)
+
+    output_stream = Path("ambigator-output.stream")
+    fg_graph_output = Path("ambigator-fg.txt")
+    ambigator_args: list[str] = [
+        f"{args.crystfel_path}/bin/ambigator",
+        f"--output={output_stream}",
+        f"-j{os.cpu_count()}",
+        f"--fg-graph={fg_graph_output}",
+        str(single_input_stream),
+    ]
+    ambigator_args.extend(shlex.split(args.ambigator_command_line))
+    ambigator_result = subprocess.run(  # noqa: S603
+        ambigator_args, check=False, capture_output=True
+    )
+
+    logger.info(
+        f"ambigator output stderr:\n{ambigator_result.stderr.decode('utf-8')}\n\nstdout:\n{ambigator_result.stdout.decode('utf-8')}"
+    )
+    if ambigator_result.returncode != 0:
+        logger.error("ambigator didn't work: check the log")
+        exit_with_error(
+            args,
+            "ambigator didn't work, check the log",
+        )
+
+    try:
+        output_plot = write_fg_graph(args, fg_graph_output)
+    except:
+        output_plot = None
+
+    return output_stream, output_plot
+
+
 def generate_output(args: ParsedArgs) -> None:
     merge_subdirectory = Path(f"./merging-{args.merge_result_id}")
 
     merge_subdirectory.mkdir(parents=True, exist_ok=True)
     os.chdir(merge_subdirectory)
 
+    input_stream_files: list[Path] = []
     if args.random_cut_length is not None:
-        with NamedTemporaryFile(dir=os.getcwd()) as random_chunks_file:
+        random_chunks_file = Path("random-chunks.stream")
+        with random_chunks_file.open("wb") as random_chunks_file_obj:
             with args.stream_files[0].open("r", encoding="utf-8") as first_file:
                 header = ""
                 for line in first_file:
@@ -1000,18 +1010,29 @@ def generate_output(args: ParsedArgs) -> None:
                         break
                     header += line
 
-            random_chunks_file.write(header.encode("utf-8"))
+            random_chunks_file_obj.write(header.encode("utf-8"))
             write_random_chunks(
                 file_list=args.stream_files,
                 max_chunks=args.random_cut_length,
                 # How do you type the output of NamedTemporaryFile? It's obviously a binary file object
                 # in the default mode.
-                target=random_chunks_file,  # type: ignore
+                target=random_chunks_file_obj,  # type: ignore
             )
-            random_chunks_file.flush()
-            run_partialator(args, Path(random_chunks_file.name))
+            random_chunks_file_obj.flush()
+        input_stream_files.append(random_chunks_file)
     else:
-        run_partialator(args, None)
+        input_stream_files.extend(args.stream_files)
+
+    if args.ambigator_command_line.strip():
+        ambigator_stream_file, ambigator_plot_file = run_ambigator(
+            args, input_stream_files
+        )
+        input_stream_files.clear()
+        input_stream_files.append(ambigator_stream_file)
+    else:
+        ambigator_plot_file = None
+
+    run_partialator(args, input_stream_files)
 
     cell_file = retrieve_file(args, args.cell_file_id, "cell")
 
@@ -1040,24 +1061,29 @@ def generate_output(args: ParsedArgs) -> None:
         r"Overall redundancy = ([0-9.]+) measurements/unique reflection",
     )
     completeness = first_group_as_float(
-        check_out, r"Overall completeness = ([0-9.]+) %"
+        check_out,
+        r"Overall completeness = ([0-9.]+) %",
     )
     measurements_total = first_group_as_int(
-        check_out, r"([0-9]+) measurements in total"
+        check_out,
+        r"([0-9]+) measurements in total",
     )
     reflections_total = first_group_as_int(check_out, r"([0-9]+) reflections in total")
     reflections_possible = first_group_as_int(
-        check_out, r"([0-9]+) reflections possible"
+        check_out,
+        r"([0-9]+) reflections possible",
     )
     discarded_reflections = first_group_as_int(
-        check_out, r"Discarded ([0-9]+) reflections"
+        check_out,
+        r"Discarded ([0-9]+) reflections",
     )
     one_over_d = re.compile(r"1/d goes from ([0-9.]+) to ([0-9.]+) nm\^-1").search(
-        check_out, re.MULTILINE
+        check_out,
+        re.MULTILINE,
     )
     if one_over_d is None:
         raise Exception(
-            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}'
+            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}',
         )
     one_over_d_from = 10.0 / float(one_over_d.group(1))
     one_over_d_to = 10.0 / float(one_over_d.group(2))
@@ -1108,7 +1134,8 @@ def generate_output(args: ParsedArgs) -> None:
     check_file = read_shells_file(args, CHECK_HKL_SHELL_FILE)
     if not check_file:
         exit_with_error(
-            args, f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines"
+            args,
+            f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines",
         )
 
     refinement_result: None | RefinementResult = None
@@ -1121,14 +1148,22 @@ def generate_output(args: ParsedArgs) -> None:
                 else None
             )
             refinement_result = quick_refine(
-                args.ccp4_path, mtz_path, highres_cut, pdb_file, restraints_cif_file
+                args.ccp4_path,
+                mtz_path,
+                highres_cut,
+                pdb_file,
+                restraints_cif_file,
             )
         except:
             logger.exception("couldn't complete refinement")
 
     output_json = {
+        "latest_log": "\n".join(log_list),
         "mtz_file_id": upload_file(args, mtz_path),
         "detailed_foms": extract_shell_resolutions(args),
+        "ambigator_fg_graph_file_id": upload_file(args, ambigator_plot_file)
+        if ambigator_plot_file is not None
+        else None,
         "refinement_results": (
             [
                 {
@@ -1138,7 +1173,7 @@ def generate_output(args: ParsedArgs) -> None:
                     "r_work": refinement_result.fom.r_work,
                     "rms_bond_angle": refinement_result.fom.rms_bond_angle,
                     "rms_bond_length": refinement_result.fom.rms_bond_length,
-                }
+                },
             ]
             if refinement_result is not None
             else []
@@ -1222,7 +1257,8 @@ def generate_output(args: ParsedArgs) -> None:
             ),
             "outer_shell": {
                 "resolution": read_compare_shells_file(
-                    args, ccstar_compare_shell_file(nshells)
+                    args,
+                    ccstar_compare_shell_file(nshells),
                 )[-1].d_over_a,
                 "ccstar": read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE)[
                     -1
@@ -1269,6 +1305,7 @@ def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
             read_compare_shells_file(args, CC_COMPARE_SHELL_FILE),
             read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE),
             read_shells_file(args, CHECK_HKL_SHELL_FILE),
+            strict=False,
         )
     ]
 
@@ -1287,7 +1324,7 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
         first_pass_ccstar_file = read_compare_shells_file(args, output_file)
         if not first_pass_ccstar_file:
             logger.warning(
-                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells"
+                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells",
             )
             return None
         highres_cut_line: None | CompareShellLine = None
@@ -1305,7 +1342,8 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     highres_cut_and_minimum_nref = calculate_ccstar_values(reasonable_nshell)
     if highres_cut_and_minimum_nref is None:
         exit_with_error(
-            args, f"Error in data: CC* shells file for {reasonable_nshell} shell(s)"
+            args,
+            f"Error in data: CC* shells file for {reasonable_nshell} shell(s)",
         )
     highres_cut, _ = highres_cut_and_minimum_nref
     return highres_cut, reasonable_nshell
@@ -1333,7 +1371,7 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     # )
 
 
-def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
+def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
     partialator_command_line_args = [
         f"{args.crystfel_path}/bin/partialator",
         "-y",
@@ -1345,19 +1383,10 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
     ]
     if args.partialator_additional:
         partialator_command_line_args.extend(shlex.split(args.partialator_additional))
-    # This is implemented a little lazily, to be honest. If we have a "random cut file", meaning we stitched
-    # together stream fils into a temporary new stream file, then run partialator on that
-    # otherwise run it on the input stream files.
-    #
-    # This is lazy, because this file choosing should really be in this funciton, rather than the one on top of
-    # it. But there you go.
-    if random_cut_file is not None:
-        partialator_command_line_args.extend(["-i", str(random_cut_file)])
-    else:
-        for f in args.stream_files:
-            partialator_command_line_args.extend(["-i", str(f)])
+    for f in input_stream_files:
+        partialator_command_line_args.extend(["-i", str(f)])
     logging.info(
-        f"starting partialator with command line: {partialator_command_line_args}"
+        f"starting partialator with command line: {partialator_command_line_args}",
     )
     try:
         if (
@@ -1367,7 +1396,7 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
         ):
             logger.info("All hkl files already present, not restarting partialator")
         else:
-            partialator = subprocess.run(partialator_command_line_args)
+            partialator = subprocess.run(partialator_command_line_args, check=False)  # noqa: S603
 
             if partialator.returncode != 0:
                 exit_with_error(
@@ -1379,6 +1408,4 @@ def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
 
 
 if __name__ == "__main__":
-    if predefined_args is None:
-        exit_with_error(None, "No predefined_args given")
-    generate_output(parse_predefined(predefined_args))
+    generate_output(parse_args())

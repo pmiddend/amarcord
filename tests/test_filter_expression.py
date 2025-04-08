@@ -191,7 +191,7 @@ def _create_attributo_value(
                     sub_type=ArrayAttributoType.ARRAY_STRING,
                     min_length=None,
                     max_length=None,
-                )
+                ),
             },
             {"foo": ["x", "a"]},
             True,
@@ -204,7 +204,7 @@ def _create_attributo_value(
                     sub_type=ArrayAttributoType.ARRAY_STRING,
                     min_length=None,
                     max_length=None,
-                )
+                ),
             },
             {"foo": ["x", "a"]},
             False,
@@ -220,7 +220,7 @@ def test_compile_run_filter(
 ) -> None:
     running_id = 1
     attributo_name_to_id: dict[str, AttributoId] = {}
-    for attributo_name in attributi_types.keys():
+    for attributo_name in attributi_types:
         attributo_name_to_id[attributo_name] = AttributoId(running_id)
         running_id += 1
 

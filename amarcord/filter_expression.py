@@ -60,7 +60,7 @@ identifier_string: IDENTIFIER | STRING
 
 // Disregard spaces in text
 %ignore " "
-"""
+""",
 )
 
 
@@ -88,21 +88,21 @@ def _transform_comparison_operand_before_comparison(
     chemical_names: dict[str, int],
 ) -> AttributoValue:
     if isinstance(type_, AttributoTypeChemical):
-        if isinstance(input_, (int, float)):
+        if isinstance(input_, float | int):
             if input_ not in chemical_names.values():
                 raise FilterParseError(
-                    f'attributo "{aid}": the chemical ID {input_} is not known. You can also specify the chemical name if you don\'t want to use the ID.'
+                    f'attributo "{aid}": the chemical ID {input_} is not known. You can also specify the chemical name if you don\'t want to use the ID.',
                 )
             return input_
         if isinstance(input_, str):
             chemical_id_from_dict = chemical_names.get(input_)
             if chemical_id_from_dict is None:
                 raise FilterParseError(
-                    f'chemical with name "{input_}" not found{maybe_you_meant(input_, chemical_names.keys())}'
+                    f'chemical with name "{input_}" not found{maybe_you_meant(input_, chemical_names.keys())}',
                 )
             return chemical_id_from_dict
         raise FilterParseError(
-            f'attributo "{aid}" is of type "Chemical ID", so we excepted a string (the chemical name) or the chemical ID. However, we got "{input_}".'
+            f'attributo "{aid}" is of type "Chemical ID", so we excepted a string (the chemical name) or the chemical ID. However, we got "{input_}".',
         )
     return input_
 
@@ -128,29 +128,33 @@ def _comparison_filter(
         aid = filter_input.attributo_name_to_id.get(aname)
         if aid is None:
             raise FilterParseError(
-                f'attributo "{aname}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
+                f'attributo "{aname}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}',
             )
         run_has_attributo_value = next(
-            iter(av for av in run.attributo_values if av.attributo_id == aid), None
+            iter(av for av in run.attributo_values if av.attributo_id == aid),
+            None,
         )
         if run_has_attributo_value is None:
             raise FilterParseError(
-                f'attributo "{aid}" not in run{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
+                f'attributo "{aid}" not in run{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}',
             )
         type_ = schema_dict_to_attributo_type(
-            run_has_attributo_value.attributo.json_schema
+            run_has_attributo_value.attributo.json_schema,
         )
         attributo_value = orm_entity_has_attributo_value_to_attributo_value(
-            run_has_attributo_value
+            run_has_attributo_value,
         )
     operand_processed = _transform_comparison_operand_before_comparison(
-        aname, operand, type_, filter_input.chemical_names
+        aname,
+        operand,
+        type_,
+        filter_input.chemical_names,
     )
     try:
         return comparison_op(attributo_value, operand_processed)
     except TypeError:
         raise FilterParseError(
-            f'attributo "{aname}": wrong type for comparison; left-hand side is {attributo_value} (type {type(attributo_value).__name__}), right-hand side is {operand_processed} (type {type(operand_processed).__name__}); maybe remove or add quotation marks?'
+            f'attributo "{aname}": wrong type for comparison; left-hand side is {attributo_value} (type {type(attributo_value).__name__}), right-hand side is {operand_processed} (type {type(operand_processed).__name__}); maybe remove or add quotation marks?',
         )
 
 
@@ -215,7 +219,8 @@ class MyTransformer(Transformer[Any, Any]):
         return lambda a, b: b in a
 
     def comparison(
-        self, items: tuple[str, ComparisonOperator, Any]
+        self,
+        items: tuple[str, ComparisonOperator, Any],
     ) -> RunFilterFunction:
         return partial(_comparison_filter, items[0], items[1], items[2])
 

@@ -11,26 +11,26 @@ from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     SlurmRemoteWorkloadManager,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    MAXWELL_SLURM_URL,  # NOQA
+    MAXWELL_SLURM_URL,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     ConstantTokenRetriever,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    DynamicTokenRetriever,  # NOQA
+    DynamicTokenRetriever,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     SlurmRequestsHttpWrapper,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    SlurmRestWorkloadManager,  # NOQA
+    SlurmRestWorkloadManager,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import TokenRetriever
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     retrieve_jwt_token_externally,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    retrieve_jwt_token_on_maxwell_node,  # NOQA
+    retrieve_jwt_token_on_maxwell_node,
 )
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.simple_uri import parse_simple_uri
@@ -81,7 +81,7 @@ def parse_workload_manager_config(
             )
             if beamtime_id_or_metadata_file is None:
                 raise Exception(
-                    "invalid workload manager simple URI: got no beamtime ID and no metadata file"
+                    "invalid workload manager simple URI: got no beamtime ID and no metadata file",
                 )
             additional_ssh_options = jcc.bool_parameter("use-additional-ssh-options")
             return RemotePetraSlurmWorkloadManagerConfig(
@@ -97,7 +97,7 @@ def parse_workload_manager_config(
             partition = jcc.string_parameter("partition")
             if partition is None:
                 raise Exception(
-                    'invalid scheme for SLURM REST: "partition" is mandatory'
+                    'invalid scheme for SLURM REST: "partition" is mandatory',
                 )
             user = jcc.string_parameter("user")
             return SlurmRestWorkloadManagerConfig(
@@ -114,7 +114,7 @@ def parse_workload_manager_config(
             partition = jcc.string_parameter("partition")
             if partition is None:
                 raise Exception(
-                    'invalid scheme for SLURM REST: "partition" is mandatory'
+                    'invalid scheme for SLURM REST: "partition" is mandatory',
                 )
             host = jcc.string_parameter("host")
             if host is None:
@@ -135,7 +135,7 @@ def parse_workload_manager_config(
             )
         case _:
             raise Exception(
-                f"invalid workload manager url (invalid scheme {jcc.scheme}): {s}"
+                f"invalid workload manager url (invalid scheme {jcc.scheme}): {s}",
             )
 
 
@@ -160,7 +160,7 @@ def create_workload_manager(
                 )
                 if metadata is None:
                     raise Exception(
-                        f'couldn\'t locate beamline metadata for beamtime ID "{beamtime_id_or_metadata_file}"'
+                        f'couldn\'t locate beamline metadata for beamtime ID "{beamtime_id_or_metadata_file}"',
                     )
             else:
                 metadata = parse_beamline_metadata(beamtime_id_or_metadata_file)
@@ -184,12 +184,14 @@ def create_workload_manager(
             elif config.portal_token is not None:
                 token_retriever = DynamicTokenRetriever(
                     partial(
-                        retrieve_jwt_token_externally, config.portal_token, config.user
-                    )
+                        retrieve_jwt_token_externally,
+                        config.portal_token,
+                        config.user,
+                    ),
                 )
             else:
                 token_retriever = DynamicTokenRetriever(
-                    retrieve_jwt_token_on_maxwell_node
+                    retrieve_jwt_token_on_maxwell_node,
                 )
             return SlurmRestWorkloadManager(
                 partition=partition,

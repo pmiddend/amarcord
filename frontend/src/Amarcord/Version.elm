@@ -1,6 +1,6 @@
-module Amarcord.Version exposing (..)
+module Amarcord.Version exposing (amarcordClientVersion)
 
 
-version : String
-version =
-    "dev"
+amarcordClientVersion : String
+amarcordClientVersion =
+    "INSERT_VERSION_HERE"

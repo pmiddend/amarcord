@@ -2,7 +2,7 @@ module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, pageTitl
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
-import Amarcord.Html exposing (div_, form_, h2_, h4_, strongText)
+import Amarcord.Html exposing (div_, form_, h2_, h4_, p_, strongText)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
@@ -64,6 +64,7 @@ emptyBeamtime hereAndNow =
     , proposal = ""
     , title = ""
     , chemicalNames = []
+    , analysisOutputPath = "/asap3/petra3/gpfs/{beamtime.beamline_lowercase}/{beamtime.year}/data/{beamtime.external_id}/processed"
     }
 
 
@@ -122,6 +123,7 @@ update msg model =
                             , proposal = bt.proposal
                             , start = bt.start
                             , title = bt.title
+                            , analysisOutputPath = bt.analysisOutputPath
                             }
                     in
                     ( { model | modifyRequest = Loading }
@@ -136,7 +138,12 @@ update msg model =
 viewBeamtimeTableRow : Zone -> JsonBeamtime -> Html Msg
 viewBeamtimeTableRow zone ({ beamline, comment, start, end, externalId, id, proposal, title, chemicalNames } as bt) =
     tr []
-        [ td [] [ strongText externalId ]
+        [ td []
+            [ button
+                [ class "btn btn-link amarcord-small-link-button", class "amarcord-edit-button", onClick (EditBeamtimeStart bt) ]
+                [ icon { name = "pencil-square" } ]
+            ]
+        , td [] [ strongText externalId ]
         , td [] [ text (String.fromInt id) ]
         , td [] [ a [ href (makeLink (RunOverview id)) ] [ text title ] ]
         , td [] [ text beamline ]
@@ -165,11 +172,6 @@ viewBeamtimeTableRow zone ({ beamline, comment, start, end, externalId, id, prop
                     ]
                 ]
             ]
-        , td []
-            [ button
-                [ class "btn btn-sm btn-info", class "amarcord-edit-button", onClick (EditBeamtimeStart bt) ]
-                [ icon { name = "pencil-square" } ]
-            ]
         ]
 
 
@@ -178,7 +180,8 @@ viewBeamtimes zone beamtimes =
     table [ class "table table-striped", id "beamtime-table" ]
         [ thead []
             [ tr []
-                [ th [] [ text "External ID" ]
+                [ th [] [ text "Actions" ]
+                , th [ class "text-nowrap" ] [ text "External ID" ]
                 , th [] [ text "ID" ]
                 , th [] [ text "Title" ]
                 , th [] [ text "Beamline" ]
@@ -187,7 +190,6 @@ viewBeamtimes zone beamtimes =
                 , th [] [ text "End" ]
                 , th [] [ text "Comment" ]
                 , th [] [ text "Chemicals" ]
-                , th [] [ text "Actions" ]
                 ]
             ]
         , tbody [] (List.map (viewBeamtimeTableRow zone) beamtimes)
@@ -205,7 +207,7 @@ viewEditForm zone bt =
                         " Add new beamtime"
 
                      else
-                        " Edit " ++ bt.title
+                        " Edit “" ++ bt.title ++ "”"
                     )
                 ]
     in
@@ -274,6 +276,24 @@ viewEditForm zone bt =
                 ]
                 []
             , label [ for "beamtime-edit-end" ] [ text "End" ]
+            ]
+        , div [ class "form-floating mb-3" ]
+            [ input
+                [ id "beamtime-edit-analyis-output-path"
+                , type_ "text"
+                , class "form-control"
+                , value bt.analysisOutputPath
+                , onInput (\newValue -> ChangeEditBeamtime (\bt2 -> { bt2 | analysisOutputPath = newValue }))
+                ]
+                []
+            , label [ for "beamtime-edit-analysis-output-path" ] [ text "Analysis output path" ]
+            , div [ class "form-text" ]
+                [ p_ [ text "This will be facility specific and can include placeholders. For Petra III, choose " ]
+                , p_ [ text "/asap3/petra3/gpfs/{beamtime.beamline_lowercase}/{beamtime.year}/data/{beamtime.external_id}/processed" ]
+                , p_ [ text "For external beam times copied to DESY's GPFS, choose:" ]
+                , p_ [ text "/asap3/petra3/gpfs/external/{beamtime.year}/data/{beamtime.external_id}/processed" ]
+                , p_ [ text "And choose the external beamtime ID accordingly (or don't use the placeholder for the external ID and simply write the actual number, as you wish)." ]
+                ]
             ]
         , div [ class "form-floating mb-3" ]
             [ textarea

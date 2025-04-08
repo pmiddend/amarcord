@@ -7,13 +7,13 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
-import Api.Data exposing (JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
+import Api.Data as Api exposing (JSONSchemaStringType(..), JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
 import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
 import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
 import Html exposing (..)
@@ -74,7 +74,7 @@ attributoTypeEnumToString : AttributoTypeEnum -> String
 attributoTypeEnumToString x =
     case x of
         ATInt ->
-            "int"
+            "integer"
 
         ATDateTime ->
             "date-time"
@@ -179,9 +179,9 @@ attributoAugTypeToEnum x =
             ATList
 
 
-emptyAugAttributo : Attributo AttributoTypeAug
-emptyAugAttributo =
-    { id = -1, name = "", description = "", group = manualAttributiGroup, associatedTable = Chemical, type_ = AugSimple String }
+emptyAugAttributo : AssociatedTable -> Attributo AttributoTypeAug
+emptyAugAttributo at =
+    { id = -1, name = "", description = "", group = manualAttributiGroup, associatedTable = at, type_ = AugSimple String }
 
 
 attributoAugTypeFromType : AttributoType -> AttributoTypeAug
@@ -309,8 +309,11 @@ attributoAugTypeToType x =
 
 type Msg
     = AttributiReceived (Result HttpError JsonReadAttributi)
-    | AddAttributo
-    | EditAttributoAssociatedTable AssociatedTable
+    | AddAttributo AssociatedTable
+    | CreateCellDescription
+    | CreatePointGroup
+    | CreateSpaceGroup
+    | ChangeTab AssociatedTable
     | ToleranceCheckerChangeDs String
     | ToleranceCheckerChangeRun String
     | EditAttributoName AttributoName
@@ -336,7 +339,8 @@ type alias ToleranceChecker =
 
 
 type alias Model =
-    { attributiList : RemoteData HttpError (List (Attributo AttributoType))
+    { tab : AssociatedTable
+    , attributiList : RemoteData HttpError (List (Attributo AttributoType))
     , editAttributo : Maybe (Attributo AttributoTypeAug)
     , editAttributoOriginalName : Maybe AttributoName
     , conversionFlags : ConversionFlags
@@ -354,9 +358,10 @@ pageTitle _ =
     "Attributi"
 
 
-init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
-init _ beamtimeId =
-    ( { attributiList = Loading
+init : HereAndNow -> BeamtimeId -> Maybe AssociatedTable -> ( Model, Cmd Msg )
+init _ beamtimeId tab =
+    ( { tab = Maybe.withDefault Run tab
+      , attributiList = Loading
       , editAttributo = Nothing
       , editAttributoOriginalName = Nothing
       , conversionFlags = { ignoreUnits = False }
@@ -467,9 +472,9 @@ attributoTypeToToleranceHtml x =
 
 
 viewAttributoRow : Attributo AttributoType -> Html Msg
-viewAttributoRow { id, name, description, group, associatedTable, type_ } =
+viewAttributoRow { id, name, description, group, type_ } =
     tr_
-        [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ name) ]
+        [ th [ scope "row", style "white-space" "nowrap" ] [ text name ]
         , td [ style "white-space" "nowrap" ] [ text group ]
         , td_ [ markupWithoutErrors description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
@@ -569,6 +574,9 @@ viewTypeSpecificForm toleranceChecker x =
                 , text " attributi. In the simplest case, just give one chemical attributo to signify the chemical that is to be screened. But it's up to you designing the experiment."
                 ]
 
+        AugSimple Int ->
+            span [ class "form-text" ] [ text "Choosing an integer makes sense if you have integral numbers, and you want to make sure to have no rounding errors and inaccuracies. This can happen if you choose the “number” type, especially with bigger numbers." ]
+
         AugSimple _ ->
             text ""
 
@@ -593,7 +601,8 @@ viewTypeSpecificForm toleranceChecker x =
                     Maybe.withDefault True <| Maybe.map3 toleranceMatches (String.toFloat toleranceInput) (String.toFloat toleranceChecker.runValue) (String.toFloat toleranceChecker.dsValue)
             in
             div_
-                [ div [ class "mb-3" ]
+                [ p [ class "form-text" ] [ text "Note: if you have integral numbers (no decimal places) and want to avoid rounding errors and inaccuracies, consider choosing the “integral” type instead." ]
+                , div [ class "mb-3" ]
                     [ label [ class "form-label", for "range" ] [ text "Range" ]
                     , input_
                         [ type_ "text"
@@ -866,35 +875,6 @@ viewEditForm model attributiList attributo =
                     "Edit attributo"
                 )
             ]
-        , if isNothing model.editAttributoOriginalName then
-            div [ class "mb-3" ]
-                [ label [ for "associated-table", class "form-label" ] [ text "Attributo is for ..." ]
-                , div_
-                    [ div [ class "form-check form-check-inline" ]
-                        [ input_
-                            [ id "associated-table-run"
-                            , class "form-check-input"
-                            , type_ "radio"
-                            , checked (attributo.associatedTable == Run)
-                            , onInput (\_ -> EditAttributoAssociatedTable Run)
-                            ]
-                        , label [ for "associated-table-run" ] [ text "Run" ]
-                        ]
-                    , div [ class "form-check form-check-inline" ]
-                        [ input_
-                            [ id "associated-table-chemical"
-                            , class "form-check-input"
-                            , type_ "radio"
-                            , checked (attributo.associatedTable == Chemical)
-                            , onInput (\_ -> EditAttributoAssociatedTable Chemical)
-                            ]
-                        , label [ for "associated-table-chemical" ] [ text "Chemical" ]
-                        ]
-                    ]
-                ]
-
-          else
-            p [ class "text-muted" ] [ small [] [ text "Attributo association (chemical/run) cannot be changed after creation." ] ]
         , div [ class "mb-3" ]
             [ label [ for "name", class "form-label" ] [ text "Name" ]
             , div [ class "w-75" ]
@@ -1002,36 +982,61 @@ viewInner model =
 
         Success attributiListReal ->
             let
-                help =
-                    text ""
-
-                --div [ class "accordion mb-3" ]
-                --    [ div [ class "accordion-item" ]
-                --        [ h2 [ class "accordion-header" ]
-                --            [ button
-                --                [ class "accordion-button btn-light"
-                --                , type_ "button"
-                --                , attribute "data-bs-toggle" "collapse"
-                --                , attribute "data-bs-target" "#collapseHelp"
-                --                ]
-                --                [ i [ class "bi-question-circle me-3" ] []
-                --                , text " What are attributi?"
-                --                ]
-                --            ]
-                --        , div [ id "collapseHelp", class "accordion-collapse collapse" ]
-                --            [ div [ class "accordion-body" ]
-                --                [ p_ [ text "Every experiment is a little different. Different detectors, different chemicals, you name it!" ]
-                --                ]
-                --            ]
-                --        ]
-                --    ]
                 prefix =
                     case model.editAttributo of
                         Nothing ->
-                            button [ class "btn btn-primary", onClick AddAttributo ] [ icon { name = "plus-lg" }, text " Add attributo" ]
+                            button
+                                [ class "btn btn-primary"
+                                , onClick (AddAttributo model.tab)
+                                ]
+                                [ icon { name = "plus-lg" }, text (" Add " ++ String.toLower (associatedTableToString model.tab) ++ " attributo") ]
 
                         Just ea ->
                             viewEditForm model attributiListReal ea
+
+                magicalAttributi =
+                    if model.tab == Chemical then
+                        div [ class "mt-1" ]
+                            [ h5_ [ text "Magical Attributi" ]
+                            , div [ class "hstack gap-3" ]
+                                [ div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreateCellDescription
+                                        , disabled (List.any (\a -> a.name == "cell description") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “cell description”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for indexing" ]
+                                    ]
+                                , div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreatePointGroup
+                                        , disabled (List.any (\a -> a.name == "point group") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “point group”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for merging" ]
+                                    ]
+                                , div_
+                                    [ button
+                                        [ type_ "button"
+                                        , class "btn btn-primary btn-sm"
+                                        , onClick CreateSpaceGroup
+                                        , disabled (List.any (\a -> a.name == "space group") attributiListReal)
+                                        ]
+                                        [ icon { name = "magic" }, text " Create “space group”" ]
+                                    , br_
+                                    , span [ class "form-text" ] [ text "Used by CrystFEL for generating the MTZ file." ]
+                                    ]
+                                ]
+                            ]
+
+                    else
+                        text ""
 
                 modifyRequestResult =
                     case model.modifyRequest of
@@ -1064,9 +1069,52 @@ viewInner model =
                             div [ class "mt-3" ]
                                 [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
+
+                tabBar =
+                    ul [ class "nav nav-tabs mb-3" ]
+                        [ li [ class "nav-item" ]
+                            [ button
+                                [ type_ "button"
+                                , class
+                                    (if model.tab == Run then
+                                        "nav-link active"
+
+                                     else
+                                        "nav-link"
+                                    )
+                                , onClick (ChangeTab Run)
+                                ]
+                                [ text "Run Attributi" ]
+                            ]
+                        , li
+                            [ class
+                                ("nav-item"
+                                    ++ (if model.tab == Chemical then
+                                            " active"
+
+                                        else
+                                            ""
+                                       )
+                                )
+                            ]
+                            [ button
+                                [ type_ "button"
+                                , class
+                                    (if model.tab == Chemical then
+                                        "nav-link active"
+
+                                     else
+                                        "nav-link"
+                                    )
+                                , onClick (ChangeTab Chemical)
+                                ]
+                                [ text "Chemical Attributi" ]
+                            ]
+                        ]
             in
-            [ help
+            [ tabBar
             , prefix
+            , magicalAttributi
             , modifyRequestResult
             , deleteRequestResult
             , table [ class "table table-striped" ]
@@ -1081,7 +1129,7 @@ viewInner model =
                         ]
                     ]
                 , tbody_
-                    (List.map viewAttributoRow attributiListReal)
+                    (List.map viewAttributoRow (List.sortBy (\a -> a.name) <| List.filter (\a -> a.associatedTable == model.tab) attributiListReal))
                 ]
             ]
 
@@ -1129,18 +1177,66 @@ type EditNumberResult
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CreateCellDescription ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Used for CrystFEL Online. The format of this is `lattice_type centering unique_axis (a b c) (alpha beta gamma)`. Angles are in degrees, lengths in *angstrom*. unique_axis can be “?” if it doesn't make sense for the space group."
+                    , group = "manual"
+                    , name = "cell description"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
+        CreatePointGroup ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Point group of crystalline samples. See the comment up top for possible values."
+                    , group = "manual"
+                    , name = "point group"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
+        CreateSpaceGroup ->
+            ( { model | modifyRequest = Loading }
+            , send (EditSubmitFinished << forgetMsgInput)
+                (createAttributoApiAttributiPost
+                    { beamtimeId = model.beamtimeId
+                    , associatedTable = Api.AssociatedTableChemical
+                    , description = "Space group of crystalline samples. The notation has to be compatible with the `CRYST1` line from the PDB. See [lbl.gov](https://cci.lbl.gov/sginfo/hall_symbols.html) (column “Hermann-Maugin” in Table 6) for reference."
+                    , group = "manual"
+                    , name = "space group"
+                    , attributoTypeInteger = Nothing
+                    , attributoTypeNumber = Nothing
+                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeArray = Nothing
+                    , attributoTypeBoolean = Nothing
+                    }
+                )
+            )
+
+        ChangeTab newTab ->
+            ( { model | tab = newTab }, Cmd.none )
+
         -- Some of the conversion flags changed
         EditConversionFlags newConversionFlags ->
             ( { model | conversionFlags = newConversionFlags }, Cmd.none )
-
-        -- The associated table selection changed for the currently edited object
-        EditAttributoAssociatedTable newTable ->
-            case model.editAttributo of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just editAttributo ->
-                    ( { model | editAttributo = Just { editAttributo | associatedTable = newTable } }, Cmd.none )
 
         -- The name was changed
         EditAttributoName newName ->
@@ -1169,8 +1265,8 @@ update msg model =
                     ( { model | editAttributo = Just { editAttributo | group = newGroup } }, Cmd.none )
 
         -- The user pressed "Add new attributo"
-        AddAttributo ->
-            ( { model | editAttributo = Just emptyAugAttributo, editAttributoOriginalName = Nothing }, Cmd.none )
+        AddAttributo runOrChemical ->
+            ( { model | editAttributo = Just (emptyAugAttributo runOrChemical), editAttributoOriginalName = Nothing }, Cmd.none )
 
         -- The list of all attributi was received
         AttributiReceived x ->

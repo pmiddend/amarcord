@@ -1,6 +1,7 @@
 import datetime
 from io import BytesIO
 from pathlib import Path
+from typing import Annotated
 from typing import Generator
 from zipfile import ZipFile
 
@@ -24,7 +25,8 @@ router = APIRouter()
     include_in_schema=False,
 )
 async def download_spreadsheet(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> Response:
     workbook_output = await create_workbook(session, beamtimeId, with_events=True)
     workbook = workbook_output.workbook
@@ -33,7 +35,7 @@ async def download_spreadsheet(
     zipfile_bytes = BytesIO()
     with ZipFile(zipfile_bytes, "w") as result_zip:
         dirname = "amarcord-output-" + datetime.datetime.now(
-            datetime.timezone.utc
+            datetime.timezone.utc,
         ).strftime("%Y-%m-%d_%H-%M-%S")
         result_zip.writestr(f"{dirname}/tables.xlsx", workbook_bytes.getvalue())
         for file_ in workbook_output.files:

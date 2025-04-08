@@ -67,12 +67,14 @@ class AttributoTypeDecimal:
             return f"decimal number{tolerance_string}"
 
         if self.suffix is not None and self.range is not None:
-            return f"{self.suffix} as decimal number in {repr(self.range)}{tolerance_string}"
+            return (
+                f"{self.suffix} as decimal number in {self.range!r}{tolerance_string}"
+            )
 
         if self.suffix is not None:
             return f"{self.suffix} as decimal number{tolerance_string}"
 
-        return f"decimal number in {repr(self.range)}{tolerance_string}"
+        return f"decimal number in {self.range!r}{tolerance_string}"
 
 
 @dataclass(frozen=True)

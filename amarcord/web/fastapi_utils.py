@@ -5,6 +5,7 @@ from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
 from typing import Iterable
+from typing import cast
 
 import structlog
 from fastapi import HTTPException
@@ -14,6 +15,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
@@ -46,6 +48,7 @@ from amarcord.web.json_models import JsonMergeResultStateQueued
 from amarcord.web.json_models import JsonMergeResultStateRunning
 from amarcord.web.json_models import JsonPolarisation
 from amarcord.web.json_models import JsonRefinementResult
+from amarcord.web.json_models import JsonRunRange
 
 
 def _json_serializer_allow_nan_false(obj: Any, **kwargs: Any) -> str:
@@ -191,7 +194,8 @@ async def update_attributi_from_json(
             await session.delete(existing_attributo)
     for new_attributo in new_attributi:
         validation_result = validate_json_attributo_return_error(
-            new_attributo, attributi_by_id[new_attributo.attributo_id]
+            new_attributo,
+            attributi_by_id[new_attributo.attributo_id],
         )
         if validation_result is not None:
             raise HTTPException(
@@ -200,21 +204,28 @@ async def update_attributi_from_json(
             )
         if isinstance(db_item, orm.Run):
             db_item.attributo_values.append(
-                json_attributo_to_run_orm_attributo(new_attributo)
+                json_attributo_to_run_orm_attributo(new_attributo),
             )
         elif isinstance(db_item, orm.Chemical):
             db_item.attributo_values.append(
-                json_attributo_to_chemical_orm_attributo(new_attributo)
+                json_attributo_to_chemical_orm_attributo(new_attributo),
             )
         else:
             db_item.attributo_values.append(
-                json_attributo_to_data_set_orm_attributo(new_attributo)
+                json_attributo_to_data_set_orm_attributo(new_attributo),
             )
 
 
 def format_run_id_intervals(run_ids: Iterable[int]) -> list[str]:
     return [
         str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
+        for t in create_intervals(list(run_ids))
+    ]
+
+
+def run_id_to_run_ranges(run_ids: Iterable[int]) -> list[JsonRunRange]:
+    return [
+        JsonRunRange(run_from=t[0], run_to=t[1])
         for t in create_intervals(list(run_ids))
     ]
 
@@ -235,7 +246,7 @@ async def safe_create_new_event(
                 source=source,
                 text=text,
                 created=datetime.datetime.now(datetime.timezone.utc),
-            )
+            ),
         )
     except:
         this_logger.exception("error writing event log")
@@ -320,12 +331,16 @@ def orm_encode_json_merge_parameters_to_json(
 ) -> JsonMergeParameters:
     return JsonMergeParameters(
         point_group=mr.point_group,
+        space_group=mr.space_group,
         cell_description=mr.cell_description,
         negative_handling=mr.negative_handling,
         merge_model=mr.input_merge_model,
         scale_intensities=mr.input_scale_intensities,
         post_refinement=mr.input_post_refinement,
         iterations=mr.input_iterations,
+        ambigator_command_line=mr.ambigator_command_line
+        if mr.ambigator_command_line is not None
+        else "",
         polarisation=(
             JsonPolarisation(
                 angle=mr.input_polarisation_angle,
@@ -356,7 +371,7 @@ def orm_encode_merge_result_to_json(
     mr: orm.MergeResult,
     run_id_formatter: None | Callable[[RunInternalId], int] = None,
 ) -> JsonMergeResult:
-    result = JsonMergeResult(
+    return JsonMergeResult(
         id=mr.id,
         created=datetime_to_attributo_int(mr.created),
         indexing_result_ids=[ir.id for ir in mr.indexing_results],
@@ -427,7 +442,8 @@ def orm_encode_merge_result_to_json(
                         )
                         for rr in mr.refinement_results
                     ],
-                    mtz_file_id=mr.mtz_file_id,
+                    mtz_file_id=cast(int, mr.mtz_file_id),
+                    ambigator_fg_graph_file_id=mr.ambigator_fg_graph_file_id,
                     fom=JsonMergeResultFom(
                         snr=mr.fom_snr,  # type: ignore
                         wilson=mr.fom_wilson,
@@ -486,11 +502,10 @@ def orm_encode_merge_result_to_json(
             for rr in mr.refinement_results
         ],
     )
-    return result
 
 
 async def retrieve_runs_matching_data_set(
-    session: AsyncSession, data_set_id: int, beamtime_id: int
+    session: AsyncSession, data_set_id: int, beamtime_id: int, source: None | str = None
 ) -> list[orm.Run]:
     data_set = (
         await session.scalars(select(orm.DataSet).where(orm.DataSet.id == data_set_id))
@@ -501,21 +516,26 @@ async def retrieve_runs_matching_data_set(
             detail=f'Data set with ID "{data_set_id}" not found',
         )
     all_runs = (
-        await session.scalars(select(orm.Run).where(orm.Run.beamtime_id == beamtime_id))
+        await session.scalars(
+            select(orm.Run)
+            .where(orm.Run.beamtime_id == beamtime_id)
+            .options(selectinload(orm.Run.files))
+        )
     ).all()
     attributi = list(
         (
             await session.scalars(
-                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id)
+                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id),
             )
-        ).all()
+        ).all(),
     )
     attributo_types: dict[AttributoId, AttributoType] = {
         AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
         for a in attributi
     }
     run_attributi_maps: dict[
-        int, dict[AttributoId, None | orm.RunHasAttributoValue]
+        int,
+        dict[AttributoId, None | orm.RunHasAttributoValue],
     ] = {r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in all_runs}
     data_set_attributi_map = {
         dsa.attributo_id: dsa for dsa in data_set.attributo_values
@@ -525,8 +545,11 @@ async def retrieve_runs_matching_data_set(
         for r in all_runs
         if r.experiment_type_id == data_set.experiment_type_id
         and run_matches_dataset(
-            attributo_types, run_attributi_maps[r.id], data_set_attributi_map
+            attributo_types,
+            run_attributi_maps[r.id],
+            data_set_attributi_map,
         )
+        and (source is None or any(f.source == source for f in r.files))
     ]
 
 
@@ -554,6 +577,7 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             command_line=ip.command_line,
             geometry_file=ip.geometry_file if ip.geometry_file is not None else "",
         ),
+        stream_file=ir.stream_file if ir.stream_file is not None else "",
         program_version=ir.program_version if ir.program_version is not None else "",
         run_internal_id=ir.run_id,
         run_external_id=ir.run.external_id,

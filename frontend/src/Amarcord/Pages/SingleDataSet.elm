@@ -4,26 +4,32 @@ import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
 import Amarcord.Attributo exposing (Attributo, AttributoType, ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert, viewHelpButton)
-import Amarcord.CommandLineParser exposing (coparseCommandLine)
+import Amarcord.Bootstrap exposing (AlertProperty(..), copyToClipboardButton, icon, loadingBar, viewAlert, viewHelpButton)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
+import Amarcord.CellDescriptionViewer as CellDescriptionViewer
+import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, parseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
+import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route exposing (Route(..), makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
-import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
+import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
 import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
-import Dict
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, tr)
+import Dict exposing (Dict)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, th, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
+import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import Maybe
+import Maybe.Extra exposing (isJust)
+import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result.Extra
 import Scroll exposing (scrollY)
@@ -50,7 +56,8 @@ type alias ProcessingParametersInput =
 
 type Msg
     = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
-    | OpenMergeForm DataSetId IndexingParametersId
+    | CopyToClipboard String
+    | OpenMergeForm DataSetId IndexingParametersId String String String
     | OpenProcessingFormWithExisting JsonIndexingParameters DataSetId
     | ToggleIndexingParameterExpansion Int
     | IndexingParametersMsg IndexingParameters.Msg
@@ -181,25 +188,27 @@ scaleIntensitiesToString x =
             "Scale intensities"
 
 
-viewMergeParameters : JsonMergeParameters -> Html msg
-viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+viewMergeParameters : String -> JsonMergeParameters -> Html msg
+viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine } =
     let
-        dtClass =
-            []
-
-        ddClass =
-            []
-
         boolDtDl header b =
-            if b then
-                [ dt dtClass [ text header ] ]
+            [ tr_
+                [ td [ class "text-end p-1" ] [ text header ]
+                , td [ class "p-1" ]
+                    [ if b then
+                        text "✔️"
 
-            else
-                []
+                      else
+                        text "✖️"
+                    ]
+                ]
+            ]
 
         dtDl dtContent dlContent =
-            [ dt dtClass [ text dtContent ]
-            , dd ddClass [ dlContent ]
+            [ tr_
+                [ td [ class "text-end p-1" ] [ text dtContent ]
+                , td [ class (bgClass ++ " p-1") ] [ dlContent ]
+                ]
             ]
 
         polarisationToDescription : JsonPolarisation -> String
@@ -233,29 +242,35 @@ viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, 
                 Just realValue ->
                     dtDl header realValue
     in
-    div_
-        [ dl []
-            (dtDl "Model" (text <| mergeModelToString mergeModel)
-                ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
-                ++ boolDtDl "Post refinement" postRefinement
-                ++ dtDl "Iterations" (text <| String.fromInt iterations)
-                ++ maybeDtDl "Polarisation" (Maybe.map (text << polarisationToDescription) polarisation)
-                ++ boolDtDl "Reject bad patterns according to ΔCC½" noDeltaCcHalf
-                ++ maybeDtDl "Detector saturation cutoff" (Maybe.map (text << formatFloatHumanFriendly) maxAdu)
-                ++ dtDl "Minimum number of measurements per merged reflection" (text <| String.fromInt minMeasurements)
-                ++ boolDtDl "Write partiality model diagnostics" logs
-                ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
-                ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
-                ++ maybeDtDl "Indexing assignment refinement" (Maybe.map text w)
-                ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
-                ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
-                ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
-                ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
-            )
-        ]
+    table [ class "table" ] <|
+        dtDl "Cell Description" (CellDescriptionViewer.view CellDescriptionViewer.MultiLine CellDescriptionViewer.WithErrors cellDescription)
+            ++ dtDl "Point Group" (text pointGroup)
+            ++ maybeDtDl "Space Group" (Maybe.map text spaceGroup)
+            ++ (if ambigatorCommandLine == "" then
+                    []
+
+                else
+                    dtDl "Ambigator parameters" (text ambigatorCommandLine)
+               )
+            ++ dtDl "Model" (text <| mergeModelToString mergeModel)
+            ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
+            ++ boolDtDl "Post refinement" postRefinement
+            ++ dtDl "Iterations" (text <| String.fromInt iterations)
+            ++ maybeDtDl "Polarisation" (Maybe.map (text << polarisationToDescription) polarisation)
+            ++ boolDtDl "Reject bad patterns according to ΔCC½" noDeltaCcHalf
+            ++ maybeDtDl "Detector saturation cutoff" (Maybe.map (text << formatFloatHumanFriendly) maxAdu)
+            ++ dtDl "Minimum number of measurements per merged reflection" (text <| String.fromInt minMeasurements)
+            ++ boolDtDl "Write partiality model diagnostics" logs
+            ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
+            ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
+            ++ maybeDtDl "Indexing assignment refinement" (Maybe.map text w)
+            ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
+            ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
+            ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
+            ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
 
 
-viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> Html Msg
+viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)
 viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSetId mrw =
     let
         remainingHeaders =
@@ -264,127 +279,134 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
         id =
             mrw.mergeResult.id
 
-        parameters =
-            mrw.mergeResult.parameters
-
         runs =
             mrw.mergeResult.runs
 
         isShowingMergeParams =
             mrw.showResults
-    in
-    tr_ <|
-        [ td_ [ text (String.fromInt id) ]
-        , td_
-            [ span [ class "accordion accordion-flush" ]
-                [ div [ class "accordion-item" ]
-                    [ div [ class "accordion-header" ]
-                        [ button
-                            [ class
-                                ("accordion-button accordion-merge-parameters-header-button"
-                                    ++ (if isShowingMergeParams then
-                                            ""
 
-                                        else
-                                            " collapsed"
-                                       )
-                                )
-                            , type_ "button"
-                            , onClick (ToggleAccordionShowModelParameters id)
-                            ]
-                            [ span [] [ text "Show merge parameters" ]
-                            ]
+        mergeResultUnion =
+            createMergeResultUnion mrw.mergeResult
+
+        rowClass =
+            case mergeResultUnion of
+                Just (MergeResultStateError _) ->
+                    "table-secondary"
+
+                _ ->
+                    ""
+
+        firstRow =
+            tr [ class rowClass ] <|
+                [ td_ [ text (String.fromInt id) ]
+                , td_
+                    [ button
+                        [ class "btn btn-link p-0 text-nowrap"
+                        , type_ "button"
+                        , onClick (ToggleAccordionShowModelParameters id)
                         ]
-                    , div
-                        [ class
-                            ("accordion-collapse collapse "
-                                ++ (if isShowingMergeParams then
-                                        " show"
+                        [ small_
+                            [ icon
+                                { name =
+                                    if isShowingMergeParams then
+                                        "arrows-angle-contract"
 
                                     else
-                                        ""
-                                   )
-                            )
-                        ]
-                        [ div [ class "accordion-body" ]
-                            [ viewMergeParameters parameters
+                                        "arrows-angle-expand"
+                                }
+                            , span_ [ text " Params" ]
                             ]
                         ]
                     ]
+                , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
                 ]
-            ]
-        , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
-        ]
-            ++ (case createMergeResultUnion mrw.mergeResult of
-                    Just (MergeResultStateRunning { started }) ->
-                        [ td
-                            [ colspan remainingHeaders ]
-                            [ div [ class "spinner-border spinner-border-sm text-primary" ] []
-                            , em [ class "mb-3" ]
-                                [ text " Running for "
-                                , text <|
-                                    posixDiffHumanFriendly hereAndNow.now (millisToPosix started)
+                    ++ (case mergeResultUnion of
+                            Just (MergeResultStateRunning { started }) ->
+                                [ td
+                                    [ colspan remainingHeaders ]
+                                    [ div [ class "spinner-border spinner-border-sm text-primary" ] []
+                                    , em [ class "mb-3" ]
+                                        [ text " Running for "
+                                        , text <|
+                                            posixDiffHumanFriendly hereAndNow.now (millisToPosix started)
+                                        ]
+                                    ]
                                 ]
-                            ]
-                        ]
 
-                    Just (MergeResultStateError { error }) ->
-                        [ td [ colspan remainingHeaders ] [ span_ [ text <| "Error: " ++ error ++ "." ] ] ]
+                            Just (MergeResultStateError { error }) ->
+                                [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
 
-                    Just (MergeResultStateDone { started, stopped, result }) ->
-                        let
-                            floatWithShell overall outer =
-                                td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
+                            Just (MergeResultStateDone { started, stopped, result }) ->
+                                let
+                                    floatWithShell overall outer =
+                                        td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
 
-                            fom =
-                                result.fom
+                                    fom =
+                                        result.fom
 
-                            mtzFileId =
-                                result.mtzFileId
-                        in
-                        [ td_ [ text <| String.fromInt <| posixDiffMinutes (millisToPosix stopped) (millisToPosix started) ]
-                        , td_
-                            [ text <|
-                                formatFloatHumanFriendly fom.oneOverDFrom
-                                    ++ "–"
-                                    ++ formatFloatHumanFriendly fom.oneOverDTo
-                                    ++ " ("
-                                    ++ formatFloatHumanFriendly fom.outerShell.minRes
-                                    ++ "–"
-                                    ++ formatFloatHumanFriendly fom.outerShell.maxRes
-                                    ++ ")"
-                            ]
-                        , floatWithShell fom.completeness fom.outerShell.completeness
-                        , floatWithShell fom.redundancy fom.outerShell.redundancy
-                        , floatWithShell fom.cc fom.outerShell.cc
-                        , floatWithShell fom.ccstar fom.outerShell.ccstar
-                        , td_ [ text <| Maybe.withDefault "" <| Maybe.map formatFloatHumanFriendly fom.wilson ]
-                        , td_
-                            [ icon { name = "file-binary" }
-                            , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
-                            ]
-                        , td_
-                            [ icon { name = "card-list" }
-                            , a [ href (makeLink (MergeResult beamtimeId experimentTypeId dataSetId mrw.mergeResult.id)) ] [ text "Details" ]
-                            ]
-                        ]
+                                    mtzFileId =
+                                        result.mtzFileId
+                                in
+                                [ td_ [ text <| String.fromInt (posixDiffMinutes (millisToPosix stopped) (millisToPosix started)), span [ class "form-text" ] [ text "min" ] ]
+                                , td_
+                                    [ text <|
+                                        formatFloatHumanFriendly fom.oneOverDFrom
+                                            ++ "–"
+                                            ++ formatFloatHumanFriendly fom.oneOverDTo
+                                            ++ " ("
+                                            ++ formatFloatHumanFriendly fom.outerShell.minRes
+                                            ++ "–"
+                                            ++ formatFloatHumanFriendly fom.outerShell.maxRes
+                                            ++ ")"
+                                    ]
+                                , td_ [ text <| formatFloatHumanFriendly fom.completeness ++ "% (" ++ formatFloatHumanFriendly fom.outerShell.completeness ++ "%)" ]
+                                , floatWithShell fom.redundancy fom.outerShell.redundancy
+                                , floatWithShell fom.cc fom.outerShell.cc
+                                , floatWithShell fom.ccstar fom.outerShell.ccstar
+                                , td_ [ text <| Maybe.withDefault "" <| Maybe.map (\wilsonReal -> formatFloatHumanFriendly wilsonReal ++ " Å²") fom.wilson ]
+                                , td_
+                                    [ icon { name = "file-binary" }
+                                    , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
+                                    ]
+                                , td_
+                                    [ icon { name = "card-list" }
+                                    , a [ href (makeLink (MergeResult beamtimeId experimentTypeId dataSetId mrw.mergeResult.id)) ] [ text "Details" ]
+                                    ]
+                                ]
 
-                    _ ->
-                        [ td
-                            [ colspan remainingHeaders ]
-                            [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
-                        ]
-               )
+                            _ ->
+                                [ td
+                                    [ colspan remainingHeaders ]
+                                    [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
+                                ]
+                       )
+    in
+    if isShowingMergeParams then
+        let
+            parameters =
+                mrw.mergeResult.parameters
+
+            secondRow =
+                tr [ class rowClass ]
+                    [ -- keep space for the ID column
+                      td_ []
+                    , td [ colspan 11 ] [ viewMergeParameters rowClass parameters ]
+                    ]
+        in
+        [ firstRow, secondRow ]
+
+    else
+        [ firstRow ]
 
 
 viewJobStatus : Bool -> DBJobStatus -> Html msg
 viewJobStatus hasError x =
     case x of
         DBJobStatusQueued ->
-            span [ class "badge text-bg-secondary" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " queued" ]
+            span [ class "badge text-bg-secondary d-inline-flex align-items-center gap-2" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " queued" ]
 
         DBJobStatusRunning ->
-            span [ class "badge text-bg-info" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " running" ]
+            span [ class "badge text-bg-primary d-inline-flex align-items-center gap-2" ] [ span [ class "spinner-border spinner-border-sm" ] [], text " running" ]
 
         DBJobStatusDone ->
             if hasError then
@@ -415,7 +437,7 @@ viewIndexingResults now results =
     let
         tableHeaders : List String
         tableHeaders =
-            [ "IID", "Run", "Status", "Frames", "Hits", "Ixed", "Other" ]
+            [ "IID", "Run", "Status", "Frames", "Hits", "Ixed" ]
 
         viewHistogram fileId =
             div [ class "col" ]
@@ -445,12 +467,20 @@ viewIndexingResults now results =
                     started
                 )
 
-        viewIndexingResultRow : JsonIndexingResult -> Html Msg
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
-            tr_
+        viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
+            [ tr
+                [ class
+                    (if hasError then
+                        "table-secondary"
+
+                     else
+                        ""
+                    )
+                ]
                 [ td_ [ text (String.fromInt id) ]
                 , td_ [ text (String.fromInt runExternalId) ]
-                , td_
+                , td [ class "text-nowrap" ]
                     (viewJobStatus hasError status
                         :: viewJobDuration started stopped
                     )
@@ -477,55 +507,83 @@ viewIndexingResults now results =
                      else
                         [ text (formatIntHumanFriendly indexedFrames)
                         , br_
-                        , viewRate indexedFrames hits
+                        , viewRate indexedFrames frames
                         ]
                     )
-                , td_
-                    [ div_ <|
-                        Maybe.withDefault [] <|
-                            Maybe.map2
-                                (\x y -> [ strongText "Detector shift: ", text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm"), br_ ])
-                                detectorShiftXMm
-                                detectorShiftYMm
-                    , div_ <|
-                        if String.isEmpty programVersion then
-                            []
+                ]
+            , tr
+                [ class
+                    (if hasError then
+                        "table-secondary"
 
-                        else
-                            [ strongText "CrystFEL version: ", text programVersion ]
-                    , span [ class "hstack gap-1" ]
-                        [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Show job log" ]
-                        , if hasError then
-                            a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Show error" ]
+                     else
+                        ""
+                    )
+                ]
+                [ td_ []
+                , td [ colspan 5 ]
+                    [ div_
+                        [ span [ class "hstack gap-1" ]
+                            [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                            , if hasError then
+                                a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
-                          else
-                            text ""
+                              else
+                                text ""
+                            ]
                         ]
+                    , Maybe.withDefault (text "") <|
+                        Maybe.map2
+                            (\x y ->
+                                div_
+                                    [ strongText "Detector shift: "
+                                    , text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm")
+                                    ]
+                            )
+                            detectorShiftXMm
+                            detectorShiftYMm
+                    , if String.isEmpty programVersion then
+                        text ""
+
+                      else
+                        div_ [ strongText "CrystFEL version: ", text programVersion ]
+                    , div_
+                        [ strongText "Stream file: "
+                        , br_
+                        , span [ class "text-break" ] [ text streamFile ]
+                        , copyToClipboardButton (CopyToClipboard streamFile)
+                        ]
+                    , if String.isEmpty generatedGeometryFile then
+                        text ""
+
+                      else
+                        div_
+                            [ strongText "Geometry file: "
+                            , br_
+                            , span [ class "text-break" ] [ text generatedGeometryFile ]
+                            , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
+                            ]
                     , case unitCellHistogramsFileId of
                         Nothing ->
                             text ""
 
                         Just ucFileId ->
                             div_
-                                [ strongText "Unit cell histograms:"
+                                [ strongText "Unit cell histograms"
                                 , viewHistogram ucFileId
                                 ]
-                    , if String.isEmpty generatedGeometryFile then
-                        text ""
-
-                      else
-                        div_ [ strongText "Geometry file: ", text generatedGeometryFile ]
                     ]
                 ]
+            ]
     in
-    table [ class "table table-sm" ]
+    table [ class "table table-sm  table-borderless" ]
         [ thead_ [ tr_ (List.map (th_ << List.singleton << text) tableHeaders) ]
-        , tbody_ (List.map viewIndexingResultRow results)
+        , tbody_ (List.concatMap viewIndexingResultRow results)
         ]
 
 
-mergeActions : { a | id : DataSetId } -> Maybe MergeRequest -> IndexingParametersId -> Html Msg
-mergeActions dataSet mergeRequest indexingParametersId =
+mergeActions : Bool -> JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
         mergeRequestIsLoading x =
@@ -535,22 +593,52 @@ mergeActions dataSet mergeRequest indexingParametersId =
 
                 Just { request } ->
                     isLoading request
+
+        indexingParametersCellDescription =
+            Maybe.withDefault "" indexingParameters.cellDescription
+
+        noCellDescription =
+            indexingParametersCellDescription == "" && cellDescriptionForDs == ""
     in
-    div [ class "btn-group" ]
-        [ button
-            [ type_ "button"
-            , class "btn btn-sm btn-outline-primary"
-            , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
-            , disabled (mergeRequestIsLoading mergeRequest)
+    div_
+        [ div [ class "input-group input-group-sm" ]
+            [ button
+                [ type_ "button"
+                , class "btn btn-sm btn-outline-primary"
+                , onClick (SubmitQuickMerge dataSet.id indexingParametersId)
+                , disabled (mergeRequestIsLoading mergeRequest || isActive || noCellDescription)
+                ]
+                [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
+            , button
+                [ type_ "button"
+                , class "btn btn-sm btn-outline-secondary"
+                , onClick (OpenMergeForm dataSet.id indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs)
+                , disabled (mergeRequestIsLoading mergeRequest || isActive)
+                ]
+                [ icon { name = "send" }, text <| " Merge" ]
+            , viewIf isActive
+                (button [ type_ "button", class "btn btn-sm btn-secondary", onClick CloseMergeForm ]
+                    [ icon { name = "x-lg" }, text " Cancel" ]
+                )
             ]
-            [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
-        , button
-            [ type_ "button"
-            , class "btn btn-sm btn-outline-secondary"
-            , onClick (OpenMergeForm dataSet.id indexingParametersId)
-            , disabled (mergeRequestIsLoading mergeRequest)
-            ]
-            [ icon { name = "send" }, text <| " Merge" ]
+        , if indexingParametersCellDescription == "" then
+            nothing
+
+          else
+            viewIfLazy (not (cellDescriptionsAlmostEqualStrings cellDescriptionForDs indexingParametersCellDescription))
+                (\_ ->
+                    div_
+                        [ em_
+                            [ small_
+                                [ text "Warning: The indexing job uses cell "
+                                , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors indexingParametersCellDescription
+                                , text ", the chemicals in the data set have cell description "
+                                , CellDescriptionViewer.viewColor "light" CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors cellDescriptionForDs
+                                , text ", merging will default to the first one."
+                                ]
+                            ]
+                        ]
+                )
         ]
 
 
@@ -579,22 +667,232 @@ foldIntervals list =
             lastPair :: pairs
 
 
-createRunRanges : List Int -> List String
-createRunRanges =
-    List.map
-        (\( start, end ) ->
-            if start == end then
-                String.fromInt start
+makeRangesLink : BeamtimeId -> List RunRange -> Html msg
+makeRangesLink beamtimeId ranges =
+    a [ href (makeLink (Runs beamtimeId ranges)) ]
+        [ text
+            (String.join ", "
+                (List.map
+                    (\{ runIdFrom, runIdTo } ->
+                        if runIdFrom == runIdTo then
+                            String.fromInt runIdFrom
 
-            else
-                String.fromInt start ++ "-" ++ String.fromInt end
-        )
+                        else
+                            String.fromInt runIdFrom ++ "-" ++ String.fromInt runIdTo
+                    )
+                    ranges
+                )
+            )
+        ]
+
+
+createRunRanges : BeamtimeId -> List Int -> Html msg
+createRunRanges beamtimeId =
+    makeRangesLink beamtimeId
+        << List.map
+            (\( start, end ) -> { runIdFrom = start, runIdTo = end })
         << foldIntervals
         << List.sort
 
 
-viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParametersWithResults -> List (Html Msg)
-viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexingResults, mergeResults } as p) =
+viewCommandLineDiff : String -> String -> Html msg
+viewCommandLineDiff priorCmdLine newCmdLine =
+    let
+        priorParsed =
+            parseCommandLine priorCmdLine
+
+        longFolder new oldDict =
+            case new of
+                LongOption name value ->
+                    Dict.insert name value oldDict
+
+                _ ->
+                    oldDict
+
+        longSwitchFolder new oldSet =
+            case new of
+                LongSwitch name ->
+                    Set.insert name oldSet
+
+                _ ->
+                    oldSet
+    in
+    case priorParsed of
+        Err _ ->
+            text ""
+
+        Ok priorParsedReal ->
+            let
+                newParsed =
+                    parseCommandLine newCmdLine
+            in
+            case newParsed of
+                Err _ ->
+                    text ""
+
+                Ok newParsedReal ->
+                    let
+                        priorLongSwitches : Set String
+                        priorLongSwitches =
+                            List.foldl longSwitchFolder Set.empty priorParsedReal
+
+                        priorLongOptions : Dict String String
+                        priorLongOptions =
+                            List.foldl longFolder Dict.empty priorParsedReal
+
+                        newLongSwitches : Set String
+                        newLongSwitches =
+                            List.foldl longSwitchFolder Set.empty newParsedReal
+
+                        newLongOptions : Dict String String
+                        newLongOptions =
+                            List.foldl longFolder Dict.empty newParsedReal
+
+                        priorLongOptionNames =
+                            Set.fromList (Dict.keys priorLongOptions)
+
+                        newLongOptionNames =
+                            Set.fromList (Dict.keys newLongOptions)
+
+                        newOptions =
+                            Set.diff newLongOptionNames priorLongOptionNames
+
+                        droppedOptions =
+                            Set.diff priorLongOptionNames newLongOptionNames
+
+                        newSwitches =
+                            Set.diff newLongSwitches priorLongSwitches
+
+                        droppedSwitches =
+                            Set.diff priorLongSwitches newLongSwitches
+
+                        changedOptions =
+                            Set.filter
+                                (\optionName ->
+                                    Dict.get optionName priorLongOptions /= Dict.get optionName newLongOptions
+                                )
+                                (Set.intersect priorLongOptionNames newLongOptionNames)
+                    in
+                    div_
+                        [ if not (Set.isEmpty newOptions) || not (Set.isEmpty newSwitches) then
+                            div_
+                                [ text
+                                    ("New options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions)) (Set.toList newOptions))
+                                        ++ (if Set.isEmpty newSwitches then
+                                                ""
+
+                                            else
+                                                (if Set.isEmpty newOptions then
+                                                    ""
+
+                                                 else
+                                                    ", "
+                                                )
+                                                    ++ String.join ", " (Set.toList newSwitches)
+                                           )
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        , if not (Set.isEmpty droppedOptions) || not (Set.isEmpty droppedSwitches) then
+                            div_
+                                [ text
+                                    ("Dropped options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions)) (Set.toList droppedOptions))
+                                        ++ (if Set.isEmpty droppedSwitches then
+                                                ""
+
+                                            else
+                                                (if Set.isEmpty droppedOptions then
+                                                    ""
+
+                                                 else
+                                                    ", "
+                                                )
+                                                    ++ String.join ", " (Set.toList droppedSwitches)
+                                           )
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        , if not (Set.isEmpty changedOptions) then
+                            div_
+                                [ text
+                                    ("Changed options: "
+                                        ++ String.join ", "
+                                            (List.map (\optionName -> optionName ++ " “" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions) ++ "” → “" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions) ++ "”") (Set.toList changedOptions))
+                                    )
+                                ]
+
+                          else
+                            text ""
+                        ]
+
+
+viewRowDiff : JsonIndexingParameters -> JsonIndexingParameters -> Html msg
+viewRowDiff pparams params =
+    let
+        viewCellDescription d =
+            case d of
+                Nothing ->
+                    em_ [ text "auto-detect" ]
+
+                Just descriptionReal ->
+                    if String.trim descriptionReal == "" then
+                        em_ [ text "auto-detect" ]
+
+                    else
+                        CellDescriptionViewer.view CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors descriptionReal
+    in
+    tr_
+        [ td [ colspan 5 ]
+            [ div [ class "alert alert-dark" ]
+                [ if pparams.geometryFile /= params.geometryFile then
+                    div_ [ em_ [ text "Geometry file changed" ] ]
+
+                  else
+                    text ""
+                , if pparams.cellDescription /= params.cellDescription then
+                    div_
+                        [ text "Cell description: "
+                        , viewCellDescription pparams.cellDescription
+                        , span [ class "ms-1 me-1" ] [ text "→" ]
+                        , viewCellDescription params.cellDescription
+                        ]
+
+                  else
+                    text ""
+                , if pparams.isOnline /= params.isOnline then
+                    div_ [ text "Online → Offline" ]
+
+                  else
+                    text ""
+                , if pparams.commandLine /= params.commandLine then
+                    viewCommandLineDiff pparams.commandLine params.commandLine
+
+                  else
+                    text ""
+                ]
+            ]
+        ]
+
+
+viewSingleIndexingResultRow :
+    Model
+    -> JsonExperimentType
+    -> JsonDataSet
+    -> String
+    -> String
+    -> String
+    -> Maybe JsonIndexingParametersWithResults
+    -> JsonIndexingParametersWithResults
+    -> List (Html Msg)
+viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs priorParametersAndResults ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             Set.member parametersId model.expandedIndexingParameterIds
@@ -659,10 +957,19 @@ viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexing
                 indexedFrames : Int
                 indexedFrames =
                     List.foldr (\new old -> new.indexedFrames + old) 0 successfulResults
+
+                priorRowDiff =
+                    case priorParametersAndResults of
+                        Nothing ->
+                            text ""
+
+                        Just priorParametersAndResultsReal ->
+                            viewRowDiff priorParametersAndResultsReal.parameters parameters
             in
-            [ tr_
+            [ priorRowDiff
+            , tr_
                 [ td_ [ text (String.fromInt parametersId) ]
-                , td_ [ text <| String.join ", " (createRunRanges (List.map .runExternalId successfulResults)) ]
+                , td_ [ createRunRanges model.beamtimeId (List.map .runExternalId successfulResults) ]
                 , td_ [ text (formatIntHumanFriendly frames) ]
                 , td_ [ text (formatIntHumanFriendly hits) ]
                 , td_ [ text (formatIntHumanFriendly indexedFrames) ]
@@ -678,9 +985,16 @@ viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexing
               else
                 tr_ [ td [ colspan (List.length indexingAndMergeResultHeaders) ] [ div_ [ hideShowDetailsButton parametersId ] ] ]
             , tr_
-                [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
+                [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
                     [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model experimentType dataSet parameters mergeResults
+                    , viewMergeResults model
+                        experimentType
+                        dataSet
+                        cellDescriptionForDs
+                        pointGroupForDs
+                        spaceGroupForDs
+                        parameters
+                        mergeResults
                     ]
                 ]
             ]
@@ -691,19 +1005,22 @@ indexingAndMergeResultHeaders =
     List.map text [ "PID", "Runs", "Frames", "Hits", "Ixed" ]
 
 
-viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults =
+viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
-        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet) indexingParametersAndResults
+        , tbody_ <|
+            List.concat <|
+                List.reverse <|
+                    withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs)
         ]
 
 
 viewMergeResultsTable : Model -> JsonExperimentType -> List JsonMergeResult -> Html Msg
 viewMergeResultsTable model experimentType mergeResults =
     if List.isEmpty mergeResults then
-        text ""
+        nothing
 
     else
         let
@@ -712,13 +1029,13 @@ viewMergeResultsTable model experimentType mergeResults =
                 [ text "MRID"
                 , text "Parameters"
                 , text "Runs"
-                , text "Time (min)"
+                , text "Time"
                 , text "Resolution (Å)"
-                , text "Completeness (%)"
+                , text "Completeness"
                 , text "Multiplicity"
                 , span_ [ text "CC", Html.sub [] [ text "1/2" ] ]
                 , span_ [ text "CC", sup [] [ text "*" ] ]
-                , text "Wilson B factor (Å²)"
+                , text "Wilson B"
                 , text "Files"
                 , div_ []
                 ]
@@ -730,49 +1047,57 @@ viewMergeResultsTable model experimentType mergeResults =
                     mergeResults
         in
         table
-            [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
-            [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
-            , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
+            [ class "table table-sm table-borderless text-muted mt-3", style "font-size" "0.8rem" ]
+            [ thead_ <| [ tr_ (List.map (\header -> th [ class "text-nowrap" ] [ header ]) mergeRowHeaders) ]
+            , tbody_ <| List.concatMap (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
             ]
 
 
-viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
-viewMergeResults model experimentType dataSet indexingParameters mergeResults =
-    div_ <|
-        [ case model.activatedMergeForm of
-            Just { mergeParameters } ->
-                if Just mergeParameters.indexingParametersId == indexingParameters.id then
-                    div_
-                        [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
-                        , div [ class "mb-3 hstack gap-3" ]
-                            [ button [ type_ "button", class "btn btn-primary", onClick (SubmitMerge mergeParameters.dataSetId mergeParameters) ]
-                                [ icon { name = "send" }, text " Start Merge" ]
-                            , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
-                                [ icon { name = "x-lg" }, text " Cancel" ]
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParameters mergeResults =
+    div [ style "margin-bottom" "4rem" ] <|
+        [ viewMaybe
+            (mergeActions
+                (isJust model.activatedMergeForm)
+                dataSet
+                indexingParameters
+                model.mergeRequest
+                cellDescriptionForDs
+                pointGroupForDs
+                spaceGroupForDs
+            )
+            indexingParameters.id
+        , viewMaybe
+            (\{ mergeParameters } ->
+                viewIfLazy (Just mergeParameters.indexingParametersId == indexingParameters.id)
+                    (\_ ->
+                        div_
+                            [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
+                            , div [ class "mb-3 hstack gap-3" ]
+                                [ button
+                                    [ type_ "button"
+                                    , class "btn btn-primary"
+                                    , onClick (SubmitMerge mergeParameters.dataSetId mergeParameters)
+                                    ]
+                                    [ icon { name = "send" }, text " Start Merge" ]
+                                , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
+                                    [ icon { name = "x-lg" }, text " Cancel" ]
+                                ]
                             ]
-                        ]
-
-                else
-                    text ""
-
-            Nothing ->
-                text ""
-        , Maybe.withDefault (text "") <| Maybe.map (mergeActions dataSet model.mergeRequest) indexingParameters.id
-        , case model.mergeRequest of
-            Nothing ->
-                text ""
-
-            Just { request, dataSetId, indexingParametersId } ->
-                if dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id then
+                    )
+            )
+            model.activatedMergeForm
+        , viewMaybe
+            (\{ request, dataSetId, indexingParametersId } ->
+                viewIf (dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id) <|
                     case request of
                         Failure e ->
                             div_ [ viewAlert [ AlertDanger ] [ showError e ] ]
 
                         _ ->
-                            text ""
-
-                else
-                    text ""
+                            nothing
+            )
+            model.mergeRequest
         , viewMergeResultsTable model experimentType mergeResults
         ]
 
@@ -801,20 +1126,34 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                         em_ [ text "none" ]
 
                     Just cellDescription ->
-                        text cellDescription
+                        span [ class "d-flex" ]
+                            [ div_
+                                [ CellDescriptionViewer.view
+                                    CellDescriptionViewer.MultiLine
+                                    CellDescriptionViewer.WithErrors
+                                    cellDescription
+                                ]
+                            , copyToClipboardButton (CopyToClipboard cellDescription)
+                            ]
                 ]
             , dt [ class "col-3" ] [ text "Geometry file" ]
             , dd [ class "col-9" ]
-                [ text
-                    (if String.isEmpty parameters.geometryFile then
-                        "auto-detect"
+                [ if String.isEmpty parameters.geometryFile then
+                    text "auto-detect"
 
-                     else
-                        parameters.geometryFile
-                    )
+                  else
+                    span [ class "d-flex text-break" ]
+                        [ text parameters.geometryFile
+                        , copyToClipboardButton (CopyToClipboard parameters.geometryFile)
+                        ]
                 ]
             ]
-        , p_ [ strongText "Command line: ", br_, code_ [ text parameters.commandLine ] ]
+        , p_
+            [ strongText "Command line: "
+            , br_
+            , code_ [ text parameters.commandLine ]
+            , copyToClipboardButton (CopyToClipboard parameters.commandLine)
+            ]
         , div_
             [ button
                 [ class "btn btn-sm btn-dark"
@@ -909,8 +1248,8 @@ viewDataSetProcessingButtons model dataSet =
             text ""
 
 
-viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
+viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     div_
         [ viewDataSetProcessingButtons model dataSet
         , case model.processingParametersRequest of
@@ -927,7 +1266,7 @@ viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
         , case model.submitProcessingRequest of
             Success { dataSetId } ->
                 if dataSetId == dataSet.id then
-                    p [ class "text-success" ] [ text "Job submitted!" ]
+                    div [ class "badge text-bg-success" ] [ text "Job submitted!" ]
 
                 else
                     text ""
@@ -940,7 +1279,7 @@ viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
 
             Just currentProcessingParameters ->
                 viewProcessingParameterForm model currentProcessingParameters
-        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults ]
+        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs spaceGroupForDs ]
         ]
 
 
@@ -951,7 +1290,7 @@ viewDataSet :
     -> ChemicalNameDict
     -> JsonDataSetWithIndexingResults
     -> List (Html Msg)
-viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults } =
+viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults, cellDescription, pointGroup, spaceGroup } =
     [ h4 [ class "mt-3" ] [ text "Data Set Metadata" ]
     , div [ class "row" ]
         [ div [ class "col-6" ]
@@ -966,7 +1305,28 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
             ]
         , div [ class "col-6 text-center" ]
             [ h5_ [ text "Runs" ]
-            , p_ (List.intersperse br_ <| List.map text runs)
+            , p_
+                [ a
+                    [ href
+                        (makeLink
+                            (Runs model.beamtimeId
+                                (List.map (\{ runFrom, runTo } -> { runIdFrom = runFrom, runIdTo = runTo }) runs)
+                            )
+                        )
+                    ]
+                    (List.intersperse br_ <|
+                        List.map
+                            (\{ runFrom, runTo } ->
+                                text <|
+                                    if runFrom == runTo then
+                                        String.fromInt runFrom
+
+                                    else
+                                        String.fromInt runFrom ++ "-" ++ String.fromInt runTo
+                            )
+                            runs
+                    )
+                ]
             ]
         ]
     , h4 [ class "mt-3" ] [ text "Processing Results", viewHelpButton "help-processing-results" ]
@@ -987,15 +1347,14 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
             , figcaption [ class "figure-caption" ] [ text "In this sample scenario, we have two runs, which were processed using a parameter set with PID 1, and the result is indexing reults IID 1 and 2. Those were then merged in two different ways, resulting in MRID 1 and 2. Moreover, we tried to reprocess the runs using different parameters (PID 2 and IID 3), but the results were not convincing." ]
             ]
         ]
-    , viewProcessingResultsForDataSet model experimentType dataSet indexingResults
+    , viewProcessingResultsForDataSet model
+        experimentType
+        dataSet
+        indexingResults
+        cellDescription
+        pointGroup
+        spaceGroup
     ]
-
-
-modalMergeResultDetail : Model -> Html Msg
-modalMergeResultDetail m =
-    case m.selectedMergeResult of
-        NoMergeResultSelected ->
-            text ""
 
 
 view : Model -> Html Msg
@@ -1021,14 +1380,13 @@ view model =
                 [ nav []
                     [ ol [ class "breadcrumb" ]
                         [ li [ class "breadcrumb-item active" ]
-                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
+                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId [] False Both)) ] [ text "Analysis Overview" ] ]
                         , li [ class "breadcrumb-item active" ]
                             [ text experimentType.name
                             ]
                         , li [ class "breadcrumb-item" ] [ text <| "Data Set ID " ++ String.fromInt model.dataSetId ]
                         ]
                     ]
-                , modalMergeResultDetail model
                 , div_
                     (viewDataSet
                         model
@@ -1052,6 +1410,9 @@ possiblyRefresh model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CopyToClipboard s ->
+            ( model, copyToClipboard s )
+
         ToggleIndexingParameterExpansion ipId ->
             let
                 newParameterIds =
@@ -1181,28 +1542,49 @@ update msg model =
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            ( { model | submitProcessingRequest = Loading }
-                            , send
-                                ProcessingSubmitted
-                                (indexingJobQueueForDataSetApiIndexingPost
-                                    { dataSetId = dataSetId
-                                    , isOnline = False
-                                    , cellDescription = indexingParamFormModel.cellDescription
-                                    , geometryFile = indexingParamFormModel.geometryFile
-                                    , commandLine = coparseCommandLine commandLine
-                                    , source = indexingParamFormModel.source
-                                    }
+                            if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
+                                ( { model | submitProcessingRequest = Loading }
+                                , send
+                                    ProcessingSubmitted
+                                    (indexingJobQueueForDataSetApiIndexingPost
+                                        { dataSetId = dataSetId
+                                        , isOnline = False
+                                        , cellDescription = ""
+                                        , geometryFile = indexingParamFormModel.geometryFile
+                                        , commandLine = coparseCommandLine commandLine
+                                        , source = indexingParamFormModel.source
+                                        }
+                                    )
                                 )
-                            )
+
+                            else
+                                case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
+                                    Err _ ->
+                                        ( model, Cmd.none )
+
+                                    Ok cellDescription ->
+                                        ( { model | submitProcessingRequest = Loading }
+                                        , send
+                                            ProcessingSubmitted
+                                            (indexingJobQueueForDataSetApiIndexingPost
+                                                { dataSetId = dataSetId
+                                                , isOnline = False
+                                                , cellDescription = cellDescriptionToString cellDescription
+                                                , geometryFile = indexingParamFormModel.geometryFile
+                                                , commandLine = coparseCommandLine commandLine
+                                                , source = indexingParamFormModel.source
+                                                }
+                                            )
+                                        )
 
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
 
-        OpenMergeForm dataSetId indexingParametersId ->
+        OpenMergeForm dataSetId indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs ->
             ( { model
                 | activatedMergeForm =
                     Just
-                        { mergeParameters = CrystFELMerge.init dataSetId indexingParametersId
+                        { mergeParameters = CrystFELMerge.init cellDescriptionForDs pointGroupForDs spaceGroupForDs dataSetId indexingParametersId
                         }
               }
             , Cmd.none

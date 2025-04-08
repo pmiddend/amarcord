@@ -5,7 +5,7 @@
 
 Documentation is written using [Sphinx](https://www.sphinx-doc.org/en/master/). Since Markdown is a bit more common these days, we're using [Markdown](https://en.wikipedia.org/wiki/Markdown) for everything except `index.rst`, which (we think) still has to be in [reStructuredText](https://en.wikipedia.org/wiki/ReStructuredText).
 
-To build the documentation, install the development (poetry group `dev`, and `requirements-dev.txt`) requirements (for example using [poetry](PoetrySetup)), then `cd` into `docs` and run `make html` to create `build/html/index.html` and its companion files. You can open this file using the browser.
+To build the documentation, install `dev` dependency group (for example using [uv](PythonSetup)), then `cd` into `docs` and run `make html` to create `build/html/index.html` and its companion files. You can open this file using the browser.
 
 ## Code documentation
 

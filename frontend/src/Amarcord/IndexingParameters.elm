@@ -1,23 +1,23 @@
 module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineToModel, init, isEditOpen, toCommandLine, update, view)
 
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
-import Amarcord.Html exposing (div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
 import Amarcord.Indexing.PeakDetection as PeakDetection
 import Amarcord.Indexing.PinkIndexer as PinkIndexer
 import Amarcord.Indexing.TakeTwo as TakeTwo
-import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, mapMaybe, viewCitation)
+import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, mapMaybe, numberToCommandLine, viewCitation, viewNumericInput)
 import Amarcord.Indexing.Xgandalf as Xgandalf
-import Amarcord.Util exposing (collectResults, join3)
+import Amarcord.Util exposing (collectResults, deadEndsToString, join3)
 import Dict exposing (Dict)
 import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, table, td, text, textarea, ul)
-import Html.Attributes exposing (checked, class, disabled, for, id, selected, style, type_, value)
+import Html.Attributes exposing (checked, class, for, id, rows, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
 import Maybe.Extra
-import Parser exposing (deadEndsToString)
 import Result.Extra
 import String
 
@@ -88,6 +88,8 @@ type alias Model =
     { openTab : TabType
     , peakDetection : PeakDetection.Model
     , sources : List String
+    , maxMilleLevel : String
+    , highRes : String
 
     -- for online indexing, the cell description is inferred, so we don't want the user to be able to change it
     , mutableCellDescription : Bool
@@ -95,7 +97,7 @@ type alias Model =
     -- Specials
     , source : String
     , geometryFile : String
-    , cellDescription : String
+    , cellDescription : CellDescriptionEdit.Model
     , peakDetector : Maybe String
     , indexingMethods : Maybe (Dict String IndexingMethod)
     , indexingChooserOpen : String
@@ -130,6 +132,7 @@ type Msg
     | StartCommandLineEdit
     | CancelCommandLineEdit
     | FinishCommandLineEdit String
+    | CellDescriptionChange CellDescriptionEdit.Msg
 
 
 indexingMethodsToCommandLine : List IndexingMethod -> Result String (List CommandLineOption)
@@ -211,6 +214,24 @@ toCommandLine ip =
                 ++ [ mapMaybe (indexingMethodsToCommandLine << Dict.values) ip.indexingMethods
                    , boolToSwitchCommandLine "multi" ip.multi
                    , boolToSwitchCommandLine "mille" ip.mille
+                   , integerToCommandLine "max mille level"
+                        ip.maxMilleLevel
+                        (\n ->
+                            if String.trim n /= "" then
+                                [ LongOption "max-mille-level" n ]
+
+                            else
+                                []
+                        )
+                   , numberToCommandLine "highres"
+                        ip.highRes
+                        (\n ->
+                            if String.trim n /= "" then
+                                [ LongOption "highres" n ]
+
+                            else
+                                []
+                        )
                    , boolToSwitchCommandLine "asdf-fast" ip.asdfFast
                    , boolToSwitchCommandLine "peakfinder8-fast" ip.peakDetection.peakfinder8Fast
                    , boolToSwitchCommandLine "no-refine" ip.noRefine
@@ -229,6 +250,15 @@ toCommandLine ip =
                         )
                    , boolToSwitchCommandLine "profile" ip.profile
                    ]
+
+
+
+-- When we enter a new command line, we want to start from an empty model and fill it with the options given.
+
+
+makeEmptyModel : Model -> Model
+makeEmptyModel m =
+    init m.sources (CellDescriptionEdit.modelAsText m.cellDescription) m.geometryFile m.mutableCellDescription
 
 
 convertCommandLineToModel : Model -> String -> Result String Model
@@ -288,10 +318,46 @@ convertCommandLineToModel model cli =
                             in
                             Ok { priorModel | indexingMethods = Just allMethods }
 
+                LongOption "max-mille-level" maxMilleLevelString ->
+                    case String.toInt maxMilleLevelString of
+                        Nothing ->
+                            Err ("max-mille-level must be empty or an integer, not: " ++ maxMilleLevelString)
+
+                        Just _ ->
+                            Ok
+                                { priorModel
+                                    | maxMilleLevel = maxMilleLevelString
+                                }
+
+                LongOption "highres" highResString ->
+                    case String.toFloat highResString of
+                        Nothing ->
+                            Err ("highres must be empty or a decimal, not: " ++ highResString)
+
+                        Just _ ->
+                            Ok
+                                { priorModel
+                                    | highRes = highResString
+                                }
+
                 LongOption "tolerance" toleranceString ->
                     case Maybe.Extra.combineMap String.toFloat (String.split "," toleranceString) of
                         Nothing ->
                             Err ("tolerances are not all comma-separated numbers: " ++ toleranceString)
+
+                        Just [ a, b, c, al ] ->
+                            Ok
+                                { priorModel
+                                    | customTolerances =
+                                        Just
+                                            { toleranceAPercent = String.fromFloat a
+                                            , toleranceBPercent = String.fromFloat b
+                                            , toleranceCPercent = String.fromFloat c
+                                            , toleranceAlphaDegrees = String.fromFloat al
+                                            , toleranceBetaDegrees = String.fromFloat 1.5
+                                            , toleranceGammaDegrees = String.fromFloat 1.5
+                                            }
+                                }
 
                         Just [ a, b, c, al, be, ga ] ->
                             Ok
@@ -399,7 +465,7 @@ convertCommandLineToModel model cli =
             Err (deadEndsToString e)
 
         Ok options ->
-            List.foldl convertSingle (Ok model) options
+            List.foldl convertSingle (Ok (makeEmptyModel model)) options
 
 
 init : List String -> String -> String -> Bool -> Model
@@ -407,12 +473,14 @@ init sources cellDescription geometryFile mutableCellDescription =
     { peakDetector = Nothing
     , peakDetection = PeakDetection.init
     , sources = sources
+    , maxMilleLevel = ""
+    , highRes = ""
     , mutableCellDescription = mutableCellDescription
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
     , geometryFile = geometryFile
-    , cellDescription = cellDescription
+    , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
     , indexingMethods = Nothing
     , indexingChooserOpen = "general"
@@ -759,9 +827,27 @@ viewMiscParameters model =
                 (Just (span_ [ text "Write detector calibration data in Millepede-II format." ]))
                 model.mille
                 (\m -> { m | mille = not m.mille })
+
+        viewMilleLevelInput =
+            Html.map Change <|
+                viewNumericInput
+                    "max-mille-level"
+                    model.maxMilleLevel
+                    "Maximum millepede level"
+                    Nothing
+                    (\newValue priorModel -> { priorModel | maxMilleLevel = newValue })
+
+        viewHighResInput =
+            Html.map Change <|
+                viewNumericInput
+                    "highres"
+                    model.highRes
+                    "Mark all pixels on the detector higher than this Angstroms as bad"
+                    (Just "This might be useful when you have noisy patterns and don't expect any signal above a certain resolution.")
+                    (\newValue priorModel -> { priorModel | highRes = newValue })
     in
     div [ class "mb-3" ]
-        [ viewProfileCheckbox, viewMilleCheckbox ]
+        [ viewProfileCheckbox, viewMilleCheckbox, viewMilleLevelInput, viewHighResInput ]
 
 
 viewIndexingMethods : Model -> Html Msg
@@ -853,20 +939,26 @@ viewCommandLine model =
                 [ p_ [ text "Command line:" ]
                 , case model.commandLineEdit of
                     Nothing ->
-                        div [ class "input-group" ]
-                            [ textarea [ class "form-control", disabled True ] [ text (coparseCommandLine commandLine) ]
+                        div_
+                            [ div [ class "mb-2" ] [ code_ [ text (coparseCommandLine commandLine) ] ]
                             , button [ class "btn btn-outline-primary", type_ "button", onClick StartCommandLineEdit ] [ text "Edit" ]
                             ]
 
                     Just editValue ->
-                        div [ class "input-group" ]
-                            [ textarea
-                                [ class "form-control"
-                                , onInput (\newCommandLine -> Change (\m -> { m | commandLineEdit = Just newCommandLine }))
+                        div_
+                            [ div [ class "mb-2" ]
+                                [ textarea
+                                    [ class "form-control"
+                                    , id "command-line-edit"
+                                    , rows 5
+                                    , onInput (\newCommandLine -> Change (\m -> { m | commandLineEdit = Just newCommandLine }))
+                                    ]
+                                    [ text editValue ]
                                 ]
-                                [ text editValue ]
-                            , button [ class "btn btn-outline-primary", type_ "button", onClick (FinishCommandLineEdit editValue) ] [ text "Apply" ]
-                            , button [ class "btn btn-outline-secondary", type_ "button", onClick CancelCommandLineEdit ] [ text "Cancel" ]
+                            , div [ class "hstack gap-3" ]
+                                [ button [ class "btn btn-outline-primary", type_ "button", onClick (FinishCommandLineEdit editValue) ] [ text "Apply" ]
+                                , button [ class "btn btn-outline-secondary", type_ "button", onClick CancelCommandLineEdit ] [ text "Cancel" ]
+                                ]
                             ]
                 , case model.commandLineEditError of
                     Nothing ->
@@ -879,27 +971,15 @@ viewCommandLine model =
 
 viewCellDescription : Model -> Html Msg
 viewCellDescription model =
-    div [ class "form-floating mb-3" ]
-        [ input_
-            [ type_ "text"
-            , class "form-control"
-            , id "pp-cell-description"
-            , value model.cellDescription
-            , onInput
-                (\newCellDescription ->
-                    Change
-                        (\ip ->
-                            { ip | cellDescription = newCellDescription }
-                        )
-                )
-            ]
-        , label [ for "pp-cell-description" ] [ text "Cell Description" ]
+    div [ class "mb-3" ]
+        [ label [] [ text "Cell Description" ]
+        , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
         , div
             [ class "form-text"
             ]
             [ text
                 ("This field is filled from the chemical attributi."
-                    ++ " Leave blank if you want to determine the parameters."
+                    ++ " Leave blank (select “As text”, then remove the text) if you want to determine the parameters."
                 )
             ]
         ]
@@ -1025,6 +1105,9 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CellDescriptionChange subMsg ->
+            ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
+
         ChangeOpenTab newTab ->
             ( { model | openTab = newTab }, Cmd.none )
 

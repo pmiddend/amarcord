@@ -52,8 +52,8 @@ def test_attributo_type_to_string_decimal() -> None:
                     minimum_inclusive=False,
                     maximum=4,
                     maximum_inclusive=True,
-                )
-            )
+                ),
+            ),
         )
         == "number ∈ (3,4]"
     )
@@ -70,7 +70,7 @@ def test_attributo_type_to_string_decimal() -> None:
                     maximum_inclusive=True,
                 ),
                 suffix="mm",
-            )
+            ),
         )
         == "mm ∈ (3,4]"
     )
@@ -87,7 +87,7 @@ def test_attributo_type_to_string_list() -> None:
                 sub_type=ArrayAttributoType.ARRAY_STRING,
                 min_length=None,
                 max_length=None,
-            )
+            ),
         )
         == "list of string"
     )
@@ -95,10 +95,12 @@ def test_attributo_type_to_string_list() -> None:
 
 def test_attributo_types_semantically_equivalent() -> None:
     assert attributo_types_semantically_equivalent(
-        AttributoTypeInt(), AttributoTypeInt()
+        AttributoTypeInt(),
+        AttributoTypeInt(),
     )
     assert not attributo_types_semantically_equivalent(
-        AttributoTypeInt(), AttributoTypeString()
+        AttributoTypeInt(),
+        AttributoTypeString(),
     )
     assert attributo_types_semantically_equivalent(
         AttributoTypeDecimal(range=None, suffix=None, standard_unit=False),
@@ -108,7 +110,10 @@ def test_attributo_types_semantically_equivalent() -> None:
     assert not attributo_types_semantically_equivalent(
         AttributoTypeDecimal(
             range=NumericRange(
-                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+                minimum=1,
+                minimum_inclusive=False,
+                maximum=2,
+                maximum_inclusive=False,
             ),
             suffix=None,
             standard_unit=False,
@@ -129,14 +134,20 @@ def test_attributo_types_semantically_equivalent() -> None:
     assert attributo_types_semantically_equivalent(
         AttributoTypeDecimal(
             range=NumericRange(
-                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+                minimum=1,
+                minimum_inclusive=False,
+                maximum=2,
+                maximum_inclusive=False,
             ),
             suffix=None,
             standard_unit=False,
         ),
         AttributoTypeDecimal(
             range=NumericRange(
-                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+                minimum=1,
+                minimum_inclusive=False,
+                maximum=2,
+                maximum_inclusive=False,
             ),
             suffix=None,
             standard_unit=False,
@@ -375,6 +386,7 @@ def test_attributo_types_semantically_equivalent() -> None:
     ],
 )
 def test_attributo_type_to_schema(
-    test_input: AttributoType, expected: JSONDict
+    test_input: AttributoType,
+    expected: JSONDict,
 ) -> None:
     assert coparse_schema_type(attributo_type_to_schema(test_input)) == expected

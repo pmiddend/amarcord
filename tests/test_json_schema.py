@@ -126,7 +126,8 @@ from amarcord.json_schema import JSONSchemaUnion
     ],
 )
 def test_parse_schema_type(
-    input_json: dict[str, Any], expected: JSONSchemaUnion
+    input_json: dict[str, Any],
+    expected: JSONSchemaUnion,
 ) -> None:
     assert parse_schema_type(input_json) == expected
 
@@ -223,6 +224,7 @@ def test_parse_schema_type(
     ],
 )
 def test_coparse_schema_type(
-    expected: dict[str, Any], input_schema: JSONSchemaUnion
+    expected: dict[str, Any],
+    input_schema: JSONSchemaUnion,
 ) -> None:
     assert coparse_schema_type(input_schema) == expected

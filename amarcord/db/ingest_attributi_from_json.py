@@ -36,15 +36,15 @@ def ingest_run_attributi_schema(
                     group=group,
                     associated_table=AssociatedTable.RUN,
                     json_schema=coparse_schema_type(
-                        attributo_type_to_schema(attributo_type)
+                        attributo_type_to_schema(attributo_type),
                     ),
-                )
+                ),
             )
-        else:
-            if not attributo_types_semantically_equivalent(
-                existing_attributo_type, attributo_type
-            ):
-                raise Exception(
-                    f"we have a type change, type before: {existing_attributo_type}, type after: "
-                    + str(attributo_type)
-                )
+        elif not attributo_types_semantically_equivalent(
+            existing_attributo_type,
+            attributo_type,
+        ):
+            raise Exception(
+                f"we have a type change, type before: {existing_attributo_type}, type after: "
+                + str(attributo_type),
+            )

@@ -24,6 +24,7 @@ from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.json_types import JSONDict
 
+_SLURM_TOKEN_PREFIX = "SLURM_TOKEN="  # noqa: S105
 MAXWELL_PREFIX: Final = "https://max-portal.desy.de"
 MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm/v0.0.38"
 MAXWELL_SLURM_TOOLS_VERSION: Final = "4.6.0"
@@ -41,31 +42,35 @@ def slurm_token_command(lifespan_minutes: int | float) -> list[str]:
 
 
 async def retrieve_jwt_token_externally(
-    portal_token: str, user_name: str, lifespan_seconds: int
+    portal_token: str,
+    user_name: str,
+    lifespan_seconds: int,
 ) -> str | TokenRetrievalError:
     try:
-        async with aiohttp.ClientSession(
-            auth=BasicAuth(user_name, portal_token)
-        ) as session:
-            async with session.get(
-                f"{MAXWELL_PREFIX}/reservation/get_new_slurm_token?cli_api={MAXWELL_SLURM_TOOLS_VERSION}&lifespan={lifespan_seconds}&stu={user_name}"
-            ) as response:
-                try:
-                    # Maxwell says "text/html", which makes the "json" function fail. But the content
-                    # really is JSON, so we can ignore Content-Type.
-                    json_content = await response.json(content_type=None)
-                except ContentTypeError as e:
-                    return TokenRetrievalError(f"response did not contain JSON: {e}")
-                if json_content is None:
-                    return TokenRetrievalError("response was empty")
-                token = json_content.get("token")
-                if token is None:
-                    return TokenRetrievalError(
-                        f'got no "token" in JSON response: {json_content}'
-                    )
-                if not isinstance(token, str):
-                    return TokenRetrievalError(f"auth token is not string but: {token}")
-                return token
+        async with (
+            aiohttp.ClientSession(
+                auth=BasicAuth(user_name, portal_token),
+            ) as session,
+            session.get(
+                f"{MAXWELL_PREFIX}/reservation/get_new_slurm_token?cli_api={MAXWELL_SLURM_TOOLS_VERSION}&lifespan={lifespan_seconds}&stu={user_name}",
+            ) as response,
+        ):
+            try:
+                # Maxwell says "text/html", which makes the "json" function fail. But the content
+                # really is JSON, so we can ignore Content-Type.
+                json_content = await response.json(content_type=None)
+            except ContentTypeError as e:
+                return TokenRetrievalError(f"response did not contain JSON: {e}")
+            if json_content is None:
+                return TokenRetrievalError("response was empty")
+            token = json_content.get("token")
+            if token is None:
+                return TokenRetrievalError(
+                    f'got no "token" in JSON response: {json_content}',
+                )
+            if not isinstance(token, str):
+                return TokenRetrievalError(f"auth token is not string but: {token}")
+            return token
     except Exception as e:
         return TokenRetrievalError(f"a very unexpected error occurred: {e}")
 
@@ -84,19 +89,18 @@ async def retrieve_jwt_token_on_maxwell_node(
 
         if result.returncode != 0:
             return TokenRetrievalError(
-                f"slurm_token gave an error trying to get a token! standard output is {stdout.decode('utf-8')}, standard error is {stderr.decode('utf-8')}"
+                f"slurm_token gave an error trying to get a token! standard output is {stdout.decode('utf-8')}, standard error is {stderr.decode('utf-8')}",
             )
 
-        PREFIX = "SLURM_TOKEN="
-        if not stdout.startswith(PREFIX.encode("utf-8")):
+        if not stdout.startswith(_SLURM_TOKEN_PREFIX.encode("utf-8")):
             return TokenRetrievalError(
-                f"scontrol output did not start with {PREFIX}= but was {result.stdout}"
+                f"scontrol output did not start with {_SLURM_TOKEN_PREFIX}= but was {result.stdout}",
             )
 
-        return stdout.decode("utf-8")[len(PREFIX) :].strip()
+        return stdout.decode("utf-8")[len(_SLURM_TOKEN_PREFIX) :].strip()
     except FileNotFoundError:
         return TokenRetrievalError(
-            'Couldn\'t find the "slurm_token" tool! Are you on Maxwell?'
+            'Couldn\'t find the "slurm_token" tool! Are you on Maxwell?',
         )
 
 
@@ -113,7 +117,8 @@ class ConstantTokenRetriever:
 
 class DynamicTokenRetriever:
     def __init__(
-        self, retriever: Callable[[int], Awaitable[str | TokenRetrievalError]]
+        self,
+        retriever: Callable[[int], Awaitable[str | TokenRetrievalError]],
     ) -> None:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
@@ -144,7 +149,7 @@ def _convert_job(job: JSONDict) -> None | Job:
     job_start_time = job.get("start_time", None)
     if job_start_time is None:
         return None
-    assert isinstance(job_start_time, (float, int)), f"start time is {job_start_time}"
+    assert isinstance(job_start_time, float | int), f"start time is {job_start_time}"
     job_id = job.get("job_id", None)
     if job_id is None:
         return None
@@ -152,7 +157,8 @@ def _convert_job(job: JSONDict) -> None | Job:
     return Job(
         status=parse_job_state(job_state),
         started=datetime.datetime.fromtimestamp(
-            job_start_time, tz=datetime.timezone.utc
+            job_start_time,
+            tz=datetime.timezone.utc,
         ),
         metadata=JobMetadata({"job_id": job_id}),
         id=job_id,
@@ -165,30 +171,38 @@ class SlurmError(TypedDict):
 
 
 class SlurmHttpWrapper:
-    # pylint: disable=unused-argument
     async def post(
-        self, url: str, headers: dict[str, Any], data: JSONDict
+        self,
+        url: str,
+        headers: dict[str, Any],
+        data: JSONDict,
     ) -> JSONDict: ...
 
-    # pylint: disable=unused-argument
-    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict: ...
+    async def get(
+        self,
+        url: str,
+        headers: dict[str, Any],
+    ) -> JSONDict: ...
 
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
     async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as response:
-                return await response.json()  # type: ignore
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(url, headers=headers, json=data) as response,
+        ):
+            return await response.json()  # type: ignore
 
     async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                return await response.json()  # type: ignore
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(url, headers=headers) as response,
+        ):
+            return await response.json()  # type: ignore
 
 
 class SlurmRestWorkloadManager(WorkloadManager):
     # Super class is Protocol which gives an error (protocols aren't instantiated)
-    # pylint: disable=super-init-not-called
     def __init__(
         self,
         partition: str,
@@ -233,7 +247,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         url = f"{self._rest_url}/job/submit"
         headers_output = json.dumps(await self._headers())
         logger.info(
-            f"sending the following script (excerpt) to {url} (headers {headers_output}): {script[0:50]}..."
+            f"sending the following script (excerpt) to {url} (headers {headers_output}): {script[0:50]}...",
         )
         job_dict: dict[str, int | str | dict[str, str]] = {
             "nodes": 1,
@@ -267,7 +281,9 @@ class SlurmRestWorkloadManager(WorkloadManager):
         )
         try:
             response = await self._request_wrapper.post(
-                url, headers=await self._headers(), data=json_request
+                url,
+                headers=await self._headers(),
+                data=json_request,
             )
         except Exception as e:
             raise JobStartError(f"error starting job {e}")
@@ -278,17 +294,17 @@ class SlurmRestWorkloadManager(WorkloadManager):
         if errors is not None and errors:
             raise JobStartError(
                 "there were workload_manager errors: "
-                + ",".join(f"{s['error_code']}: {s['error']}" for s in errors)
+                + ",".join(f"{s['error_code']}: {s['error']}" for s in errors),
             )
         job_id = response_json.get("job_id", None)
         if job_id is None:
             raise JobStartError(
                 "workload_manager response didn't contain a job ID: "
-                + json.dumps(response_json)
+                + json.dumps(response_json),
             )
         if not isinstance(job_id, int):
             raise JobStartError(
-                f"workload_manager's job ID was {job_id} instead of an integer"
+                f"workload_manager's job ID was {job_id} instead of an integer",
             )
         return JobStartResult(
             job_id=job_id,
@@ -297,23 +313,25 @@ class SlurmRestWorkloadManager(WorkloadManager):
 
     async def list_jobs(self) -> list[Job]:
         response = await self._request_wrapper.get(
-            f"{self._rest_url}/jobs", headers=await self._headers()
+            f"{self._rest_url}/jobs",
+            headers=await self._headers(),
         )
         errors = response.get("errors", None)
         assert errors is None or isinstance(errors, list)
         if errors is not None and errors:
             raise Exception(
-                "list job request contained errors: " + ",".join(str(e) for e in errors)
+                "list job request contained errors: "
+                + ",".join(str(e) for e in errors),
             )
         if "jobs" not in response:
             raise Exception(
-                "didn't get any jobs in the response: " + json.dumps(response)
+                "didn't get any jobs in the response: " + json.dumps(response),
             )
         jobs = response.get("jobs", [])
         assert isinstance(jobs, list)
         if not jobs:
             logger.info(
-                f"jobs array actually empty (token expired probably): {json.dumps(response)}"
+                f"jobs array actually empty (token expired probably): {json.dumps(response)}",
             )
             raise Exception("jobs array empty, token expired?")
         # pyright rightfully complains that this doesn't have to be a JSONDict

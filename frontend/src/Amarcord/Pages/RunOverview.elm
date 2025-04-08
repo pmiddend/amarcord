@@ -516,7 +516,7 @@ viewInner model { runsOverview, latestRun } =
             ]
         , tbody_ (List.map (viewEventRow model.zone) runsOverview.events)
         ]
-    , a [ href (makeLink (Runs model.beamtimeId)) ] [ text "→ Go to runs table" ]
+    , a [ href (makeLink (Runs model.beamtimeId [])) ] [ text "→ Go to runs table" ]
     ]
 
 
@@ -577,7 +577,7 @@ updateLatestRun zone oldLatestRunMaybe newRequest =
                             -- We didn't have a run before, but now we do.
                             let
                                 ( newRunEditInfo, subCmds ) =
-                                    RunAttributiForm.init reiInitData newRun
+                                    RunAttributiForm.init reiInitData RunAttributiForm.HideFiles newRun
                             in
                             ( Just { run = newRun, runEditInfo = newRunEditInfo }, Cmd.map RunAttributiFormMsg subCmds )
 
@@ -602,7 +602,7 @@ updateLatestRun zone oldLatestRunMaybe newRequest =
                                 -- If we switch to a new run, ignore any changes
                                 let
                                     ( newRunEditInfo, subCmds ) =
-                                        RunAttributiForm.init reiInitData newRun
+                                        RunAttributiForm.init reiInitData RunAttributiForm.HideFiles newRun
                                 in
                                 ( Just { run = newRun, runEditInfo = newRunEditInfo }, Cmd.map RunAttributiFormMsg subCmds )
 
@@ -649,7 +649,7 @@ updateRunOverviewRequest zone newRequest oldModel =
                                     }
 
                                 ( latestRunModel, subCmds ) =
-                                    RunAttributiForm.init reiInitData latestRunReal
+                                    RunAttributiForm.init reiInitData RunAttributiForm.HideFiles latestRunReal
                             in
                             ( Success
                                 { runsOverview = runsOverview

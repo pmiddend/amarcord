@@ -14,6 +14,7 @@ from typing import Iterable
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 
@@ -71,36 +72,33 @@ async def start_process_locally(
 
     if stdout is not None:
         if stderr is not None:
-            with stdout.open("w") as stdout_obj:
-                with stderr.open("w") as stderr_obj:
-                    proc = await create_subprocess(
-                        stdout=stdout_obj,
-                        stderr=stderr_obj,
-                    )
+            with stdout.open("w") as stdout_obj, stderr.open("w") as stderr_obj:
+                proc = await create_subprocess(
+                    stdout=stdout_obj,
+                    stderr=stderr_obj,
+                )
         else:
             with stdout.open("w") as stdout_obj:
                 proc = await create_subprocess(
                     stdout=stdout_obj,
                     stderr=asyncio.subprocess.PIPE,
                 )
-    else:
-        if stderr is not None:
-            with stderr.open("w") as stderr_obj:
-                proc = await create_subprocess(
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=stderr_obj,
-                )
-        else:
+    elif stderr is not None:
+        with stderr.open("w") as stderr_obj:
             proc = await create_subprocess(
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stderr=stderr_obj,
             )
+    else:
+        proc = await create_subprocess(
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
     return proc, process_dir, script_path
 
 
 class LocalWorkloadManager(WorkloadManager):
-    # pylint: disable=super-init-not-called
     def __init__(self) -> None:
         self._processes: list[WrappedProcess] = []
 
@@ -111,12 +109,18 @@ class LocalWorkloadManager(WorkloadManager):
         self,
         working_directory: Path,
         script: str,
-        name: str,
-        time_limit: datetime.timedelta,
+        name: str,  # noqa: ARG002
+        time_limit: datetime.timedelta,  # noqa: ARG002
         environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
+        try:
+            working_directory.mkdir(exist_ok=True, parents=True)
+        except:
+            raise JobStartError(
+                f"couldn't create working directory {working_directory}"
+            )
         process, _, script_path = await start_process_locally(
             output_base_dir_str=str(working_directory),
             script=script,
@@ -127,11 +131,14 @@ class LocalWorkloadManager(WorkloadManager):
         )
         self._processes.append(
             WrappedProcess(
-                process, datetime.datetime.now(datetime.timezone.utc), script_path
-            )
+                process,
+                datetime.datetime.now(datetime.timezone.utc),
+                script_path,
+            ),
         )
         return JobStartResult(
-            job_id=process.pid, metadata=JobMetadata({"pid": process.pid})
+            job_id=process.pid,
+            metadata=JobMetadata({"pid": process.pid}),
         )
 
     async def list_jobs(self) -> Iterable[Job]:
@@ -146,10 +153,12 @@ class LocalWorkloadManager(WorkloadManager):
                     status=(
                         JobStatus.SUCCESSFUL
                         if rc is not None and rc == 0
-                        else JobStatus.RUNNING if rc is None else JobStatus.FAILED
+                        else JobStatus.RUNNING
+                        if rc is None
+                        else JobStatus.FAILED
                     ),
                     started=wrapped_process.started,
                     metadata=JobMetadata({"pid": wrapped_process.process.pid}),
-                )
+                ),
             )
         return result

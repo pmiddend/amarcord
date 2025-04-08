@@ -38,28 +38,32 @@ def attributo_value_to_spreadsheet_cell(
     if isinstance(attributo_type, AttributoTypeChemical):
         if not isinstance(attributo_value, int):
             raise TypeError(
-                f"chemical IDs have to have type int, got {attributo_value}"
+                f"chemical IDs have to have type int, got {attributo_value}",
             )
         return chemical_id_to_name.get(
-            attributo_value, f"invalid chemical ID {attributo_value}"
+            attributo_value,
+            f"invalid chemical ID {attributo_value}",
         )
     if isinstance(attributo_value, datetime.datetime):
         return datetime_to_local(attributo_value)
-    if isinstance(
-        attributo_value,
-        (str, int, float, bool),
-    ):
+    if isinstance(attributo_value, str | int | float | bool):
         return attributo_value
     assert isinstance(attributo_value, list)
     return str(attributo_value)
 
 
 async def create_workbook(
-    session: AsyncSession, beamtime_id: BeamtimeId, with_events: bool
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
+    with_events: bool,
 ) -> WorkbookOutput:
     wb = Workbook(iso_dates=True)
 
     runs_sheet = wb.active
+
+    if runs_sheet is None:
+        raise Exception("workbook doesn't have an active work sheet")
+
     runs_sheet.title = "Runs"
     attributi_sheet = wb.create_sheet("Attributi")
     chemicals_sheet = wb.create_sheet("Chemicals")
@@ -69,9 +73,9 @@ async def create_workbook(
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtime_id)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
 
     for attributo_column, attributo_header_name in enumerate(
@@ -86,7 +90,9 @@ async def create_workbook(
     ):
         # pyright thinks I cannot access .cell on the worksheet
         cell = attributi_sheet.cell(  # pyright: ignore
-            row=1, column=attributo_column, value=attributo_header_name
+            row=1,
+            column=attributo_column,
+            value=attributo_header_name,
         )
         new_font = copy(cell.font)  # pyright: ignore
         cell.font = new_font  # pyright: ignore
@@ -98,19 +104,25 @@ async def create_workbook(
             value=attributo.associated_table.value.capitalize(),
         )
         attributi_sheet.cell(  # pyright: ignore
-            row=attributo_row_idx, column=2, value=attributo.name
+            row=attributo_row_idx,
+            column=2,
+            value=attributo.name,
         )
         attributi_sheet.cell(  # pyright: ignore
-            row=attributo_row_idx, column=3, value=attributo.group
+            row=attributo_row_idx,
+            column=3,
+            value=attributo.group,
         )
         attributi_sheet.cell(  # pyright: ignore
-            row=attributo_row_idx, column=4, value=attributo.description
+            row=attributo_row_idx,
+            column=4,
+            value=attributo.description,
         )
         attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx,
             column=5,
             value=attributo_type_to_string(
-                schema_dict_to_attributo_type(attributo.json_schema)
+                schema_dict_to_attributo_type(attributo.json_schema),
             ),
         )
 
@@ -122,7 +134,9 @@ async def create_workbook(
         start=1,
     ):
         cell = chemicals_sheet.cell(  # pyright: ignore
-            row=1, column=chemical_column, value=str(chemical_header_name)
+            row=1,
+            column=chemical_column,
+            value=str(chemical_header_name),
         )
         new_font = copy(cell.font)  # pyright: ignore
         cell.font = new_font  # pyright: ignore
@@ -132,7 +146,7 @@ async def create_workbook(
         await session.scalars(
             select(orm.Chemical)
             .where(orm.Chemical.beamtime_id == beamtime_id)
-            .options(selectinload(orm.Chemical.attributo_values))
+            .options(selectinload(orm.Chemical.attributo_values)),
         )
     ).all()
     for chemical_row_idx, chemical in enumerate(chemicals, start=2):
@@ -151,7 +165,7 @@ async def create_workbook(
                 value=attributo_value_to_spreadsheet_cell(
                     chemical_id_to_name={},
                     attributo_type=schema_dict_to_attributo_type(
-                        chemical_attributo.json_schema
+                        chemical_attributo.json_schema,
                     ),
                     attributo_value=next(
                         iter(
@@ -176,9 +190,7 @@ async def create_workbook(
         ["ID", "started", "stopped"] + [a.name for a in run_attributi],
         start=1,
     ):
-        cell = runs_sheet.cell(
-            row=1, column=run_column, value=str(run_header_name)
-        )  # pyright: ignore
+        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))  # pyright: ignore
         new_font = copy(cell.font)  # pyright: ignore
         cell.font = new_font  # pyright: ignore
 
@@ -188,7 +200,7 @@ async def create_workbook(
             select(orm.EventLog)
             .where(orm.EventLog.beamtime_id == beamtime_id)
             .order_by(orm.EventLog.created)
-            .options(selectinload(orm.EventLog.files))
+            .options(selectinload(orm.EventLog.files)),
         )
     ).all()
     event_iterator = 0
@@ -198,7 +210,7 @@ async def create_workbook(
             select(orm.Run)
             .where(orm.Run.beamtime_id == beamtime_id)
             .order_by(orm.Run.started)
-            .options(selectinload(orm.Run.attributo_values))
+            .options(selectinload(orm.Run.attributo_values)),
         )
     ).all()
 
@@ -247,7 +259,7 @@ async def create_workbook(
                 value=attributo_value_to_spreadsheet_cell(
                     chemical_id_to_name=chemical_id_to_name,
                     attributo_type=schema_dict_to_attributo_type(
-                        run_attributo.json_schema
+                        run_attributo.json_schema,
                     ),
                     attributo_value=next(
                         iter(

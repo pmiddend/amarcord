@@ -3,17 +3,16 @@ import json
 import shlex
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from tap import Tap
 
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager_factory import (
-    create_workload_manager,  # NOQA
+    create_workload_manager,
 )
 from amarcord.amici.workload_manager.workload_manager_factory import (
-    parse_workload_manager_config,  # NOQA
+    parse_workload_manager_config,
 )
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -26,17 +25,14 @@ class Arguments(Tap):
     command_line: str
     name: str
     time_limit_minutes: int
-    # pylint: disable=consider-alternative-union-syntax
-    stdout: Optional[Path] = None
-    # pylint: disable=consider-alternative-union-syntax
-    stderr: Optional[Path] = None
-    # pylint: disable=consider-alternative-union-syntax
-    explicit_node: Optional[str] = None
+    stdout: Path | None = None
+    stderr: Path | None = None
+    explicit_node: str | None = None
 
 
 async def _main_loop(args: Arguments) -> None:
     workload_manager = create_workload_manager(
-        parse_workload_manager_config(args.workload_manager_uri)
+        parse_workload_manager_config(args.workload_manager_uri),
     )
 
     start_result = await workload_manager.start_job(
@@ -56,7 +52,7 @@ set -o pipefail
     )
 
     logger.info(
-        f"started job; id {start_result.job_id}, metadata: {json.dumps(start_result.metadata)}"
+        f"started job; id {start_result.job_id}, metadata: {json.dumps(start_result.metadata)}",
     )
 
     while True:

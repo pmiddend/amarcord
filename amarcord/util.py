@@ -9,7 +9,6 @@ from typing import Generator
 from typing import Iterable
 from typing import Sequence
 from typing import TypeVar
-from typing import Union
 
 import pytz
 from dateutil import tz
@@ -100,7 +99,7 @@ def create_intervals(xs: list[int]) -> Generator[tuple[int, int], None, None]:
     yield interval_start, sorted_xs[-1]
 
 
-class UnexpectedEOF(Exception):
+class UnexpectedEOFError(Exception):
     def __init__(self) -> None:
         super().__init__("Unexpected EOF")
 
@@ -110,10 +109,7 @@ def find_by(xs: list[T], by: Callable[[T], bool]) -> T | None:
 
 
 def contains(xs: list[T], by: Callable[[T], bool]) -> bool:
-    for x in xs:
-        if by(x):
-            return True
-    return False
+    return any(by(x) for x in xs)
 
 
 def natural_key(string_: str) -> list[int | str]:
@@ -136,8 +132,7 @@ class DontUpdate:
     pass
 
 
-# pylint: disable=consider-alternative-union-syntax
-TriOptional = Union[T, None, DontUpdate]
+TriOptional = T | None | DontUpdate
 
 
 def sha256_file(p: Path) -> str:
@@ -165,7 +160,8 @@ def read_file_to_string(p: Path) -> str:
 
 # see https://stackoverflow.com/questions/79797/how-to-convert-local-time-string-to-utc
 def local_time_to_utc(
-    d: datetime.datetime, current_time_zone: str | None = None
+    d: datetime.datetime,
+    current_time_zone: str | None = None,
 ) -> datetime.datetime:
     tzname = (
         current_time_zone
@@ -174,7 +170,7 @@ def local_time_to_utc(
     )
     if tzname is None:
         raise Exception(
-            "couldn't figure out the current system time zone, and none was given"
+            "couldn't figure out the current system time zone, and none was given",
         )
 
     local = pytz.timezone(tzname)
@@ -192,7 +188,8 @@ def last_line_of_file(p: Path) -> str:
 
 
 def safe_max(
-    xs: Iterable[T], key: Callable[[T], U]  # pyright: ignore[reportInvalidTypeVarUse]
+    xs: Iterable[T],
+    key: Callable[[T], U],  # pyright: ignore[reportInvalidTypeVarUse]
 ) -> T | None:
     try:
         # mypy wants Callable[[T], Union[SupportsDunderLT, SupportsDunderGT]] but that's internal
@@ -205,7 +202,7 @@ def group_by(xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
     result: dict[U, list[T]] = {}
     for x in xs:
         key_value = key(x)
-        previous_values = result.get(key_value, None)
+        previous_values = result.get(key_value)
         if previous_values is None:
             result[key_value] = [x]
         else:
@@ -218,7 +215,7 @@ def now_utc_unix_integer_millis() -> int:
         datetime.datetime.now(datetime.timezone.utc)
         .replace(tzinfo=datetime.timezone.utc)
         .timestamp()
-        * 1000
+        * 1000,
     )
 
 
@@ -252,12 +249,13 @@ def maybe_you_meant(s: str, strs: Iterable[str]) -> str:
     if not strs:
         return ""
     max_match, ratio = max(
-        ((t, SequenceMatcher(None, s, t).ratio()) for t in strs), key=lambda x: x[1]
+        ((t, SequenceMatcher(None, s, t).ratio()) for t in strs),
+        key=lambda x: x[1],
     )
     return f', maybe you meant "{max_match}"?' if ratio > 0.5 else ""
 
 
-def first(xs: Iterable[T]) -> Union[None, T]:
+def first(xs: Iterable[T]) -> None | T:
     for x in xs:
         return x
     return None
@@ -267,3 +265,12 @@ def overwrite_interpreter(file_contents: str, interpreter: str) -> str:
     lines = file_contents.split("\n")
     lines[0] = interpreter
     return "\n".join(lines)
+
+
+def check_consecutive(xs: Iterable[int]) -> None | tuple[int, int]:
+    prev = None
+    for x in xs:
+        if prev is not None and prev != x - 1:
+            return (prev, x)
+        prev = x
+    return None

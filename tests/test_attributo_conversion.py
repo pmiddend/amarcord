@@ -26,13 +26,19 @@ def test_attributo_int_to_int_conversion() -> None:
     # first, no restrictions on the int, should just work
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeInt(), _default_flags, 1
+            AttributoTypeInt(),
+            AttributoTypeInt(),
+            _default_flags,
+            1,
         )
         == 1
     )
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeInt(), _default_flags, -1
+            AttributoTypeInt(),
+            AttributoTypeInt(),
+            _default_flags,
+            -1,
         )
         == -1
     )
@@ -42,20 +48,29 @@ def test_attributo_int_to_string() -> None:
     # next, int to string. no problem
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeString(), _default_flags, 1
+            AttributoTypeInt(),
+            AttributoTypeString(),
+            _default_flags,
+            1,
         )
         == "1"
     )
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeString(), _default_flags, -1
+            AttributoTypeInt(),
+            AttributoTypeString(),
+            _default_flags,
+            -1,
         )
         == "-1"
     )
     # try a bigger value so we check for thousand separators
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeString(), _default_flags, 1000000
+            AttributoTypeInt(),
+            AttributoTypeString(),
+            _default_flags,
+            1000000,
         )
         == "1000000"
     )
@@ -65,7 +80,10 @@ def test_attributo_int_to_double() -> None:
     # next int to double: no problem if the double range is proper; first, no restrictions
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeDecimal(), _default_flags, 1
+            AttributoTypeInt(),
+            AttributoTypeDecimal(),
+            _default_flags,
+            1,
         )
         == 1.0
     )
@@ -74,7 +92,14 @@ def test_attributo_int_to_double() -> None:
     assert (
         convert_attributo_value(
             AttributoTypeInt(),
-            AttributoTypeDecimal(range=NumericRange(0, False, 10, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=0,
+                    minimum_inclusive=False,
+                    maximum=10,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             5,
         )
@@ -84,7 +109,14 @@ def test_attributo_int_to_double() -> None:
     with pytest.raises(Exception):
         convert_attributo_value(
             AttributoTypeInt(),
-            AttributoTypeDecimal(range=NumericRange(0, False, 10, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=0,
+                    minimum_inclusive=False,
+                    maximum=10,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             20,
         )
@@ -95,7 +127,9 @@ def test_attributo_int_to_list() -> None:
     assert convert_attributo_value(
         AttributoTypeInt(),
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=None,
+            max_length=None,
         ),
         _default_flags,
         1,
@@ -106,7 +140,9 @@ def test_attributo_int_to_list() -> None:
         convert_attributo_value(
             AttributoTypeInt(),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=None,
             ),
             _default_flags,
             1,
@@ -117,10 +153,14 @@ def test_attributo_list_to_list() -> None:
     # first, test without length restrictions and the same contained types
     assert convert_attributo_value(
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=None,
+            max_length=None,
         ),
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=None,
+            max_length=None,
         ),
         _default_flags,
         [1, 2, 3],
@@ -129,10 +169,14 @@ def test_attributo_list_to_list() -> None:
     # now test with loser length constraints
     assert convert_attributo_value(
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=5, max_length=10
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=5,
+            max_length=10,
         ),
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=None,
+            max_length=None,
         ),
         _default_flags,
         [1, 2, 3, 4, 5, 6],
@@ -143,10 +187,14 @@ def test_attributo_list_to_list() -> None:
         # min
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=10
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=10,
             ),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=3, max_length=10
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=3,
+                max_length=10,
             ),
             _default_flags,
             [1, 2],
@@ -156,10 +204,14 @@ def test_attributo_list_to_list() -> None:
         # max
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=5
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=5,
             ),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=4
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=4,
             ),
             _default_flags,
             [1, 2, 3, 4, 5],
@@ -169,10 +221,14 @@ def test_attributo_list_to_list() -> None:
     with pytest.raises(Exception):
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=5
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=5,
             ),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_BOOL, min_length=2, max_length=4
+                sub_type=ArrayAttributoType.ARRAY_BOOL,
+                min_length=2,
+                max_length=4,
             ),
             _default_flags,
             [1, 2, 3, 4, 5],
@@ -182,7 +238,10 @@ def test_attributo_list_to_list() -> None:
 def test_attributo_string_to_string() -> None:
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeString(), _default_flags, "foo"
+            AttributoTypeString(),
+            AttributoTypeString(),
+            _default_flags,
+            "foo",
         )
         == "foo"
     )
@@ -192,7 +251,10 @@ def test_attributo_string_to_int() -> None:
     # no restrictions, valid string
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeInt(), _default_flags, "3"
+            AttributoTypeString(),
+            AttributoTypeInt(),
+            _default_flags,
+            "3",
         )
         == 3
     )
@@ -200,7 +262,10 @@ def test_attributo_string_to_int() -> None:
     # no restrictions, invalid string
     with pytest.raises(Exception):
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeInt(), _default_flags, "a"
+            AttributoTypeString(),
+            AttributoTypeInt(),
+            _default_flags,
+            "a",
         )
 
 
@@ -239,7 +304,10 @@ def test_attributo_string_double() -> None:
     # no restrictions, valid string
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeDecimal(), _default_flags, "3.5"
+            AttributoTypeString(),
+            AttributoTypeDecimal(),
+            _default_flags,
+            "3.5",
         )
         == 3.5
     )
@@ -247,14 +315,24 @@ def test_attributo_string_double() -> None:
     # no restrictions, invalid string
     with pytest.raises(Exception):
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeDecimal(), _default_flags, "a"
+            AttributoTypeString(),
+            AttributoTypeDecimal(),
+            _default_flags,
+            "a",
         )
 
     # restrictions, valid string, valid value
     assert (
         convert_attributo_value(
             AttributoTypeString(),
-            AttributoTypeDecimal(range=NumericRange(1.0, False, 5.0, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    minimum_inclusive=False,
+                    maximum=5.0,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             "3.5",
         )
@@ -265,7 +343,14 @@ def test_attributo_string_double() -> None:
     with pytest.raises(Exception):
         convert_attributo_value(
             AttributoTypeString(),
-            AttributoTypeDecimal(range=NumericRange(1.0, False, 5.0, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    minimum_inclusive=False,
+                    maximum=5.0,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             "13.5",
         )
@@ -276,7 +361,9 @@ def test_attributo_string_list() -> None:
     assert convert_attributo_value(
         AttributoTypeString(),
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_STRING, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_STRING,
+            min_length=None,
+            max_length=None,
         ),
         _default_flags,
         "abc",
@@ -287,7 +374,9 @@ def test_attributo_string_list() -> None:
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_STRING, min_length=2, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_STRING,
+                min_length=2,
+                max_length=None,
             ),
             _default_flags,
             "abc",
@@ -322,8 +411,22 @@ def test_attributo_double_to_double() -> None:
     # now loosening restrictions
     assert (
         convert_attributo_value(
-            AttributoTypeDecimal(range=NumericRange(1.0, False, 5.0, False)),
-            AttributoTypeDecimal(range=NumericRange(0.0, False, 10.0, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    minimum_inclusive=False,
+                    maximum=5.0,
+                    maximum_inclusive=False,
+                ),
+            ),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=0.0,
+                    minimum_inclusive=False,
+                    maximum=10.0,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             1.5,
         )
@@ -333,8 +436,22 @@ def test_attributo_double_to_double() -> None:
     # now tightening, but still valid restrictions
     assert (
         convert_attributo_value(
-            AttributoTypeDecimal(range=NumericRange(1.0, False, 5.0, False)),
-            AttributoTypeDecimal(range=NumericRange(3.0, False, 5.0, False)),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    minimum_inclusive=False,
+                    maximum=5.0,
+                    maximum_inclusive=False,
+                ),
+            ),
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=3.0,
+                    minimum_inclusive=False,
+                    maximum=5.0,
+                    maximum_inclusive=False,
+                ),
+            ),
             _default_flags,
             3.5,
         )
@@ -345,8 +462,22 @@ def test_attributo_double_to_double() -> None:
     with pytest.raises(Exception):
         assert (
             convert_attributo_value(
-                AttributoTypeDecimal(range=NumericRange(1.0, False, 5.0, False)),
-                AttributoTypeDecimal(range=NumericRange(3.0, False, 5.0, False)),
+                AttributoTypeDecimal(
+                    range=NumericRange(
+                        minimum=1.0,
+                        minimum_inclusive=False,
+                        maximum=5.0,
+                        maximum_inclusive=False,
+                    ),
+                ),
+                AttributoTypeDecimal(
+                    range=NumericRange(
+                        minimum=3.0,
+                        minimum_inclusive=False,
+                        maximum=5.0,
+                        maximum_inclusive=False,
+                    ),
+                ),
                 _default_flags,
                 1.5,
             )
@@ -392,7 +523,12 @@ def test_attributo_double_to_double() -> None:
                 AttributoTypeDecimal(
                     standard_unit=True,
                     suffix="kHz",
-                    range=NumericRange(3.0, False, 5.0, False),
+                    range=NumericRange(
+                        minimum=3.0,
+                        minimum_inclusive=False,
+                        maximum=5.0,
+                        maximum_inclusive=False,
+                    ),
                 ),
                 _default_flags,
                 1.5,
@@ -419,7 +555,9 @@ def test_attributo_double_list() -> None:
     assert convert_attributo_value(
         AttributoTypeDecimal(),
         AttributoTypeList(
-            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER,
+            min_length=None,
+            max_length=None,
         ),
         _default_flags,
         1.5,
@@ -430,7 +568,9 @@ def test_attributo_double_list() -> None:
         convert_attributo_value(
             AttributoTypeDecimal(),
             AttributoTypeList(
-                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=2,
+                max_length=None,
             ),
             _default_flags,
             1.0,
@@ -570,7 +710,7 @@ def test_attributo_boolean_to_int() -> None:
             AttributoTypeBoolean(),
             AttributoTypeInt(),
             _default_flags,
-            True,
+            value=True,
         )
         == 1
     )
@@ -579,7 +719,7 @@ def test_attributo_boolean_to_int() -> None:
             AttributoTypeBoolean(),
             AttributoTypeInt(),
             _default_flags,
-            False,
+            value=False,
         )
         == 0
     )
@@ -591,7 +731,7 @@ def test_attributo_boolean_to_double() -> None:
             AttributoTypeBoolean(),
             AttributoTypeDecimal(),
             _default_flags,
-            True,
+            value=True,
         )
         == 1.0
     )
@@ -600,7 +740,7 @@ def test_attributo_boolean_to_double() -> None:
             AttributoTypeBoolean(),
             AttributoTypeDecimal(),
             _default_flags,
-            False,
+            value=False,
         )
         == 0.0
     )
@@ -613,10 +753,10 @@ def test_attributo_boolean_to_double() -> None:
                     minimum_inclusive=False,
                     maximum=None,
                     maximum_inclusive=False,
-                )
+                ),
             ),
             _default_flags,
-            False,
+            value=False,
         )
 
 
@@ -626,7 +766,7 @@ def test_attributo_boolean_to_string() -> None:
             AttributoTypeBoolean(),
             AttributoTypeString(),
             _default_flags,
-            True,
+            value=True,
         )
         == "True"
     )
@@ -636,7 +776,7 @@ def test_attributo_boolean_to_string() -> None:
             AttributoTypeBoolean(),
             AttributoTypeString(),
             _default_flags,
-            False,
+            value=False,
         )
         == "False"
     )
@@ -644,8 +784,7 @@ def test_attributo_boolean_to_string() -> None:
 
 def test_attributo_string_to_boolean() -> None:
     assert (
-        # pylint: disable=singleton-comparison
-        convert_attributo_value(
+        convert_attributo_value(  # noqa: E712
             AttributoTypeString(),
             AttributoTypeBoolean(),
             _default_flags,
@@ -655,8 +794,7 @@ def test_attributo_string_to_boolean() -> None:
     )
 
     assert (
-        # pylint: disable=singleton-comparison
-        convert_attributo_value(
+        convert_attributo_value(  # noqa: E712
             AttributoTypeString(),
             AttributoTypeBoolean(),
             _default_flags,

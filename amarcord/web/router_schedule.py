@@ -1,5 +1,6 @@
 import datetime
 import os
+from typing import Annotated
 
 import pytz
 import structlog
@@ -29,15 +30,16 @@ router = APIRouter()
     response_model_exclude_defaults=True,
 )
 async def get_beamtime_schedule(
-    beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonBeamtimeSchedule:
     current_tz = pytz.timezone(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))
 
     def convert_to_posix(date_time_str: str) -> int:
         return datetime_to_attributo_int(
             current_tz.localize(
-                datetime.datetime.strptime(date_time_str, "%Y-%m-%d %H:%M")
-            ).astimezone(pytz.utc)
+                datetime.datetime.strptime(date_time_str, "%Y-%m-%d %H:%M"),
+            ).astimezone(pytz.utc),
         )
 
     def convert_start_end_to_posix(shift_dict: orm.BeamtimeSchedule) -> tuple[int, int]:
@@ -46,7 +48,7 @@ async def get_beamtime_schedule(
             return 0, 0
         shift_start, shift_end = shift_parts
         return convert_to_posix(f"{shift_dict.date} {shift_start}"), convert_to_posix(
-            f"{shift_dict.date} {shift_end}"
+            f"{shift_dict.date} {shift_end}",
         )
 
     return JsonBeamtimeSchedule(
@@ -63,22 +65,23 @@ async def get_beamtime_schedule(
             )
             for shift_dict in await session.scalars(
                 select(orm.BeamtimeSchedule).where(
-                    orm.BeamtimeSchedule.beamtime_id == beamtimeId
-                )
+                    orm.BeamtimeSchedule.beamtime_id == beamtimeId,
+                ),
             )
-        ]
+        ],
     )
 
 
 @router.post("/api/schedule", tags=["schedule"], response_model_exclude_defaults=True)
 async def update_beamtime_schedule(
-    input_: JsonUpdateBeamtimeScheduleInput, session: AsyncSession = Depends(get_orm_db)
+    input_: JsonUpdateBeamtimeScheduleInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonBeamtimeScheduleOutput:
     async with session.begin():
         await session.execute(
             delete(orm.BeamtimeSchedule).where(
-                orm.BeamtimeSchedule.beamtime_id == input_.beamtime_id
-            )
+                orm.BeamtimeSchedule.beamtime_id == input_.beamtime_id,
+            ),
         )
         for shift_dict in input_.schedule:
             session.add(
@@ -96,12 +99,12 @@ async def update_beamtime_schedule(
                         (
                             await session.scalars(
                                 select(orm.Chemical).where(
-                                    orm.Chemical.id.in_(shift_dict.chemicals)
-                                )
+                                    orm.Chemical.id.in_(shift_dict.chemicals),
+                                ),
                             )
-                        ).all()
+                        ).all(),
                     ),
-                )
+                ),
             )
         await session.commit()
         return JsonBeamtimeScheduleOutput(schedule=input_.schedule)

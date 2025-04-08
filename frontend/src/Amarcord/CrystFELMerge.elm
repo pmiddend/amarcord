@@ -1,11 +1,12 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, form, h2, label, small, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 
 
@@ -111,6 +112,8 @@ type Msg
     | PointGroupMsg PointGroupChooser.Msg
     | ToggleW
     | ModelChangeFn (Model -> Model)
+    | CellDescriptionChange CellDescriptionEdit.Msg
+    | ToggleAmbigator
 
 
 type PolarisationPreset
@@ -229,11 +232,15 @@ type alias Model =
     , minRes : Maybe Float
     , pushRes : Maybe Float
     , w : Maybe PointGroupChooser.Model
+    , cellDescription : CellDescriptionEdit.Model
+    , pointGroup : String
+    , spaceGroup : String
+    , ambigatorCommandLine : Maybe String
     }
 
 
 modelToMergeParameters : Model -> JsonQueueMergeJobInput
-modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup, ambigatorCommandLine } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -263,13 +270,14 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
     , dataSetId = dataSetId
     , mergeParameters =
         { mergeModel = mergeModel
+        , pointGroup = pointGroup
+        , spaceGroup =
+            if String.trim spaceGroup /= "" then
+                Just spaceGroup
 
-        -- FIXME: take point group from user or leave it empty to auto-detect
-        , pointGroup = ""
-
-        -- Here it's fine to leave it empty, we don't want it user-defined and it will be filled by the server.
-        -- The only reason this is here is because we have only one class for merge parameters (for input and output).
-        , cellDescription = ""
+            else
+                Nothing
+        , cellDescription = CellDescriptionEdit.modelAsText cellDescription
         , scaleIntensities = scaleIntensities
         , postRefinement = postRefinement
         , iterations = iterations
@@ -289,6 +297,7 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
         , pushRes = pushRes
         , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
         , negativeHandling = Just MergeNegativeHandlingIgnore
+        , ambigatorCommandLine = Maybe.withDefault "" ambigatorCommandLine
         }
     }
 
@@ -315,39 +324,45 @@ view model =
                 model.polarisationPreset
 
         modelSelect =
-            div [ class "row form-floating mb-3" ]
-                [ makeModelSelect
-                , label [ for "crystfel-model" ] [ text "Model" ]
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-model" ] [ text "Model" ]
+                , makeModelSelect
                 ]
 
         scalingAndRefinementCheckboxes =
-            div [ class "row g-2 mb-3" ]
-                [ div [ class "form-check col" ]
+            div [ class "d-flex justify-content-around mb-3" ]
+                [ div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-scaling", type_ "checkbox", checked (model.scaleIntensities /= ScaleIntensitiesOff), onClick ToggleScaleIntensities ]
                     , label [ class "form-check-label", for "crystfel-scaling" ] [ text "Scale intensities" ]
                     ]
-                , div [ class "form-check col" ]
+                , div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-debye-waller-scaling", type_ "checkbox", checked (model.scaleIntensities == ScaleIntensitiesDebyewaller), disabled (model.scaleIntensities == ScaleIntensitiesOff), onClick ToggleDebyeWallerScaling ]
                     , label [ class "form-check-label", for "crystfel-debye-waller-scaling" ] [ text "Debye-Waller scaling" ]
                     ]
-                , div [ class "form-check col" ]
+                , div [ class "form-check form-check-inline" ]
                     [ input_ [ class "form-check-input", id "crystfel-post-refinement", type_ "checkbox", checked model.postRefinement, onClick TogglePostRefinement ]
                     , label [ class "form-check-label", for "crystfel-post-refinement" ] [ text "Post-refinement" ]
                     ]
                 ]
 
         iterationsRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_ [ id "crystfel-iterations", type_ "number", class "form-control", value (String.fromInt model.iterations), onIntInput (\i -> ModelChangeFn (\m -> { m | iterations = i })) ]
-                , label [ for "crystfel-iterations" ] [ text "Number of scaling/post-refinement cycles" ]
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-iterations" ] [ text "Number of scaling/post-refinement cycles" ]
+                , input_
+                    [ id "crystfel-iterations"
+                    , type_ "number"
+                    , class "form-control"
+                    , value (String.fromInt model.iterations)
+                    , onIntInput (\i -> ModelChangeFn (\m -> { m | iterations = i }))
+                    ]
                 ]
 
         polarisationRow =
             div [ class "row mb-3" ] <|
                 div [ class "col" ]
-                    [ div [ class "form-floating" ]
-                        [ makePolarisationPresetSelect
-                        , label [ for "crystfel-polarisation-preset" ] [ text "Polarisation" ]
+                    [ div [ class "mb-3" ]
+                        [ label [ for "crystfel-polarisation-preset" ] [ text "Polarisation" ]
+                        , makePolarisationPresetSelect
                         ]
                     ]
                     :: (case model.polarisationPreset of
@@ -511,27 +526,27 @@ view model =
                 ]
 
         minMeasurementsRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-min-measurements" ] [ text "Minimum number of measurements per merged reflection" ]
+                , input_
                     [ id "crystfel-min-measurements"
                     , type_ "number"
                     , class "form-control"
                     , value (String.fromInt model.minMeasurements)
                     , onIntInput (\i -> ModelChangeFn (\m -> { m | minMeasurements = i }))
                     ]
-                , label [ for "crystfel-min-measurements" ] [ text "Minimum number of measurements per merged reflection" ]
                 ]
 
         relBRow =
-            div [ class "row form-floating mb-3" ]
-                [ input_
+            div [ class "mb-3" ]
+                [ label [ for "crystfel-rel-b" ] [ text "Reject crystals with absolute B factors ≥ Å²" ]
+                , input_
                     [ id "crystfel-rel-b"
                     , type_ "number"
                     , class "form-control"
                     , value (String.fromFloat model.relB)
                     , onFloatInput (\f -> ModelChangeFn (\m -> { m | relB = f }))
                     ]
-                , label [ for "crystfel-rel-b" ] [ text "Reject crystals with absolute B factors ≥ Å²" ]
                 ]
 
         logsRow =
@@ -628,9 +643,59 @@ view model =
                         ]
                     ]
                 ]
+
+        cellDescriptionInput =
+            div [ class "mb-3" ]
+                [ label [] [ text "Cell description" ]
+                , Html.map CellDescriptionChange (CellDescriptionEdit.view model.cellDescription)
+                ]
+
+        pointGroupInput =
+            div [ class "mb-3" ]
+                [ label [ for "merge-point-group" ] [ text "Point group" ]
+                , input_
+                    [ id "merge-point-group"
+                    , type_ "text"
+                    , class "form-control"
+                    , value model.pointGroup
+                    , onInput (\f -> ModelChangeFn (\m -> { m | pointGroup = f }))
+                    ]
+                ]
+
+        spaceGroupInput =
+            div [ class "mb-3" ]
+                [ label [ for "merge-space-group" ] [ text "Space group" ]
+                , input_
+                    [ id "merge-space-group"
+                    , type_ "text"
+                    , class "form-control"
+                    , value model.spaceGroup
+                    , onInput (\f -> ModelChangeFn (\m -> { m | spaceGroup = f }))
+                    ]
+                , div [ class "form-text" ] [ text "If this is left empty, will derive space group from the point group." ]
+                ]
+
+        ambigatorInput =
+            div [ class "mb-3 d-flex align-items-center" ]
+                [ div [ class "form-check me-3" ]
+                    [ input_ [ type_ "checkbox", class "form-check-input", id "ambigator-label", onClick ToggleAmbigator ]
+                    , label [ for "ambigator-label", class "form-check-label text-nowrap" ] [ text "Use ambigator" ]
+                    ]
+                , input_
+                    [ type_ "text"
+                    , class "form-control"
+                    , onInput (\f -> ModelChangeFn (\m -> { m | ambigatorCommandLine = Just f }))
+                    , disabled (isNothing model.ambigatorCommandLine)
+                    , value (Maybe.withDefault "" model.ambigatorCommandLine)
+                    ]
+                ]
     in
     form [ class "p-3" ]
-        [ modelSelect
+        [ cellDescriptionInput
+        , pointGroupInput
+        , spaceGroupInput
+        , ambigatorInput
+        , modelSelect
         , scalingAndRefinementCheckboxes
         , iterationsRow
         , polarisationRow
@@ -648,8 +713,8 @@ view model =
         ]
 
 
-init : Int -> Int -> Model
-init dataSetId indexingParametersId =
+init : String -> String -> String -> Int -> Int -> Model
+init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     { dataSetId = dataSetId
     , indexingParametersId = indexingParametersId
     , mergeModel = MergeModelUnity
@@ -672,6 +737,10 @@ init dataSetId indexingParametersId =
     , minRes = Nothing
     , pushRes = Nothing
     , w = Nothing
+    , cellDescription = CellDescriptionEdit.init cellDescription
+    , pointGroup = pointGroup
+    , spaceGroup = spaceGroup
+    , ambigatorCommandLine = Nothing
     }
 
 
@@ -685,6 +754,7 @@ quickMergeParameters dataSetId indexingParametersId =
 
         -- Auto-detect from chemicals
         , pointGroup = ""
+        , spaceGroup = Nothing
 
         -- See below for an explanation
         , cellDescription = ""
@@ -707,6 +777,7 @@ quickMergeParameters dataSetId indexingParametersId =
         , pushRes = Nothing
         , w = Nothing
         , negativeHandling = Just MergeNegativeHandlingIgnore
+        , ambigatorCommandLine = ""
         }
     }
 
@@ -734,8 +805,23 @@ toggleFloat v =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleAmbigator ->
+            ( { model
+                | ambigatorCommandLine =
+                    if isJust model.ambigatorCommandLine then
+                        Nothing
+
+                    else
+                        Just ""
+              }
+            , Cmd.none
+            )
+
         ModelChange mergeModel ->
             ( { model | mergeModel = mergeModel }, Cmd.none )
+
+        CellDescriptionChange subMsg ->
+            ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
 
         ModelChangeFn f ->
             ( f model, Cmd.none )

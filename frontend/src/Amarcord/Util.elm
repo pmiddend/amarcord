@@ -1,12 +1,10 @@
 module Amarcord.Util exposing (..)
 
 import Browser.Dom
-import Http
-import Json.Decode as Decode
 import List exposing (foldr)
 import List.Extra as ListExtra
 import Maybe.Extra exposing (isJust)
-import Parser exposing ((|.), (|=), deadEndsToString, run)
+import Parser exposing ((|.), (|=), DeadEnd, Problem(..), run)
 import String exposing (fromInt, padLeft)
 import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
@@ -36,42 +34,6 @@ collectResults xs =
                             Err (newError :: previousErrors)
     in
     foldr g (Ok []) xs
-
-
-resultToJsonDecoder : Result String a -> Decode.Decoder a
-resultToJsonDecoder x =
-    case x of
-        Err e ->
-            Decode.fail e
-
-        Ok v ->
-            Decode.succeed v
-
-
-httpDelete : { a | url : String, body : Http.Body, expect : Http.Expect msg } -> Cmd msg
-httpDelete { url, body, expect } =
-    Http.request
-        { method = "DELETE"
-        , headers = []
-        , url = url
-        , body = body
-        , expect = expect
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-httpPatch : { a | url : String, body : Http.Body, expect : Http.Expect msg } -> Cmd msg
-httpPatch { url, body, expect } =
-    Http.request
-        { method = "PATCH"
-        , headers = []
-        , url = url
-        , body = body
-        , expect = expect
-        , timeout = Nothing
-        , tracker = Nothing
-        }
 
 
 monthToNumericString : Month -> String
@@ -346,6 +308,21 @@ forgetMsgInput =
     Result.map (always {})
 
 
+withLeftNeighbor : List a -> (Maybe a -> a -> b) -> List b
+withLeftNeighbor xs f =
+    let
+        transducer : a -> ( Maybe a, List b ) -> ( Maybe a, List b )
+        transducer new priorMaybeAndList =
+            case first priorMaybeAndList of
+                Nothing ->
+                    ( Just new, [ f Nothing new ] )
+
+                Just prior ->
+                    ( Just new, f (Just prior) new :: second priorMaybeAndList )
+    in
+    List.reverse <| second <| List.foldl transducer ( Nothing, [] ) xs
+
+
 foldPairs : List a -> (( a, a ) -> b) -> List b
 foldPairs xs f =
     let
@@ -366,6 +343,57 @@ join3 a b c =
     ( a, b, c )
 
 
-none : (a -> Bool) -> List a -> Bool
-none f xs =
-    not (List.any f xs)
+deadEndsToString : List DeadEnd -> String
+deadEndsToString deadEnds =
+    String.join "; " (List.map deadEndToString deadEnds)
+
+
+deadEndToString : DeadEnd -> String
+deadEndToString deadend =
+    problemToString deadend.problem ++ " at row " ++ String.fromInt deadend.row ++ ", col " ++ String.fromInt deadend.col
+
+
+problemToString : Problem -> String
+problemToString p =
+    case p of
+        Expecting s ->
+            "expecting '" ++ s ++ "'"
+
+        ExpectingInt ->
+            "expecting int"
+
+        ExpectingHex ->
+            "expecting hex"
+
+        ExpectingOctal ->
+            "expecting octal"
+
+        ExpectingBinary ->
+            "expecting binary"
+
+        ExpectingFloat ->
+            "expecting float"
+
+        ExpectingNumber ->
+            "expecting number"
+
+        ExpectingVariable ->
+            "expecting variable"
+
+        ExpectingSymbol s ->
+            "expecting symbol '" ++ s ++ "'"
+
+        ExpectingKeyword s ->
+            "expecting keyword '" ++ s ++ "'"
+
+        ExpectingEnd ->
+            "expecting end"
+
+        UnexpectedChar ->
+            "unexpected char"
+
+        Problem s ->
+            "problem " ++ s
+
+        BadRepeat ->
+            "bad repeat"

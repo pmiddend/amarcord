@@ -22,9 +22,6 @@ from amarcord.simple_uri import parse_simple_uri
 )
 def test_parse_simple_uri(input_type_and_value: tuple[str, None | SimpleURI]) -> None:
     result = parse_simple_uri(input_type_and_value[0])
-    assert (
-        isinstance(result, str)
-        and input_type_and_value[1] is None
-        or not isinstance(result, str)
-        and result == input_type_and_value[1]
+    assert (isinstance(result, str) and input_type_and_value[1] is None) or (
+        not isinstance(result, str) and result == input_type_and_value[1]
     )

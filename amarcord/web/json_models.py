@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -29,6 +31,7 @@ class JsonUpdateBeamtimeInput(BaseModel):
     comment: str
     start: int
     end: int
+    analysis_output_path: str
 
 
 class JsonBeamtimeOutput(BaseModel):
@@ -45,6 +48,7 @@ class JsonBeamtime(BaseModel):
     start: int
     end: int
     chemical_names: list[str]
+    analysis_output_path: str
 
 
 class JsonReadBeamtime(BaseModel):
@@ -55,7 +59,7 @@ class JsonEventInput(BaseModel):
     source: str
     text: str
     level: str
-    fileIds: list[int]
+    file_ids: list[int]
 
 
 class JsonFileOutput(BaseModel):
@@ -226,6 +230,7 @@ class JsonMergeParameters(BaseModel):
     #
     # We could have made this "None | str" but that complicates things. For now, do it this way.
     point_group: str
+    space_group: None | str
     # Same as point_group comment above.
     cell_description: str
     negative_handling: None | MergeNegativeHandling
@@ -248,6 +253,7 @@ class JsonMergeParameters(BaseModel):
     min_res: None | float
     push_res: None | float
     w: None | str
+    ambigator_command_line: str
 
 
 class JsonMergeResult(BaseModel):
@@ -326,6 +332,7 @@ class JsonIndexingResult(BaseModel):
     started: None | int
     stopped: None | int
     parameters: JsonIndexingParameters
+    stream_file: str
     program_version: str
     run_internal_id: int
     run_external_id: int
@@ -352,6 +359,29 @@ class JsonCreateIndexingForDataSetInput(BaseModel):
     geometry_file: str
     command_line: str
     source: str
+
+
+class JsonImportFinishedIndexingJobInput(BaseModel):
+    is_online: bool
+    cell_description: str
+    command_line: str
+    source: str
+    run_internal_id: int
+    stream_file: str
+    program_version: str
+    frames: int
+    hits: int
+    indexed_frames: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
+    geometry_file: str
+    geometry_hash: str
+    generated_geometry_file: None | str
+    job_log: str
+
+
+class JsonImportFinishedIndexingJobOutput(BaseModel):
+    indexing_result_id: int
 
 
 class JsonReadIndexingParametersOutput(BaseModel):
@@ -431,12 +461,19 @@ class JsonStopRunOutput(BaseModel):
     result: bool
 
 
+class JsonRunFile(BaseModel):
+    id: int
+    glob: str
+    source: str
+
+
 class JsonCreateOrUpdateRun(BaseModel):
     beamtime_id: BeamtimeId
     attributi: list[JsonAttributoValue]
-    files: list[str]
+    files: None | list[JsonRunFile]
     started: None | int = None
     stopped: None | int = None
+    create_data_set: bool = False
 
 
 class JsonCreateOrUpdateRunOutput(BaseModel):
@@ -444,16 +481,19 @@ class JsonCreateOrUpdateRunOutput(BaseModel):
     indexing_result_id: None | int
     error_message: None | str
     run_internal_id: None | RunInternalId
+    files: list[JsonRunFile]
 
 
 class JsonUpdateRun(BaseModel):
     id: RunInternalId
     experiment_type_id: int
     attributi: list[JsonAttributoValue]
+    files: None | list[JsonRunFile]
 
 
 class JsonUpdateRunOutput(BaseModel):
     result: bool
+    files: list[JsonRunFile]
 
 
 class JsonReadRunsBulkInput(BaseModel):
@@ -494,11 +534,6 @@ class JsonUpdateRunsBulkInput(BaseModel):
 
 class JsonUpdateRunsBulkOutput(BaseModel):
     result: bool
-
-
-class JsonRunFile(BaseModel):
-    glob: str
-    source: str
 
 
 class JsonAnalysisRun(BaseModel):
@@ -579,7 +614,31 @@ class JsonReadRunAnalysis(BaseModel):
 class JsonDataSet(BaseModel):
     id: int
     experiment_type_id: int
+    beamtime_id: int
     attributi: list[JsonAttributoValue]
+
+
+class JsonDataSetStatistics(BaseModel):
+    data_set_id: int
+    run_count: int
+    merge_results_count: int
+    indexed_frames: int
+    merge_or_indexing_jobs_running: bool
+
+
+class JsonRunsBulkImportOutput(BaseModel):
+    simulated: bool
+    create_data_sets: bool
+    errors: list[str]
+    warnings: list[str]
+    number_of_runs: int
+    data_sets: list[JsonDataSet]
+
+
+class JsonRunsBulkImportInfo(BaseModel):
+    run_attributi: list[JsonAttributo]
+    experiment_types: list[str]
+    chemicals: list[JsonChemical]
 
 
 class JsonRun(BaseModel):
@@ -588,7 +647,7 @@ class JsonRun(BaseModel):
     attributi: list[JsonAttributoValue]
     started: int
     stopped: None | int
-    files: list[JsonFileOutput]
+    files: list[JsonRunFile]
     summary: JsonIndexingFom
     experiment_type_id: int
 
@@ -771,6 +830,7 @@ class JsonDeleteEventOutput(BaseModel):
 
 class JsonReadEvents(BaseModel):
     events: list[JsonEvent]
+    filter_dates: list[str]
 
 
 class JsonDeleteFileInput(BaseModel):
@@ -814,7 +874,7 @@ class JsonCreateAttributoOutput(BaseModel):
 
 
 class JsonUpdateAttributoConversionFlags(BaseModel):
-    ignoreUnits: bool
+    ignore_units: bool
 
 
 class JsonUpdateAttributoInput(BaseModel):
@@ -862,12 +922,20 @@ class JsonDataSetWithoutIndexingResults(BaseModel):
     runs: list[str]
 
 
+class JsonRunRange(BaseModel):
+    run_from: int
+    run_to: int
+
+
 class JsonDataSetWithIndexingResults(BaseModel):
     data_set: JsonDataSet
     # To start indexing jobs
     internal_run_ids: list[int]
     # For display
-    runs: list[str]
+    runs: list[JsonRunRange]
+    point_group: str
+    space_group: str
+    cell_description: str
     indexing_results: list[JsonIndexingParametersWithResults]
 
 
@@ -878,9 +946,16 @@ class JsonReadSingleDataSetResults(BaseModel):
     data_set: JsonDataSetWithIndexingResults
 
 
+class JsonMergeStatus(str, Enum):
+    BOTH = "both"
+    UNMERGED = "unmerged"
+    MERGED = "merged"
+
+
 class JsonReadNewAnalysisInput(BaseModel):
     attributi_filter: list[JsonAttributoValue]
     beamtime_id: None | int
+    merge_status: JsonMergeStatus
 
 
 class JsonExperimentTypeWithBeamtimeInformation(BaseModel):
@@ -894,6 +969,7 @@ class JsonReadNewAnalysisOutput(BaseModel):
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_types: list[JsonExperimentTypeWithBeamtimeInformation]
     filtered_data_sets: list[JsonDataSet]
+    data_set_statistics: list[JsonDataSetStatistics]
     attributi_values: list[JsonAttributoValue]
 
 
@@ -959,3 +1035,7 @@ class JsonCopyExperimentTypesInput(BaseModel):
 
 class JsonCopyExperimentTypesOutput(BaseModel):
     to_beamtime_experiment_type_ids: list[int]
+
+
+class JsonDeleteRunOutput(BaseModel):
+    result: bool

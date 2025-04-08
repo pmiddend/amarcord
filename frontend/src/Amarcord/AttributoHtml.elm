@@ -1,6 +1,8 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractCellDescriptionAttributo, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
 
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), ChemicalNameDict, createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, prettyPrintAttributoValue, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.CellDescriptionEdit as CellDescriptionEdit
+import Amarcord.CellDescriptionViewer as CellDescriptionViewer
 import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
@@ -66,7 +68,7 @@ viewRunExperimentTypeCell experimentType =
 
 
 viewAttributoCell : ViewAttributoValueProperties -> Zone -> ChemicalNameDict -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-viewAttributoCell props zone chemicalIds attributiValues { id, group, type_ } =
+viewAttributoCell props zone chemicalIds attributiValues { id, name, group, type_ } =
     td
         [ class
             (if props.colorize && group == "manual" then
@@ -81,7 +83,16 @@ viewAttributoCell props zone chemicalIds attributiValues { id, group, type_ } =
                 em [] [ text "n/a" ]
 
             Just v ->
-                viewAttributoValue props zone chemicalIds type_ v
+                if name == "cell description" then
+                    case v of
+                        ValueString s ->
+                            CellDescriptionViewer.view CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors s
+
+                        _ ->
+                            viewAttributoValue props zone chemicalIds type_ v
+
+                else
+                    viewAttributoValue props zone chemicalIds type_ v
         ]
 
 
@@ -252,6 +263,7 @@ type AttributoEditValue
     | EditValueBoolean Bool
     | EditValueChemicalId (Maybe Int)
     | EditValueString String
+    | EditValueCellDescription CellDescriptionEdit.Model
     | EditValueList
         { subType : AttributoType
         , minLength : Maybe Int
@@ -294,7 +306,7 @@ type AttributoFormMsg
     | AttributoFormSubmit
 
 
-viewAttributoForm : List (Chemical Int a b) -> ChemicalType -> EditableAttributo -> Html AttributoFormMsg
+viewAttributoForm : List (Chemical Int a b) -> Maybe ChemicalType -> EditableAttributo -> Html AttributoFormMsg
 viewAttributoForm chemicals chemicalType a =
     case a.type_.editValue of
         EditValueString s ->
@@ -308,6 +320,29 @@ viewAttributoForm chemicals chemicalType a =
                     , onEnter AttributoFormSubmit
                     , onInput (EditValueString >> SetValue >> AttributoNameWithValueUpdate a.name >> AttributoFormValueUpdate)
                     ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ markupWithoutErrors a.description ]
+
+                  else
+                    text ""
+                ]
+
+        EditValueCellDescription cellEditModel ->
+            let
+                mapMsg : CellDescriptionEdit.Msg -> AttributoFormMsg
+                mapMsg msg =
+                    let
+                        newModel =
+                            CellDescriptionEdit.update msg cellEditModel
+                    in
+                    AttributoFormValueUpdate
+                        { attributoName = a.name
+                        , valueUpdate = SetValue (EditValueCellDescription newModel)
+                        }
+            in
+            div [ class "mb-3" ] <|
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
+                , Html.map mapMsg (CellDescriptionEdit.view cellEditModel)
                 , if a.description /= "" then
                     div [ class "form-text" ] [ markupWithoutErrors a.description ]
 
@@ -462,7 +497,13 @@ viewAttributoForm chemicals chemicalType a =
 
                 filterChemical : Chemical Int a b -> Bool
                 filterChemical { type_ } =
-                    type_ == chemicalType
+                    case chemicalType of
+                        Nothing ->
+                            -- no filter for chemical role
+                            True
+
+                        Just realChemicalType ->
+                            type_ == realChemicalType
             in
             div [ class "mb-3" ] <|
                 [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
@@ -508,6 +549,16 @@ extractStringAttributo x =
 
         _ ->
             Err <| text <| "attributo " ++ x.name ++ " has wrong type, is not a string"
+
+
+extractCellDescriptionAttributo : EditableAttributo -> Result (Html msg) CellDescriptionEdit.Model
+extractCellDescriptionAttributo x =
+    case x.type_.editValue of
+        EditValueCellDescription cellEditModel ->
+            Ok cellEditModel
+
+        _ ->
+            Err <| text <| "attributo " ++ x.name ++ " has wrong type, is not a cell description model"
 
 
 resetEditableAttributo : EditableAttributo -> EditableAttributo
@@ -580,15 +631,15 @@ createEditableAttributi zone attributi m =
         missingAttributiMap =
             Dict.fromList <|
                 List.map
-                    (\a -> ( a.id, mapAttributo (\type_ -> { editStatus = Unchanged, editValue = emptyEditValue type_ }) a ))
+                    (\a -> ( a.id, mapAttributo (\type_ -> { editStatus = Unchanged, editValue = emptyEditValue a.name type_ }) a ))
                 <|
                     missingAttributi
     in
     { originalAttributi = m, editableAttributi = Dict.values <| Dict.union existingAttributiMap missingAttributiMap }
 
 
-emptyEditValue : AttributoType -> AttributoEditValue
-emptyEditValue a =
+emptyEditValue : String -> AttributoType -> AttributoEditValue
+emptyEditValue name a =
     case a of
         Int ->
             EditValueInt ""
@@ -603,7 +654,11 @@ emptyEditValue a =
             EditValueChemicalId Nothing
 
         String ->
-            EditValueString ""
+            if name == "cell description" then
+                EditValueCellDescription (CellDescriptionEdit.init "")
+
+            else
+                EditValueString ""
 
         List { subType, minLength, maxLength } ->
             EditValueList { subType = subType, minLength = minLength, maxLength = maxLength, editValue = "" }
@@ -648,7 +703,11 @@ attributoValueToEditValue zone attributoId attributi value =
                     Just (EditValueString "")
 
                 ( String, ValueString x ) ->
-                    Just (EditValueString x)
+                    if a.name == "cell description" then
+                        Just (EditValueCellDescription (CellDescriptionEdit.init x))
+
+                    else
+                        Just (EditValueString x)
 
                 ( DateTime, ValueDateTime x ) ->
                     Just (EditValueDateTime (formatPosixDateTimeCompatible zone x))
@@ -765,6 +824,9 @@ editValueToValue zone x =
 
         EditValueString string ->
             Ok (ValueString string)
+
+        EditValueCellDescription model ->
+            Ok (ValueString (CellDescriptionEdit.modelAsText model))
 
         EditValueList { minLength, maxLength, subType, editValue } ->
             let

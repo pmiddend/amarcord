@@ -14,20 +14,29 @@ import Amarcord.API.Requests
         )
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
-import Amarcord.Html exposing (div_, em_, form_, h2_, hr_, input_, onIntInput, p_)
+import Amarcord.Html exposing (div_, input_, onIntInput, p_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
-import Api.Data exposing (JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
+import Api.Data exposing (JsonDeleteRunOutput, JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
-import Api.Request.Runs exposing (readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
-import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
+import Api.Request.Runs exposing (deleteRunApiRunsBeamtimeIdRunIdDelete, readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
+import Html exposing (Html, a, button, div, form, label, li, option, p, select, text, ul)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Time exposing (Posix)
+
+
+type AdvancedTab
+    = TabChangeExperimentType
+    | TabRunControls
+    | TabOnlineIndexing
+    | TabDelete
+    | TabBulkUpdate
+    | TabExport
 
 
 type alias Model =
@@ -41,6 +50,9 @@ type alias Model =
     , beamtimeId : BeamtimeId
     , onlineIndexingParameters : RemoteData HttpError IndexingParameters.Model
     , updateOnlineIndexingParameters : RemoteData HttpError JsonUpdateOnlineIndexingParametersOutput
+    , deleteRunRequest : RemoteData HttpError JsonDeleteRunOutput
+    , deleteRunId : RunExternalId
+    , selectedTab : AdvancedTab
     }
 
 
@@ -50,10 +62,14 @@ pageTitle _ =
 
 
 type Msg
-    = StartRun
+    = ChangeTab AdvancedTab
+    | StartRun
     | StartRunFinished (Result HttpError JsonStartRunOutput)
     | StopRun
     | StopRunFinished (Result HttpError JsonStopRunOutput)
+    | StartDeleteRun
+    | DeleteRunRequestDone (Result HttpError JsonDeleteRunOutput)
+    | DeleteRunIdChanged (Maybe Int)
     | RunsReceived (Result HttpError JsonReadRunsOverview)
     | IndexingParametersReceived (Result HttpError JsonIndexingParameters)
     | Refresh Posix
@@ -83,6 +99,9 @@ init hereAndNow beamtimeId =
       , beamtimeId = beamtimeId
       , onlineIndexingParameters = Loading
       , updateOnlineIndexingParameters = NotAsked
+      , deleteRunRequest = NotAsked
+      , deleteRunId = runExternalIdFromInt 1
+      , selectedTab = TabOnlineIndexing
       }
     , Cmd.batch
         [ send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId)
@@ -133,6 +152,17 @@ receiveRuns model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ChangeTab newTab ->
+            ( { model | selectedTab = newTab }, Cmd.none )
+
+        StartDeleteRun ->
+            ( { model | deleteRunRequest = Loading }
+            , send DeleteRunRequestDone (deleteRunApiRunsBeamtimeIdRunIdDelete model.beamtimeId (runExternalIdToInt model.deleteRunId))
+            )
+
+        DeleteRunRequestDone result ->
+            ( { model | deleteRunRequest = RemoteData.fromResult result }, Cmd.none )
+
         UpdateOnlineIndexingParametersDone result ->
             ( { model | updateOnlineIndexingParameters = RemoteData.fromResult result }, Cmd.none )
 
@@ -218,6 +248,14 @@ update msg model =
             , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
             )
 
+        DeleteRunIdChanged int ->
+            case int of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just runId ->
+                    ( { model | deleteRunId = runExternalIdFromInt runId }, Cmd.none )
+
         RunIdChanged int ->
             case int of
                 Nothing ->
@@ -263,8 +301,8 @@ viewChangeExperimentType model =
     in
     case model.runs of
         Success rrc ->
-            form_
-                [ p_ [ em_ [ text "One special case where you would change the experiment type here is when you do not have any runs yet, and are trying to start a run. A run needs an experiment type, so that won't work." ] ]
+            form [ class "mt-3" ]
+                [ p_ [ text "One special case where you would change the experiment type here is when you do not have any runs yet, and are trying to start a run. A run needs an experiment type, so that won't work." ]
                 , select
                     [ class "form-select"
                     , id "current-experiment-type"
@@ -287,9 +325,8 @@ viewChangeExperimentType model =
 
 viewRunControls : Model -> Html Msg
 viewRunControls model =
-    div_
-        [ h2_ [ icon { name = "arrow-left-right" }, text " Run controls" ]
-        , p_ [ em_ [ text "Explicitly start and stop runs. Normally not needed, only in emergencies." ] ]
+    div [ class "mt-3" ]
+        [ p_ [ text "Explicitly start and stop runs. Normally not needed, only in emergencies." ]
         , form [ class "mb-3" ]
             [ div [ class "form-floating mb-3" ]
                 [ input_
@@ -311,9 +348,8 @@ viewRunControls model =
 
 viewOnlineIndexingParameters : Model -> Html Msg
 viewOnlineIndexingParameters model =
-    div_
-        [ h2_ [ icon { name = "briefcase" }, text " Online Indexing" ]
-        , p_ [ em_ [ text "These parameters will be used for every new run if CrystFEL online is activated." ] ]
+    div [ class "mt-3" ]
+        [ p_ [ text "These parameters will be used for every new run if CrystFEL online is activated." ]
         , case model.onlineIndexingParameters of
             Loading ->
                 text ""
@@ -341,21 +377,89 @@ viewOnlineIndexingParameters model =
         ]
 
 
+viewDeleteRun : Model -> Html Msg
+viewDeleteRun model =
+    div [ class "mt-3" ]
+        [ p_ [ text "Be careful, this cannot be undone!" ]
+        , div [ class "form-floating mb-3" ]
+            [ input_
+                [ type_ "text"
+                , class "form-control"
+                , value (runExternalIdToString model.deleteRunId)
+                , onInput (DeleteRunIdChanged << String.toInt)
+                , disabled (isLoading model.deleteRunRequest)
+                ]
+            , label [ for "run-id", class "form-label" ] [ text "Run ID" ]
+            ]
+        , button [ type_ "button", class "btn btn-danger", onClick StartDeleteRun ]
+            [ icon { name = "send" }, text " Delete this run" ]
+        ]
+
+
 view : Model -> Html Msg
 view model =
+    let
+        linkActive tab =
+            if tab == model.selectedTab then
+                "nav-link active"
+
+            else
+                "nav-link"
+
+        paneActive tab =
+            if tab == model.selectedTab then
+                "tab-pane active"
+
+            else
+                "tab-pane"
+
+        tabHeaders =
+            [ ( TabOnlineIndexing, "Online Indexing" )
+            , ( TabBulkUpdate, "Bulk update" )
+            , ( TabExport, "Export" )
+            , ( TabRunControls, "Run Controls" )
+            , ( TabChangeExperimentType, "Experiment Type" )
+            , ( TabDelete, "Delete runs" )
+            ]
+    in
     div [ class "container" ]
-        [ h2_ [ icon { name = "alt" }, text " Change current experiment type" ]
-        , viewChangeExperimentType model
-        , hr_
-        , viewRunControls model
-        , hr_
-        , viewOnlineIndexingParameters model
-        , hr_
-        , h2_ [ icon { name = "journals" }, text " Bulk update" ]
-        , p_ [ em_ [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ] ]
-        , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
-        , h2 [ class "mt-3" ] [ icon { name = "file-earmark-spreadsheet" }, text " Export" ]
-        , p_ [ em_ [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ] ]
-        , a [ href ("api/" ++ beamtimeIdToString model.beamtimeId ++ "/spreadsheet.zip"), class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
-        , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
+        [ ul [ class "nav nav-tabs" ]
+            (List.map
+                (\( tab, desc ) ->
+                    li [ class "nav-item" ]
+                        [ button
+                            [ class (linkActive tab)
+                            , type_ "button"
+                            , onClick (ChangeTab tab)
+                            ]
+                            [ text desc ]
+                        ]
+                )
+                tabHeaders
+            )
+        , div [ class "tab-content" ]
+            [ div [ class (paneActive TabOnlineIndexing) ]
+                [ viewOnlineIndexingParameters model
+                ]
+            , div [ class (paneActive TabRunControls) ]
+                [ viewRunControls model
+                ]
+            , div [ class (paneActive TabChangeExperimentType) ]
+                [ viewChangeExperimentType model
+                ]
+            , div [ class (paneActive TabDelete) ]
+                [ viewDeleteRun model
+                ]
+            , div [ class (paneActive TabBulkUpdate) ]
+                [ p
+                    [ class "mt-3" ]
+                    [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ]
+                , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
+                ]
+            , div [ class (paneActive TabExport) ]
+                [ p [ class "mt-3" ] [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ]
+                , a [ href ("api/" ++ beamtimeIdToString model.beamtimeId ++ "/spreadsheet.zip"), class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
+                , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
+                ]
+            ]
         ]

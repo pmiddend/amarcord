@@ -1,5 +1,5 @@
 # working with these fixtures, this pylint error message doesn't make sense anymore
-# pylint: disable=redefined-outer-name
+# ruff: noqa: T201
 
 import asyncio
 import hashlib
@@ -105,15 +105,19 @@ from amarcord.web.json_models import JsonDeleteExperimentType
 from amarcord.web.json_models import JsonDeleteExperimentTypeOutput
 from amarcord.web.json_models import JsonDeleteFileInput
 from amarcord.web.json_models import JsonDeleteFileOutput
+from amarcord.web.json_models import JsonDeleteRunOutput
 from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
 from amarcord.web.json_models import JsonEventTopLevelOutput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobOutput
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
 from amarcord.web.json_models import JsonIndexingResultFinishSuccessfully
 from amarcord.web.json_models import JsonIndexingResultFinishWithError
 from amarcord.web.json_models import JsonIndexingResultStillRunning
 from amarcord.web.json_models import JsonMergeJobFinishOutput
 from amarcord.web.json_models import JsonMergeParameters
+from amarcord.web.json_models import JsonMergeStatus
 from amarcord.web.json_models import JsonPolarisation
 from amarcord.web.json_models import JsonQueueMergeJobInput
 from amarcord.web.json_models import JsonQueueMergeJobOutput
@@ -133,6 +137,7 @@ from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonRefinementResult
+from amarcord.web.json_models import JsonRunFile
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateAttributoConversionFlags
@@ -181,7 +186,7 @@ async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
             yield session
         print("------------------- yielding session done")
 
-    except:
+    except:  # noqa: S110
         pass
 
 
@@ -198,7 +203,7 @@ def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> Beam
         **client.post(
             "/api/beamtimes",
             json=input_.dict(),
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return BeamtimeId(response.id)
@@ -217,6 +222,7 @@ def beamtime_id(client: TestClient) -> BeamtimeId:
             comment="comment",
             start=1,
             end=1000,
+            analysis_output_path="/",
         ),
     )
 
@@ -234,6 +240,7 @@ def second_beamtime_id(client: TestClient) -> BeamtimeId:
             comment="comment2",
             start=1,
             end=1000,
+            analysis_output_path="/",
         ),
     )
 
@@ -289,7 +296,7 @@ def cell_description_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -299,6 +306,24 @@ def cell_description_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -
 def point_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="point group",
+        description="description",
+        group=ATTRIBUTO_GROUP_MANUAL,
+        associated_table=AssociatedTable.CHEMICAL,
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
+        beamtime_id=beamtime_id,
+    ).dict()
+    response_json = client.post(
+        "/api/attributi",
+        json=input_,
+    ).json()
+    response = JsonCreateAttributoOutput(**response_json)
+    return response.id
+
+
+@pytest.fixture
+def space_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
+    input_ = JsonCreateAttributoInput(
+        name="space group",
         description="description",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.CHEMICAL,
@@ -327,7 +352,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -347,7 +372,7 @@ def run_int_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -367,7 +392,7 @@ def run_int_automatic_attributo_id(client: TestClient, beamtime_id: BeamtimeId) 
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -375,7 +400,8 @@ def run_int_automatic_attributo_id(client: TestClient, beamtime_id: BeamtimeId) 
 
 @pytest.fixture
 def run_channel_1_chemical_attributo_id(
-    client: TestClient, beamtime_id: BeamtimeId
+    client: TestClient,
+    beamtime_id: BeamtimeId,
 ) -> int:
     input_ = JsonCreateAttributoInput(
         name="channel_1_chemical_id",
@@ -389,7 +415,7 @@ def run_channel_1_chemical_attributo_id(
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -397,7 +423,8 @@ def run_channel_1_chemical_attributo_id(
 
 @pytest.fixture
 def run_channel_1_chemical_attributo_id_in_second_beamtime(
-    client: TestClient, second_beamtime_id: BeamtimeId
+    client: TestClient,
+    second_beamtime_id: BeamtimeId,
 ) -> int:
     input_ = JsonCreateAttributoInput(
         name="channel_1_chemical_id",
@@ -411,7 +438,7 @@ def run_channel_1_chemical_attributo_id_in_second_beamtime(
         **client.post(
             "/api/attributi",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -428,15 +455,16 @@ def chemical_experiment_type_id(
         beamtime_id=beamtime_id,
         attributi=[
             JsonAttributiIdAndRole(
-                id=run_channel_1_chemical_attributo_id, role=ChemicalType.CRYSTAL
-            )
+                id=run_channel_1_chemical_attributo_id,
+                role=ChemicalType.CRYSTAL,
+            ),
         ],
     ).dict()
     response = JsonCreateExperimentTypeOutput(
         **client.post(
             "/api/experiment-types",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -444,22 +472,25 @@ def chemical_experiment_type_id(
 
 @pytest.fixture
 def string_experiment_type_id(
-    client: TestClient, beamtime_id: BeamtimeId, run_string_attributo_id: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_string_attributo_id: int,
 ) -> int:
     input_ = JsonCreateExperimentTypeInput(
         name="experiment type test",
         beamtime_id=beamtime_id,
         attributi=[
             JsonAttributiIdAndRole(
-                id=run_string_attributo_id, role=ChemicalType.CRYSTAL
-            )
+                id=run_string_attributo_id,
+                role=ChemicalType.CRYSTAL,
+            ),
         ],
     ).dict()
     response = JsonCreateExperimentTypeOutput(
         **client.post(
             "/api/experiment-types",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -469,6 +500,8 @@ def string_experiment_type_id(
 # if we have it as 90.0 anyways comparison is easier.
 LYSO_CELL_DESCRIPTION = "tetragonal P c (79.2 79.2 38.0) (90.0 90.0 90.0)"
 LYSO_POINT_GROUP = "4/mmm"
+# Might not even be correct, but this is a test, who cares
+LYSO_SPACE_GROUP = "P 1 21 1"
 
 
 @pytest.fixture
@@ -477,6 +510,7 @@ def lyso_chemical_id(
     beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     test_file: int,
 ) -> int:
     response = JsonCreateChemicalOutput(
@@ -496,12 +530,16 @@ def lyso_chemical_id(
                         # Good old Lyso!
                         attributo_value_str=LYSO_POINT_GROUP,
                     ),
+                    JsonAttributoValue(
+                        attributo_id=space_group_attributo_id,
+                        attributo_value_str=LYSO_SPACE_GROUP,
+                    ),
                 ],
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[test_file],
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -513,6 +551,7 @@ def second_lyso_chemical_id(
     beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
 ) -> int:
     response = JsonCreateChemicalOutput(
         **client.post(
@@ -529,12 +568,16 @@ def second_lyso_chemical_id(
                         attributo_id=point_group_attributo_id,
                         attributo_value_str="bar3",
                     ),
+                    JsonAttributoValue(
+                        attributo_id=space_group_attributo_id,
+                        attributo_value_str="baz3",
+                    ),
                 ],
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[],
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert response.id > 0
     return response.id
@@ -557,18 +600,19 @@ def simple_run_id(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
                 # Important for our indexing job tests: we cannot start an offline indexing job without files (i.e. images).
-                files=["/tmp/test-input-file"],
+                files=[JsonRunFile(id=0, glob="/tmp/test-input-file", source="raw")],  # noqa: S108
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_run_response.run_internal_id is not None
@@ -598,12 +642,13 @@ def run_without_files_id(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_run_response.run_internal_id is not None
@@ -618,7 +663,7 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
             json=JsonCreateDataSetFromRun(
                 run_internal_id=simple_run_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_data_set_response.data_set_id > 0
@@ -627,7 +672,8 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
 
 @pytest.fixture
 def simple_indexing_result_id(
-    client: TestClient, simple_data_set_id: RunInternalId
+    client: TestClient,
+    simple_data_set_id: RunInternalId,
 ) -> int:
     create_indexing_response = JsonCreateIndexingForDataSetOutput(
         **client.post(
@@ -640,16 +686,16 @@ def simple_indexing_result_id(
                 command_line="",
                 source="raw",
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     client.post(
         f"/api/indexing/{create_indexing_response.indexing_result_id}/success",
         json=JsonIndexingResultFinishSuccessfully(
             workload_manager_job_id=1,
-            stream_file="/tmp/some-file.stream",
+            stream_file="/tmp/some-file.stream",  # noqa: S108
             program_version="",
-            geometry_file="/tmp/some.geom",
+            geometry_file="/tmp/some.geom",  # noqa: S108
             geometry_hash=hashlib.sha256(b"").hexdigest(),
             # More or less random values, we don't care about the specifics here
             frames=200,
@@ -671,7 +717,8 @@ def simple_indexing_result_id(
 
 @pytest.fixture
 def run_without_files_data_set_id(
-    client: TestClient, run_without_files_id: RunInternalId
+    client: TestClient,
+    run_without_files_id: RunInternalId,
 ) -> int:
     create_data_set_response = JsonCreateDataSetFromRunOutput(
         **client.post(
@@ -679,7 +726,7 @@ def run_without_files_data_set_id(
             json=JsonCreateDataSetFromRun(
                 run_internal_id=run_without_files_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_data_set_response.data_set_id > 0
@@ -699,14 +746,14 @@ def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> No
         start=1,
         end=1000,
         chemical_names=[],
+        analysis_output_path="/",
     )
 
 
 def test_read_single_chemical_names_beamtime(
     client: TestClient,
     beamtime_id: BeamtimeId,
-    # pylint: disable=unused-argument
-    lyso_chemical_id: int,
+    lyso_chemical_id: int,  # noqa: ARG001
 ) -> None:
     beamtimes = JsonReadBeamtime(**client.get("/api/beamtimes").json()).beamtimes
 
@@ -720,6 +767,7 @@ def test_read_single_chemical_names_beamtime(
         start=1,
         end=1000,
         chemical_names=[TEST_CHEMICAL_NAME],
+        analysis_output_path="/",
     )
 
 
@@ -736,8 +784,9 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
                 comment="comment2",
                 start=2,
                 end=1002,
+                analysis_output_path="/",
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert response.id == beamtime_id
     beamtimes = JsonReadBeamtime(**client.get("/api/beamtimes").json()).beamtimes
@@ -753,11 +802,13 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
         start=2,
         end=1002,
         chemical_names=[],
+        analysis_output_path="/",
     )
 
 
 def test_random_beamtime_creation_works(
-    client: TestClient, beamtime_id: BeamtimeId
+    client: TestClient,
+    beamtime_id: BeamtimeId,
 ) -> None:
     response = JsonReadBeamtime(**client.get("/api/beamtimes").json())
     assert len(response.beamtimes) == 1
@@ -772,11 +823,14 @@ def test_random_beamtime_creation_works(
         start=1,
         end=1000,
         chemical_names=[],
+        analysis_output_path="/",
     )
 
 
 def test_chemical_string_attributo_creation_works_with_one_beamtime(
-    client: TestClient, cell_description_attributo_id: int, beamtime_id: BeamtimeId
+    client: TestClient,
+    cell_description_attributo_id: int,
+    beamtime_id: BeamtimeId,
 ) -> None:
     response = JsonReadAttributi(**client.get(f"/api/attributi/{beamtime_id}").json())
     assert len(response.attributi) == 1
@@ -813,7 +867,7 @@ def test_chemical_string_attributo_creation_works_in_presence_of_second_beamtime
 
     # Second beamtime shouldn't have attributi
     assert not JsonReadAttributi(
-        **client.get(f"/api/attributi/{second_beamtime_id}").json()
+        **client.get(f"/api/attributi/{second_beamtime_id}").json(),
     ).attributi
 
 
@@ -839,6 +893,7 @@ def test_chemical_creation(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     beamtime_id: BeamtimeId,
     test_file: int,
 ) -> None:
@@ -851,9 +906,11 @@ def test_chemical_creation(
     assert first_chemical.id == lyso_chemical_id
     assert first_chemical.attributi == [
         _mock_string_attributo_value(
-            cell_description_attributo_id, LYSO_CELL_DESCRIPTION
+            cell_description_attributo_id,
+            LYSO_CELL_DESCRIPTION,
         ),
         _mock_string_attributo_value(point_group_attributo_id, LYSO_POINT_GROUP),
+        _mock_string_attributo_value(space_group_attributo_id, LYSO_SPACE_GROUP),
     ]
     assert first_chemical.beamtime_id == beamtime_id
     assert first_chemical.chemical_type == ChemicalType.CRYSTAL
@@ -887,6 +944,7 @@ def test_chemical_creation_and_update(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
+    space_group_attributo_id: int,
     beamtime_id: BeamtimeId,
     second_test_file: int,
 ) -> None:
@@ -899,13 +957,16 @@ def test_chemical_creation_and_update(
     # files).
     new_cell_description = "foo2"
     new_point_group = "bar2"
+    new_space_group = "baz2"
     patched_chemical_json = JsonChemicalWithId(
         id=lyso_chemical_id,
         attributi=[
             _mock_string_attributo_value(
-                cell_description_attributo_id, new_cell_description
+                cell_description_attributo_id,
+                new_cell_description,
             ),
             _mock_string_attributo_value(point_group_attributo_id, new_point_group),
+            _mock_string_attributo_value(space_group_attributo_id, new_space_group),
         ],
         beamtime_id=beamtime_id,
         chemical_type=ChemicalType.CRYSTAL,
@@ -919,7 +980,7 @@ def test_chemical_creation_and_update(
     )
 
     single_response = JsonCreateChemicalOutput(
-        **client.patch("/api/chemicals", json=patched_chemical_json.dict()).json()
+        **client.patch("/api/chemicals", json=patched_chemical_json.dict()).json(),
     )
     assert single_response.id == lyso_chemical_id
 
@@ -932,17 +993,17 @@ def test_chemical_creation_and_update(
     # still just one file, but a different one!
     assert len(chemical.files) == 1
     assert chemical.files[0].id == second_test_file
-    assert len(chemical.attributi) == 2
+    # point group, space group, cell description
+    assert len(chemical.attributi) == 3
     assert set(a.attributo_value_str for a in chemical.attributi) == set(
-        (new_cell_description, new_point_group)
+        (new_cell_description, new_point_group, new_space_group),
     )
 
 
 def test_chemical_creation_with_invalid_attributo_value(
     client: TestClient,
     cell_description_attributo_id: int,
-    # pylint: disable=unused-argument
-    point_group_attributo_id: int,
+    point_group_attributo_id: int,  # noqa: ARG001
     beamtime_id: BeamtimeId,
 ) -> None:
     """
@@ -970,13 +1031,11 @@ def test_chemical_creation_with_invalid_attributo_value(
 
 def test_chemical_copy_from_other_beamtime_with_copy_attributi(
     client: TestClient,
-    # pylint: disable=unused-argument
-    cell_description_attributo_id: int,
-    # pylint: disable=unused-argument
-    point_group_attributo_id: int,
+    cell_description_attributo_id: int,  # noqa: ARG001
+    point_group_attributo_id: int,  # noqa: ARG001
+    space_group_attributo_id: int,  # noqa: ARG001
     lyso_chemical_id: int,
-    # pylint: disable=unused-argument
-    beamtime_id: BeamtimeId,
+    beamtime_id: BeamtimeId,  # noqa: ARG001
     second_beamtime_id: BeamtimeId,
 ) -> None:
     input_ = JsonCopyChemicalInput(
@@ -988,7 +1047,7 @@ def test_chemical_copy_from_other_beamtime_with_copy_attributi(
         **client.post(
             "/api/copy-chemical",
             json=input_,
-        ).json()
+        ).json(),
     )
     assert response.new_chemical_id > 0
 
@@ -998,10 +1057,10 @@ def test_chemical_copy_from_other_beamtime_with_copy_attributi(
     assert len(chemicals_in_second_beamtime.chemicals) == 1
 
     attributi_response = JsonReadAttributi(
-        **client.get(f"/api/attributi/{second_beamtime_id}").json()
+        **client.get(f"/api/attributi/{second_beamtime_id}").json(),
     )
-    # A bit crude to hard-code 2 here, but we are expecting point group and cell description
-    assert len(attributi_response.attributi) == 2
+    # A bit crude to hard-code 2 here, but we are expecting point group, cell description and space group
+    assert len(attributi_response.attributi) == 3
 
 
 def test_create_and_delete_event_without_live_stream_and_files(
@@ -1021,16 +1080,16 @@ def test_create_and_delete_event_without_live_stream_and_files(
                     source="mysource",
                     text="mytext",
                     level="user",
-                    fileIds=[],
+                    file_ids=[],
                 ),
                 with_live_stream=False,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert create_event_response.id > 0
 
     read_events_output = JsonReadEvents(
-        **client.get(f"/api/events/{beamtime_id}").json()
+        **client.get(f"/api/events/{beamtime_id}").json(),
     )
     assert len(read_events_output.events) == 1
     e = read_events_output.events[0]
@@ -1039,7 +1098,7 @@ def test_create_and_delete_event_without_live_stream_and_files(
     assert e.text == "mytext"
 
     assert not JsonReadEvents(
-        **client.get(f"/api/events/{second_beamtime_id}").json()
+        **client.get(f"/api/events/{second_beamtime_id}").json(),
     ).events
 
     # can't use "client.delete" since that doesn't get JSON as an input
@@ -1050,7 +1109,7 @@ def test_create_and_delete_event_without_live_stream_and_files(
     )
 
     read_events_output_after_deletion = JsonReadEvents(
-        **client.get(f"/api/events/{beamtime_id}").json()
+        **client.get(f"/api/events/{beamtime_id}").json(),
     )
     assert not read_events_output_after_deletion.events
 
@@ -1079,7 +1138,9 @@ def test_upload_and_retrieve_file(client: TestClient) -> None:
 
 
 def test_create_event_with_file(
-    client: TestClient, beamtime_id: BeamtimeId, test_file: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    test_file: int,
 ) -> None:
     JsonEventTopLevelOutput(
         **client.post(
@@ -1087,15 +1148,18 @@ def test_create_event_with_file(
             json=JsonEventTopLevelInput(
                 beamtime_id=beamtime_id,
                 event=JsonEventInput(
-                    source="mysource", text="mytext", level="user", fileIds=[test_file]
+                    source="mysource",
+                    text="mytext",
+                    level="user",
+                    file_ids=[test_file],
                 ),
                 with_live_stream=False,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     read_events_output = JsonReadEvents(
-        **client.get(f"/api/events/{beamtime_id}").json()
+        **client.get(f"/api/events/{beamtime_id}").json(),
     )
     assert len(read_events_output.events) == 1
     assert len(read_events_output.events[0].files) == 1
@@ -1103,7 +1167,9 @@ def test_create_event_with_file(
 
 
 def test_create_event_with_live_stream(
-    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    test_file_path: Path,
 ) -> None:
     # Upload the file: for the live stream, it's important to use the
     # proper file name, as that's the criterion for a file to be a
@@ -1123,17 +1189,20 @@ def test_create_event_with_live_stream(
             json=JsonEventTopLevelInput(
                 beamtime_id=beamtime_id,
                 event=JsonEventInput(
-                    source="mysource", level="user", text="mytext", fileIds=[]
+                    source="mysource",
+                    level="user",
+                    text="mytext",
+                    file_ids=[],
                 ),
                 with_live_stream=True,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     # Read events -- assume we "magically" got a file attached to the event - a copy of our live stream image
     # (the actual live stream image doesn't work, because it gets updated in-place)
     read_events_output = JsonReadEvents(
-        **client.get(f"/api/events/{beamtime_id}").json()
+        **client.get(f"/api/events/{beamtime_id}").json(),
     )
     assert len(read_events_output.events) == 1
     assert len(read_events_output.events[0].files) == 1
@@ -1141,10 +1210,12 @@ def test_create_event_with_live_stream(
 
 
 def test_create_experiment_type(
-    client: TestClient, beamtime_id: BeamtimeId, chemical_experiment_type_id: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
 ) -> None:
     read_ets_output = JsonReadExperimentTypes(
-        **client.get(f"/api/experiment-types/{beamtime_id}").json()
+        **client.get(f"/api/experiment-types/{beamtime_id}").json(),
     )
     assert len(read_ets_output.experiment_types) == 1
     ets = read_ets_output.experiment_types
@@ -1154,14 +1225,14 @@ def test_create_experiment_type(
 def test_copy_experiment_types_from_other_beamtime_where_attributi_are_missing(
     client: TestClient,
     beamtime_id: BeamtimeId,
-    # pylint: disable=unused-argument
-    chemical_experiment_type_id: int,
+    chemical_experiment_type_id: int,  # noqa: ARG001
     second_beamtime_id: BeamtimeId,
 ) -> None:
     copy_ets_output = client.post(
         "/api/copy-experiment-types",
         json=JsonCopyExperimentTypesInput(
-            from_beamtime=beamtime_id, to_beamtime=second_beamtime_id
+            from_beamtime=beamtime_id,
+            to_beamtime=second_beamtime_id,
         ).dict(),
     )
     assert copy_ets_output.status_code == 400
@@ -1170,23 +1241,23 @@ def test_copy_experiment_types_from_other_beamtime_where_attributi_are_missing(
 def test_copy_experiment_types_from_other_beamtime_where_attributi_are_present(
     client: TestClient,
     beamtime_id: BeamtimeId,
-    # pylint: disable=unused-argument
-    chemical_experiment_type_id: int,
-    run_channel_1_chemical_attributo_id_in_second_beamtime: int,
+    chemical_experiment_type_id: int,  # noqa: ARG001
+    run_channel_1_chemical_attributo_id_in_second_beamtime: int,  # noqa: ARG001
     second_beamtime_id: BeamtimeId,
 ) -> None:
     copy_ets_output = JsonCopyExperimentTypesOutput(
         **client.post(
             "/api/copy-experiment-types",
             json=JsonCopyExperimentTypesInput(
-                from_beamtime=beamtime_id, to_beamtime=second_beamtime_id
+                from_beamtime=beamtime_id,
+                to_beamtime=second_beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert len(copy_ets_output.to_beamtime_experiment_type_ids) == 1
 
     read_ets_output = JsonReadExperimentTypes(
-        **client.get(f"/api/experiment-types/{second_beamtime_id}").json()
+        **client.get(f"/api/experiment-types/{second_beamtime_id}").json(),
     )
 
     assert len(read_ets_output.experiment_types) == 1
@@ -1196,8 +1267,7 @@ def test_create_or_update_run_fails_without_experiment_type(
     client: TestClient,
     beamtime_id: BeamtimeId,
     # we want the experiment type to be created, but not used here
-    # pylint: disable=unused-argument
-    chemical_experiment_type_id: int,
+    chemical_experiment_type_id: int,  # noqa: ARG001
     run_string_attributo_id: int,
 ) -> None:
     # Let's make the external run ID deliberately high
@@ -1212,8 +1282,9 @@ def test_create_or_update_run_fails_without_experiment_type(
                 JsonAttributoValue(
                     attributo_id=run_string_attributo_id,
                     attributo_value_str="foo",
-                )
+                ),
             ],
+            create_data_set=False,
             started=1,
             stopped=None,
         ).dict(),
@@ -1224,12 +1295,14 @@ def test_create_or_update_run_fails_without_experiment_type(
 
 
 def set_current_experiment_type(
-    client: TestClient, beamtime_id: BeamtimeId, id_: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    id_: int,
 ) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
         **client.patch(
-            f"/api/user-config/{beamtime_id}/current-experiment-type-id/{id_}"
-        ).json()
+            f"/api/user-config/{beamtime_id}/current-experiment-type-id/{id_}",
+        ).json(),
     )
 
     assert option_set_result.value_int == id_
@@ -1237,7 +1310,7 @@ def set_current_experiment_type(
 
 def set_auto_pilot(client: TestClient, beamtime_id: BeamtimeId, enabled: bool) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/{enabled}").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/{enabled}").json(),
     )
 
     assert option_set_result.value_bool == enabled
@@ -1245,10 +1318,65 @@ def set_auto_pilot(client: TestClient, beamtime_id: BeamtimeId, enabled: bool) -
 
 def enable_crystfel_online(client: TestClient, beamtime_id: BeamtimeId) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json(),
     )
 
     assert option_set_result.value_bool
+
+
+def test_create_and_update_run_adding_some_files_later(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,  # noqa: ARG001
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                # Initially no files
+                files=[],
+                attributi=[],
+                create_data_set=False,
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert response.run_created
+
+    # Now same request, but with some files!
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                # Initially no files
+                files=[JsonRunFile(id=0, source="h5", glob="hehe")],
+                attributi=[],
+                # Keep started/stopped by setting to None
+                create_data_set=False,
+                started=None,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert not response.run_created
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 1
+    assert len(read_runs_output.runs[0].files) == 1
 
 
 def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
@@ -1275,12 +1403,13 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
                     JsonAttributoValue(
                         attributo_id=run_string_attributo_id,
                         attributo_value_str=run_string_attributo_value,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert response.indexing_result_id is None
@@ -1313,13 +1442,14 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
                         attributo_id=run_string_attributo_id,
                         # Update it with a simple "2" at the end!
                         attributo_value_str=run_string_attributo_value + "2",
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 # and signal a stop
                 stopped=2,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert response.indexing_result_id is None
@@ -1371,12 +1501,13 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert response.run_created
@@ -1387,18 +1518,148 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     # Next, test the "read indexing jobs" request with the status parameter
     read_indexing_results_response = JsonReadIndexingResultsOutput(
         **client.get(
-            f"/api/indexing?status={DBJobStatus.RUNNING.value}&beamtimeId={beamtime_id}"
-        ).json()
+            f"/api/indexing?status={DBJobStatus.RUNNING.value}&beamtimeId={beamtime_id}",
+        ).json(),
     )
     # Wrong status (running), so no results
     assert not read_indexing_results_response.indexing_jobs
 
     read_indexing_results_response = JsonReadIndexingResultsOutput(
         **client.get(
-            f"/api/indexing?status={DBJobStatus.QUEUED.value}&beamtimeId={beamtime_id}"
-        ).json()
+            f"/api/indexing?status={DBJobStatus.QUEUED.value}&beamtimeId={beamtime_id}",
+        ).json(),
     )
     assert len(read_indexing_results_response.indexing_jobs) == 1
+
+
+def test_create_run_and_import_external_indexing_result(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                files=[],
+                # Deliberately empty list of attributi - we want to
+                # show that we can still create an indexing result
+                # just fine, even without a chemical and so on
+                attributi=[],
+                create_data_set=False,
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert response.run_created
+    assert response.run_internal_id is not None and response.run_internal_id > 0
+    assert response.indexing_result_id is None
+
+    # Create the run and check the result
+    indexing_creation_response = JsonImportFinishedIndexingJobOutput(
+        **client.post(
+            "/api/indexing/import",
+            json=JsonImportFinishedIndexingJobInput(
+                is_online=False,
+                cell_description="",
+                command_line="--multi",
+                source="raw",
+                run_internal_id=response.run_internal_id,
+                stream_file="/tmp/stream.file",  # noqa: S108
+                program_version="0.11.1",
+                frames=10,
+                hits=2,
+                indexed_frames=3,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
+                geometry_file="/tmp/geom",  # noqa: S108
+                geometry_hash="00000000000000000000000000",
+                generated_geometry_file=None,
+                job_log="test log",
+            ).dict(),
+        ).json()
+    )
+
+    # Next, test the "read indexing jobs" request with the status parameter
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?status={DBJobStatus.DONE.value}&beamtimeId={beamtime_id}",
+        ).json(),
+    )
+    assert len(read_indexing_results_response.indexing_jobs) == 1
+    assert (
+        read_indexing_results_response.indexing_jobs[0].id
+        == indexing_creation_response.indexing_result_id
+    )
+
+
+def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    enable_crystfel_online(client, beamtime_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    client.post(
+        f"/api/runs/{external_run_id}",
+        json=JsonCreateOrUpdateRun(
+            beamtime_id=beamtime_id,
+            files=[],
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_channel_1_chemical_attributo_id,
+                    attributo_value_chemical=lyso_chemical_id,
+                ),
+            ],
+            create_data_set=False,
+            started=1,
+            stopped=None,
+        ).dict(),
+    )
+    client.post(
+        f"/api/runs/{external_run_id+1}",
+        json=JsonCreateOrUpdateRun(
+            beamtime_id=beamtime_id,
+            files=[],
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_channel_1_chemical_attributo_id,
+                    attributo_value_chemical=lyso_chemical_id,
+                ),
+            ],
+            create_data_set=False,
+            started=1,
+            stopped=None,
+        ).dict(),
+    )
+
+    # ...and remove the run again
+    assert JsonDeleteRunOutput(
+        **client.request("DELETE", f"/api/runs/{beamtime_id}/{external_run_id}").json(),
+    ).result
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 1
+    assert read_runs_output.runs[0].external_id == external_run_id + 1
 
 
 def test_create_and_update_run_with_patch(
@@ -1417,15 +1678,20 @@ def test_create_and_update_run_with_patch(
     update_run_raw_output = client.post(
         f"/api/runs/{external_run_id}",
         json=JsonCreateOrUpdateRun(
-            files=[],
+            # two files initially, so we can modify and add and see what happens
+            files=[
+                JsonRunFile(id=0, source="h5", glob="hehe"),
+                JsonRunFile(id=0, source="raw", glob="hoho"),
+            ],
             beamtime_id=beamtime_id,
             attributi=[
                 # we don't even mention the second run attributo here, since we're going to add it later and test if that works
                 JsonAttributoValue(
                     attributo_id=run_channel_1_chemical_attributo_id,
                     attributo_value_chemical=lyso_chemical_id,
-                )
+                ),
             ],
+            create_data_set=False,
             started=1,
             stopped=None,
         ).dict(),
@@ -1434,6 +1700,20 @@ def test_create_and_update_run_with_patch(
     # Create the run and check the result
     create_response = JsonCreateOrUpdateRunOutput(**update_run_raw_output)
     assert create_response.run_internal_id is not None
+    assert len(create_response.files) == 2
+
+    # this is arbitrary, it could also be files[1], but we have to assume something here
+    assert create_response.files[0].glob == "hehe"
+
+    new_files: list[JsonRunFile] = [
+        # modify the first file and add a new one - remove the second one implicitly by not including it here
+        JsonRunFile(
+            id=create_response.files[0].id,
+            glob=create_response.files[0].glob + "modified",
+            source=create_response.files[0].source,
+        ),
+        JsonRunFile(id=0, source="raw2", glob="oh"),
+    ]
 
     update_response = JsonUpdateRunOutput(
         **client.patch(
@@ -1447,11 +1727,15 @@ def test_create_and_update_run_with_patch(
                         attributo_value_str="some string",
                     ),
                 ],
+                files=new_files,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert update_response.result
+    assert len(update_response.files) == 2
+    assert update_response.files[0].glob == "hehemodified"
+    assert update_response.files[1].glob == "oh"
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
 
@@ -1469,6 +1753,8 @@ def test_create_and_update_run_with_patch(
     )
     assert cell_description_attributo is not None
     assert cell_description_attributo.attributo_value_str == "some string"
+    # check if we still have two files
+    assert len(read_runs_output.runs[0].files) == 2
 
 
 def test_create_and_stop_run(
@@ -1495,12 +1781,13 @@ def test_create_and_stop_run(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_response.run_created
@@ -1538,12 +1825,13 @@ def test_update_indexing_job(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_run_response.run_internal_id is not None
@@ -1557,9 +1845,9 @@ def test_update_indexing_job(
             f"/api/indexing/{create_run_response.indexing_result_id}/success",
             json=JsonIndexingResultFinishSuccessfully(
                 workload_manager_job_id=1,
-                stream_file="/tmp/some-file.stream",
+                stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",
+                geometry_file="/tmp/some.geom",  # noqa: S108
                 geometry_hash=hashlib.sha256(b"").hexdigest(),
                 # More or less random values, we don't care about the specifics here
                 frames=200,
@@ -1574,7 +1862,7 @@ def test_update_indexing_job(
                 unit_cell_histograms_id=None,
                 latest_log="",
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert update_indexing_job_response.result
@@ -1589,13 +1877,13 @@ def test_update_indexing_job(
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_data_set_response.data_set_id > 0
 
     read_runs_output = JsonReadRunsOverview(
-        **client.get(f"/api/runs-overview/{beamtime_id}").json()
+        **client.get(f"/api/runs-overview/{beamtime_id}").json(),
     )
     assert read_runs_output.foms_for_this_data_set is not None
     first_ds = read_runs_output.foms_for_this_data_set.data_set
@@ -1604,7 +1892,7 @@ def test_update_indexing_job(
         JsonAttributoValue(
             attributo_id=run_channel_1_chemical_attributo_id,
             attributo_value_chemical=lyso_chemical_id,
-        )
+        ),
     ]
     assert first_ds.experiment_type_id == chemical_experiment_type_id
     summary = read_runs_output.foms_for_this_data_set.fom
@@ -1623,11 +1911,12 @@ def test_update_indexing_job(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
                 beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert len(analysis_response.filtered_data_sets) == 1
@@ -1643,11 +1932,198 @@ def test_update_indexing_job(
     # Another place is the analysis view
     single_data_set_result = JsonReadSingleDataSetResults(
         **client.get(
-            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}"
-        ).json()
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}",
+        ).json(),
     )
 
     assert len(single_data_set_result.data_set.indexing_results) == 1
+
+
+def test_indexing_result_with_two_equal_parameter(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,  # noqa: ARG001
+    lyso_chemical_id: int,  # noqa: ARG001
+    simple_run_id: int,  # noqa: ARG001
+    simple_data_set_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json(),
+    )
+
+    ir_id = create_indexing_response.indexing_result_id
+    ip_id = create_indexing_response.indexing_parameters_id
+
+    finish_with_error_response = JsonIndexingJobUpdateOutput(
+        **client.post(
+            f"/api/indexing/{create_indexing_response.indexing_result_id}/finish-with-error",
+            json=JsonIndexingResultFinishWithError(
+                error_message="",
+                latest_log="",
+                workload_manager_job_id=1,
+            ).dict(),
+        ).json()
+    )
+    assert finish_with_error_response.result
+
+    create_indexing_response_later = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json(),
+    )
+
+    new_ir_id = create_indexing_response_later.indexing_result_id
+    new_ip_id = create_indexing_response_later.indexing_parameters_id
+
+    # This is the important part: we get a new indexing parameters
+    # object (due to laziness: we could just re-use an old one)
+    assert new_ip_id != ip_id
+    assert new_ir_id != ir_id
+
+    # To start a merge job, we have to finish the indexing result first.
+    client.post(
+        f"/api/indexing/{new_ir_id}/success",
+        json=JsonIndexingResultFinishSuccessfully(
+            workload_manager_job_id=1,
+            stream_file="/tmp/some-file.stream",  # noqa: S108
+            program_version="",
+            geometry_file="/tmp/some.geom",  # noqa: S108
+            geometry_hash=hashlib.sha256(b"").hexdigest(),
+            # More or less random values, we don't care about the specifics here
+            frames=200,
+            # Hit rate 50%
+            hits=100,
+            # Indexing rate 20%
+            indexed_frames=20,
+            indexed_crystals=25,
+            detector_shift_x_mm=0.5,
+            detector_shift_y_mm=-0.5,
+            generated_geometry_file="",
+            unit_cell_histograms_id=None,
+            latest_log="",
+        ).dict(),
+    )
+
+    # Now queue a merge job. The bug we encountered before lead to
+    # this merge job not showing up in the analysis results. So let's
+    # see if this situation is fixed now.
+    queue_merge_job_response = JsonQueueMergeJobOutput(
+        **client.post(
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
+                strict_mode=False,
+                data_set_id=simple_data_set_id,
+                # New indexing parameters ID! Important. We should still see the old ID and jobs in the analysis result later
+                indexing_parameters_id=new_ip_id,
+                merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
+                    point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                    ambigator_command_line="",
+                ),
+            ).dict(),
+        ).json(),
+    )
+    assert queue_merge_job_response.merge_result_id > 0
+
+    # Finally, our analysis view
+    single_data_set_result = JsonReadSingleDataSetResults(
+        **client.get(
+            f"/api/analysis/single-data-set/{beamtime_id}/{simple_data_set_id}",
+        ).json(),
+    )
+
+    assert len(single_data_set_result.data_set.indexing_results) == 1
+    ir_and_mr = single_data_set_result.data_set.indexing_results[0]
+    assert ir_and_mr.parameters.id == ip_id
+    assert len(ir_and_mr.indexing_results) == 2
+    assert set(ir.id for ir in ir_and_mr.indexing_results) == set([ir_id, new_ir_id])
+    assert len(ir_and_mr.merge_results) == 1
+
+
+def test_analysis_view_with_single_data_set_directly_returns_results(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_data_set_response = JsonCreateDataSetOutput(
+        **client.post(
+            "/api/data-sets",
+            json=JsonCreateDataSetInput(
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        # Good old Lyso!
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                ],
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_data_set_response.id > 0
+
+    analysis_response = JsonReadNewAnalysisOutput(
+        **client.post(
+            "/api/analysis/analysis-results",
+            json=JsonReadNewAnalysisInput(
+                # Here we specify no filters, this is special for this test!
+                attributi_filter=[],
+                beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
+            ).dict(),
+        ).json(),
+    )
+
+    assert len(analysis_response.filtered_data_sets) == 1
 
 
 def test_change_run_experiment_type(
@@ -1676,12 +2152,13 @@ def test_change_run_experiment_type(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert create_response.run_created
 
@@ -1698,12 +2175,13 @@ def test_change_run_experiment_type(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=2,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert second_create_response.run_created
     assert create_response.run_internal_id is not None
@@ -1715,7 +2193,7 @@ def test_change_run_experiment_type(
                 run_internal_id=create_response.run_internal_id,
                 experiment_type_id=string_experiment_type_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert output.result
@@ -1743,17 +2221,17 @@ def test_create_and_delete_data_set(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         # Good old Lyso!
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_response.id > 0
 
     # Now retrieve the data set list
     data_sets_response = JsonReadDataSets(
-        **client.get(f"/api/data-sets/{beamtime_id}").json()
+        **client.get(f"/api/data-sets/{beamtime_id}").json(),
     )
     assert len(data_sets_response.data_sets) == 1
     assert data_sets_response.data_sets[0].id == create_response.id
@@ -1766,7 +2244,7 @@ def test_create_and_delete_data_set(
             attributo_id=run_channel_1_chemical_attributo_id,
             # Good old Lyso!
             attributo_value_chemical=lyso_chemical_id,
-        )
+        ),
     ]
 
     # ...and remove the data set again
@@ -1775,12 +2253,145 @@ def test_create_and_delete_data_set(
             "DELETE",
             "/api/data-sets",
             json=JsonDeleteDataSetInput(id=create_response.id).dict(),
-        ).json()
+        ).json(),
     ).result
 
     assert not JsonReadDataSets(
-        **client.get(f"/api/data-sets/{beamtime_id}").json()
+        **client.get(f"/api/data-sets/{beamtime_id}").json(),
     ).data_sets
+
+
+def test_queue_merge_job_with_point_and_space_group_inferred(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    # Enable CrystFEL online so an indexing job will be created
+    enable_crystfel_online(client, beamtime_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    create_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                files=[],
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                ],
+                create_data_set=False,
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_run_response.run_internal_id is not None
+    assert (
+        create_run_response.indexing_result_id is not None
+        and create_run_response.indexing_result_id > 0
+    )
+
+    assert JsonIndexingJobUpdateOutput(
+        **client.post(
+            f"/api/indexing/{create_run_response.indexing_result_id}/success",
+            json=JsonIndexingResultFinishSuccessfully(
+                stream_file="/tmp/some-file.stream",  # noqa: S108
+                program_version="",
+                geometry_file="/tmp/some.geom",  # noqa: S108
+                geometry_hash=hashlib.sha256(b"").hexdigest(),
+                workload_manager_job_id=1,
+                # More or less random values, we don't care about the specifics here
+                frames=200,
+                # Hit rate 50%
+                hits=100,
+                # Indexing rate 20%
+                indexed_frames=20,
+                indexed_crystals=25,
+                detector_shift_x_mm=0.5,
+                detector_shift_y_mm=-0.5,
+                unit_cell_histograms_id=None,
+                generated_geometry_file="",
+                latest_log="",
+            ).dict(),
+        ).json(),
+    ).result
+
+    # The result of this indexing you can query in various places. One
+    # of the most prominent ones is the "read runs" call. For that to
+    # work, however, we need a data set.
+    #
+    # The test will be "unnecessarily" long now, but let's test the
+    # "create data set from run" feature just now
+    create_data_set_response = JsonCreateDataSetFromRunOutput(
+        **client.post(
+            "/api/data-sets/from-run",
+            json=JsonCreateDataSetFromRun(
+                run_internal_id=create_run_response.run_internal_id,
+            ).dict(),
+        ).json(),
+    )
+
+    assert create_data_set_response.data_set_id > 0
+
+    queue_merge_job_response = JsonQueueMergeJobOutput(
+        **client.post(
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
+                strict_mode=False,
+                data_set_id=create_data_set_response.data_set_id,
+                # Literally random stuff here, doesn't matter.
+                indexing_parameters_id=1,
+                merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
+                    # Deliberately left blank
+                    point_group="",
+                    # ...or None so we can test if this is inferred from the chemical/indexing result
+                    space_group=None,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                    ambigator_command_line="",
+                ),
+            ).dict(),
+        ).json(),
+    )
+    assert queue_merge_job_response.merge_result_id > 0
+
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.QUEUED.value}").json(),
+    )
+
+    assert len(queued_merge_results.merge_jobs) == 1
+    assert queued_merge_results.merge_jobs[0].parameters.point_group == LYSO_POINT_GROUP
+    assert queued_merge_results.merge_jobs[0].parameters.space_group == LYSO_SPACE_GROUP
 
 
 def test_queue_then_start_then_finish_merge_job(
@@ -1810,12 +2421,13 @@ def test_queue_then_start_then_finish_merge_job(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_run_response.run_internal_id is not None
@@ -1828,9 +2440,9 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/indexing/{create_run_response.indexing_result_id}/success",
             json=JsonIndexingResultFinishSuccessfully(
-                stream_file="/tmp/some-file.stream",
+                stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",
+                geometry_file="/tmp/some.geom",  # noqa: S108
                 geometry_hash=hashlib.sha256(b"").hexdigest(),
                 workload_manager_job_id=1,
                 # More or less random values, we don't care about the specifics here
@@ -1846,7 +2458,7 @@ def test_queue_then_start_then_finish_merge_job(
                 generated_geometry_file="",
                 latest_log="",
             ).dict(),
-        ).json()
+        ).json(),
     ).result
 
     # The result of this indexing you can query in various places. One
@@ -1861,7 +2473,7 @@ def test_queue_then_start_then_finish_merge_job(
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_data_set_response.data_set_id > 0
@@ -1877,6 +2489,7 @@ def test_queue_then_start_then_finish_merge_job(
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -1897,15 +2510,16 @@ def test_queue_then_start_then_finish_merge_job(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert queue_merge_job_response.merge_result_id > 0
 
     # Get the queued merge jobs, should be one:
     queued_merge_results = JsonReadMergeResultsOutput(
-        **client.get(f"/api/merging?status={DBJobStatus.QUEUED.value}").json()
+        **client.get(f"/api/merging?status={DBJobStatus.QUEUED.value}").json(),
     )
     assert len(queued_merge_results.merge_jobs) == 1
 
@@ -1915,18 +2529,19 @@ def test_queue_then_start_then_finish_merge_job(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/start",
             # job ID is the SLURM (or similar) job ID, so it's random
             json=JsonMergeJobStartedInput(job_id=1337, time=10).dict(),
-        ).json()
+        ).json(),
     )
     assert start_merge_job_response.time > 0
 
     # Get the running merge jobs, should be one:
     running_merge_results = JsonReadMergeResultsOutput(
-        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json(),
     )
     assert len(running_merge_results.merge_jobs) == 1
 
     merge_result = JsonMergeResultInternal(
         mtz_file_id=test_file,
+        ambigator_fg_graph_file_id=None,
         fom=JsonMergeResultFom(
             # Again, more or less completely random stuff here
             snr=1.0,
@@ -1980,7 +2595,7 @@ def test_queue_then_start_then_finish_merge_job(
                 redundancy=4.8,
                 snr=4.9,
                 mean_i=5.0,
-            )
+            ),
         ],
         refinement_results=[
             JsonRefinementResultInternal(
@@ -1994,7 +2609,7 @@ def test_queue_then_start_then_finish_merge_job(
                 r_work=0.6,
                 rms_bond_angle=180.0,
                 rms_bond_length=2.0,
-            )
+            ),
         ],
     )
 
@@ -2003,10 +2618,9 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/finish",
             json=JsonMergeJobFinishedInput(
-                error=None,
-                result=merge_result,
+                error=None, result=merge_result, latest_log=None
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert finish_merge_job_response.result
@@ -2023,8 +2637,9 @@ def test_queue_then_start_then_finish_merge_job(
                     ),
                 ],
                 beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert len(analysis_response.filtered_data_sets) == 1
@@ -2032,8 +2647,8 @@ def test_queue_then_start_then_finish_merge_job(
     # Another place is the analysis view
     single_data_set_result = JsonReadSingleDataSetResults(
         **client.get(
-            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}"
-        ).json()
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}",
+        ).json(),
     )
 
     first_ds = single_data_set_result.data_set
@@ -2045,6 +2660,7 @@ def test_queue_then_start_then_finish_merge_job(
     assert first_mr.runs == [str(external_run_id)]
     assert first_mr.parameters == JsonMergeParameters(
         point_group=LYSO_POINT_GROUP,
+        space_group=LYSO_SPACE_GROUP,
         cell_description=LYSO_CELL_DESCRIPTION,
         negative_handling=MergeNegativeHandling.IGNORE,
         merge_model=MergeModel.UNITY,
@@ -2066,6 +2682,7 @@ def test_queue_then_start_then_finish_merge_job(
         min_res=None,
         push_res=None,
         w=None,
+        ambigator_command_line="",
     )
     assert len(first_mr.refinement_results) == 1
     refinement_result_id = first_mr.refinement_results[0].id
@@ -2099,7 +2716,7 @@ def test_start_run(
 
     # Create the run and check the result
     start_run_response = JsonStartRunOutput(
-        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json()
+        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json(),
     )
 
     assert start_run_response.run_internal_id is not None
@@ -2118,14 +2735,14 @@ def test_start_two_runs_and_enable_auto_pilot(
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    set_auto_pilot(client, beamtime_id, True)
+    set_auto_pilot(client, beamtime_id, enabled=True)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
 
     # Start a normal run, and finish it.
     first_run_id = JsonStartRunOutput(
-        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json()
+        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json(),
     ).run_internal_id
     # This value we set to the first run, and since it's manual and
     # the autopilot is on, we expect it to be set in the next run as
@@ -2141,8 +2758,9 @@ def test_start_two_runs_and_enable_auto_pilot(
                 JsonAttributoValue(
                     attributo_id=run_string_attributo_id,
                     attributo_value_str=string_value,
-                )
+                ),
             ],
+            files=[],
         ).dict(),
     )
     assert update_run_result.status_code // 100 == 2
@@ -2153,7 +2771,7 @@ def test_start_two_runs_and_enable_auto_pilot(
     # Now start a second run, providing no attributo values
     second_external_run_id = 1001
     second_run_id = JsonStartRunOutput(
-        **client.get(f"/api/runs/{second_external_run_id}/start/{beamtime_id}").json()
+        **client.get(f"/api/runs/{second_external_run_id}/start/{beamtime_id}").json(),
     ).run_internal_id
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
@@ -2168,7 +2786,7 @@ def test_start_two_runs_and_enable_auto_pilot(
     # web server, we cannot use "one or none" to get the latest run: it will return more than one run!
     third_external_run_id = 1002
     third_run_id = JsonStartRunOutput(
-        **client.get(f"/api/runs/{third_external_run_id}/start/{beamtime_id}").json()
+        **client.get(f"/api/runs/{third_external_run_id}/start/{beamtime_id}").json(),
     ).run_internal_id
 
     assert third_run_id > second_run_id
@@ -2187,15 +2805,16 @@ def test_start_two_runs_and_enable_auto_pilot(
                     JsonAttributoValue(
                         attributo_id=run_string_attributo_id,
                         attributo_value_str=fourth_string_value,
-                    )
+                    ),
                 ],
+                create_data_set=False,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert fourth_run_response.run_created
 
     read_runs_output_after_last_run = JsonReadRuns(
-        **client.get(f"/api/runs/{beamtime_id}").json()
+        **client.get(f"/api/runs/{beamtime_id}").json(),
     )
     assert len(read_runs_output_after_last_run.runs) == 4
 
@@ -2217,14 +2836,14 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    set_auto_pilot(client, beamtime_id, True)
+    set_auto_pilot(client, beamtime_id, enabled=True)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
 
     # Start a normal run, and finish it.
     first_run_id = JsonStartRunOutput(
-        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json()
+        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json(),
     ).run_internal_id
     # This value we set to the first run, and since it's manual and
     # the autopilot is on, we expect it to be set in the next run as
@@ -2246,6 +2865,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                     attributo_value_int=1337,
                 ),
             ],
+            files=[],
         ).dict(),
     )
     assert update_run_result.status_code // 100 == 2
@@ -2264,8 +2884,9 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                 # neither automatic nor manual attributi are present here, deliberately. We expect the automatic one to
                 # not appear, but the manual one should.
                 attributi=[],
+                create_data_set=False,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert second_run_response.run_created
     assert second_run_response.indexing_result_id is None
@@ -2325,7 +2946,7 @@ def test_read_and_update_runs_bulk(
                             JsonAttributoValue(
                                 attributo_id=run_string_attributo_id,
                                 attributo_value_str=run_definition["string-attributo"],  # type: ignore
-                            )
+                            ),
                         ]
                         if run_definition["string-attributo"] is not None
                         else []
@@ -2335,16 +2956,17 @@ def test_read_and_update_runs_bulk(
                             JsonAttributoValue(
                                 attributo_id=run_int_attributo_id,
                                 attributo_value_int=run_definition["int-attributo"],  # type: ignore
-                            )
+                            ),
                         ]
                         if run_definition["int-attributo"] is not None
                         else []
                     ),
+                    create_data_set=False,
                     started=1,
                     stopped=None,
                     files=[],
                 ).dict(),
-            ).json()
+            ).json(),
         )
         assert response.run_created
         assert response.run_internal_id is not None
@@ -2357,7 +2979,7 @@ def test_read_and_update_runs_bulk(
                 beamtime_id=beamtime_id,
                 external_run_ids=[x["id"] for x in run_definitions],  # type: ignore
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert read_output.experiment_type_ids == [chemical_experiment_type_id]
@@ -2423,12 +3045,13 @@ def test_read_and_update_runs_bulk(
                 external_run_ids=[x["id"] for x in run_definitions],  # type: ignore
                 attributi=[
                     JsonAttributoValue(
-                        attributo_id=run_string_attributo_id, attributo_value_str="qux"
-                    )
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="qux",
+                    ),
                 ],
                 new_experiment_type_id=string_experiment_type_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert write_output.result
@@ -2441,7 +3064,7 @@ def test_read_and_update_runs_bulk(
         # First test: did our string update succeed?
         string_attributo = next(
             iter(
-                [a for a in run.attributi if a.attributo_id == run_string_attributo_id]
+                [a for a in run.attributi if a.attributo_id == run_string_attributo_id],
             ),
             None,
         )
@@ -2457,7 +3080,7 @@ def test_read_and_update_runs_bulk(
                     a
                     for a in run.attributi
                     if a.attributo_id == run_channel_1_chemical_attributo_id
-                ]
+                ],
             ),
             None,
         )
@@ -2488,7 +3111,8 @@ def test_create_file(client: TestClient, test_file_path: Path) -> None:
 
 
 def test_create_file_with_deduplication(
-    client: TestClient, test_file_path: Path
+    client: TestClient,
+    test_file_path: Path,
 ) -> None:
     # Upload the file once
     with test_file_path.open("rb") as upload_file:
@@ -2497,7 +3121,7 @@ def test_create_file_with_deduplication(
                 "/api/files",
                 files={"file": upload_file},
                 data={"description": "test", "deduplicate": str(False)},
-            ).json()
+            ).json(),
         )
 
     # Upload again, check if the same file is returned due to deduplication
@@ -2507,7 +3131,7 @@ def test_create_file_with_deduplication(
                 "/api/files",
                 files={"file": upload_file},
                 data={"description": "test", "deduplicate": str(True)},
-            ).json()
+            ).json(),
         )
 
     assert first_upload.id == second_upload.id
@@ -2536,46 +3160,49 @@ def test_create_file_simple(client: TestClient, test_file_path: Path) -> None:
 
 
 def test_read_and_update_user_config(
-    client: TestClient, beamtime_id: BeamtimeId
+    client: TestClient,
+    beamtime_id: BeamtimeId,
 ) -> None:
     result_ap = JsonUserConfigurationSingleOutput(
-        **client.get(f"/api/user-config/{beamtime_id}/auto-pilot").json()
+        **client.get(f"/api/user-config/{beamtime_id}/auto-pilot").json(),
     )
     assert result_ap.value_bool is not None
     assert result_ap.value_int is None
 
     result_ap = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/True").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/True").json(),
     )
     assert result_ap.value_bool
 
     result_ap = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/False").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/False").json(),
     )
     assert not result_ap.value_bool
 
     result_co = JsonUserConfigurationSingleOutput(
-        **client.get(f"/api/user-config/{beamtime_id}/online-crystfel").json()
+        **client.get(f"/api/user-config/{beamtime_id}/online-crystfel").json(),
     )
     assert result_co.value_bool is not None
     assert result_co.value_int is None
 
     result_co = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json(),
     )
     assert result_co.value_bool
 
     result_co = JsonUserConfigurationSingleOutput(
-        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/False").json()
+        **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/False").json(),
     )
     assert not result_co.value_bool
 
 
 def test_read_experiment_types(
-    client: TestClient, beamtime_id: BeamtimeId, chemical_experiment_type_id: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
 ) -> None:
     result = JsonReadExperimentTypes(
-        **client.get(f"/api/experiment-types/{beamtime_id}").json()
+        **client.get(f"/api/experiment-types/{beamtime_id}").json(),
     )
 
     assert len(result.experiment_types) == 1
@@ -2600,10 +3227,10 @@ def test_delete_experiment_types(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         # Good old Lyso!
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_response.id > 0
@@ -2613,18 +3240,18 @@ def test_delete_experiment_types(
             "DELETE",
             "/api/experiment-types",
             json=JsonDeleteExperimentType(id=chemical_experiment_type_id).dict(),
-        ).json()
+        ).json(),
     )
 
     assert result.result
 
     assert not JsonReadExperimentTypes(
-        **client.get(f"/api/experiment-types/{beamtime_id}").json()
+        **client.get(f"/api/experiment-types/{beamtime_id}").json(),
     ).experiment_types
 
     # Now retrieve the data set list, should be empty
     data_sets_response = JsonReadDataSets(
-        **client.get(f"/api/data-sets/{beamtime_id}").json()
+        **client.get(f"/api/data-sets/{beamtime_id}").json(),
     )
     assert not data_sets_response.data_sets
 
@@ -2635,7 +3262,7 @@ def test_delete_file(client: TestClient, test_file: int) -> None:
             "DELETE",
             "/api/files",
             json=JsonDeleteFileInput(id=test_file).dict(),
-        ).json()
+        ).json(),
     )
     assert result.id == test_file
 
@@ -2643,7 +3270,9 @@ def test_delete_file(client: TestClient, test_file: int) -> None:
 
 
 def test_update_beamtime_schedule(
-    client: TestClient, beamtime_id: BeamtimeId, lyso_chemical_id: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    lyso_chemical_id: int,
 ) -> None:
     schedule_rows = [
         JsonBeamtimeScheduleRow(
@@ -2674,19 +3303,21 @@ def test_update_beamtime_schedule(
                 beamtime_id=beamtime_id,
                 schedule=schedule_rows,
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert update_result.schedule == schedule_rows
 
     get_response = JsonBeamtimeSchedule(
-        **client.get(f"/api/schedule/{beamtime_id}").json()
+        **client.get(f"/api/schedule/{beamtime_id}").json(),
     )
     assert get_response.schedule == schedule_rows
 
 
 def test_create_live_stream_snapshot(
-    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    test_file_path: Path,
 ) -> None:
     # Upload the file: for the live stream, it's important to use the proper file name, as that's the criterion for a file to be
     # a live stream (yes, ugly, I know).
@@ -2700,7 +3331,7 @@ def test_create_live_stream_snapshot(
         file = JsonCreateFileOutput(**raw_output.json())
 
     snapshot_response = JsonCreateLiveStreamSnapshotOutput(
-        **client.get(f"/api/live-stream/snapshot/{beamtime_id}").json()
+        **client.get(f"/api/live-stream/snapshot/{beamtime_id}").json(),
     )
 
     assert snapshot_response.id != file.id
@@ -2708,7 +3339,9 @@ def test_create_live_stream_snapshot(
 
 
 def test_update_live_stream(
-    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    test_file_path: Path,
 ) -> None:
     # Upload the file: for the live stream, it's important to use the proper file name, as that's the criterion for a file to be
     # a live stream (yes, ugly, I know).
@@ -2735,8 +3368,9 @@ def test_check_standard_unit(client: TestClient) -> None:
     # First, test normalization
     output = JsonCheckStandardUnitOutput(
         **client.post(
-            "/api/unit", json=JsonCheckStandardUnitInput(input="mm").dict()
-        ).json()
+            "/api/unit",
+            json=JsonCheckStandardUnitInput(input="mm").dict(),
+        ).json(),
     )
     assert output.error is None
     assert output.normalized == "1 millimeter"
@@ -2744,8 +3378,9 @@ def test_check_standard_unit(client: TestClient) -> None:
     # Now try an invalid unit
     output = JsonCheckStandardUnitOutput(
         **client.post(
-            "/api/unit", json=JsonCheckStandardUnitInput(input="bananas").dict()
-        ).json()
+            "/api/unit",
+            json=JsonCheckStandardUnitInput(input="bananas").dict(),
+        ).json(),
     )
     assert output.error is not None
     assert output.normalized is None
@@ -2753,8 +3388,9 @@ def test_check_standard_unit(client: TestClient) -> None:
     # Finally, empty string is also an important edge case
     output = JsonCheckStandardUnitOutput(
         **client.post(
-            "/api/unit", json=JsonCheckStandardUnitInput(input="").dict()
-        ).json()
+            "/api/unit",
+            json=JsonCheckStandardUnitInput(input="").dict(),
+        ).json(),
     )
     assert output.error is not None
     assert output.normalized is None
@@ -2772,7 +3408,7 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert attributo_response.id > 0
 
@@ -2793,7 +3429,7 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 file_ids=[],
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert chemical_response.id > 0
 
@@ -2813,15 +3449,15 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
             "/api/attributi",
             json=JsonUpdateAttributoInput(
                 attributo=updated_attributo,
-                conversion_flags=JsonUpdateAttributoConversionFlags(ignoreUnits=True),
+                conversion_flags=JsonUpdateAttributoConversionFlags(ignore_units=True),
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert attributo_update_response.id > 0
 
     # After updating, check that the attributi list is updated.
     read_attributi_response = JsonReadAttributi(
-        **client.get(f"/api/attributi/{beamtime_id}").json()
+        **client.get(f"/api/attributi/{beamtime_id}").json(),
     )
     assert len(read_attributi_response.attributi) == 1
 
@@ -2847,7 +3483,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert attributo_response.id > 0
 
@@ -2868,7 +3504,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 file_ids=[],
                 beamtime_id=beamtime_id,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert chemical_response.id > 0
 
@@ -2877,11 +3513,11 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
             "DELETE",
             "/api/attributi",
             json=JsonDeleteAttributoInput(id=attributo_response.id).dict(),
-        ).json()
+        ).json(),
     )
     assert output.id == attributo_response.id
     read_attributi_response = JsonReadAttributi(
-        **client.get(f"/api/attributi/{beamtime_id}").json()
+        **client.get(f"/api/attributi/{beamtime_id}").json(),
     )
     assert not read_attributi_response.attributi
 
@@ -2910,12 +3546,13 @@ def test_download_spreadsheet(
                     JsonAttributoValue(
                         attributo_id=run_string_attributo_id,
                         attributo_value_str=run_string_attributo_value,
-                    )
+                    ),
                 ],
+                create_data_set=False,
                 started=1,
                 stopped=None,
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert (
         create_run_response.run_internal_id is not None
@@ -2934,6 +3571,8 @@ def test_download_spreadsheet(
             wb = load_workbook(filename=BytesIO(sheet.read()))
 
             ws = wb.active
+
+            assert ws is not None
 
             # This test is highly incomplete. Let's add more conditions once we encounter bugs in this thing (yes, that's how testing works!)
             assert ws.title == "Runs"
@@ -2965,27 +3604,27 @@ def test_create_run_attributi_from_schema(
                     ),
                 ],
             ).dict(),
-        ).json()
+        ).json(),
     )
     assert response.created_attributi == 2
 
     read_response = JsonReadAttributi(
-        **client.get(f"/api/attributi/{beamtime_id}").json()
+        **client.get(f"/api/attributi/{beamtime_id}").json(),
     )
     assert len(read_response.attributi) == 2
     assert set(a.name for a in read_response.attributi) == set(
-        (first_attributo_name, second_attributo_name)
+        (first_attributo_name, second_attributo_name),
     )
     assert set(a.description for a in read_response.attributi) == set(
-        (first_attributo_name + "description", second_attributo_name + "description")
+        (first_attributo_name + "description", second_attributo_name + "description"),
     )
 
     int_attributo = next(
-        iter(a for a in read_response.attributi if a.name == first_attributo_name)
+        iter(a for a in read_response.attributi if a.name == first_attributo_name),
     )
     assert int_attributo.attributo_type_integer is not None
     string_attributo = next(
-        iter(a for a in read_response.attributi if a.name == second_attributo_name)
+        iter(a for a in read_response.attributi if a.name == second_attributo_name),
     )
     assert string_attributo.attributo_type_string is not None
 
@@ -3006,10 +3645,10 @@ def test_create_two_compatible_data_sets(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         # Good old Lyso!
                         attributo_value_chemical=lyso_chemical_id,
-                    )
+                    ),
                 ],
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert create_response.id > 0
@@ -3023,7 +3662,7 @@ def test_create_two_compatible_data_sets(
                     attributo_id=run_channel_1_chemical_attributo_id,
                     # Good old Lyso!
                     attributo_value_chemical=lyso_chemical_id,
-                )
+                ),
             ],
         ).dict(),
     )
@@ -3031,7 +3670,8 @@ def test_create_two_compatible_data_sets(
 
 
 async def read_indexing_jobs_wrapper(
-    tmp_path: Path, request: web.Request
+    tmp_path: Path,
+    request: web.Request,
 ) -> web.Response:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
@@ -3041,10 +3681,10 @@ async def read_indexing_jobs_wrapper(
 
     async with result() as web_async_session:
         status = request.query.get("status")
-        beamtimeId = request.query.get("beamtimeId")
+        beamtime_id = request.query.get("beamtimeId")
         result = await read_indexing_jobs(
             status=DBJobStatus(status) if status is not None else None,
-            beamtimeId=int(beamtimeId) if beamtimeId is not None else None,
+            beamtimeId=int(beamtime_id) if beamtime_id is not None else None,
             withFiles=request.query.get("withFiles") == "True",
             session=web_async_session,
         )
@@ -3094,7 +3734,8 @@ async def create_file_wrapper(tmp_path: Path, request: web.Request) -> web.Respo
 
 
 async def indexing_job_still_running_wrapper(
-    tmp_path: Path, request: web.Request
+    tmp_path: Path,
+    request: web.Request,
 ) -> web.Response:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
@@ -3112,7 +3753,8 @@ async def indexing_job_still_running_wrapper(
 
 
 async def merge_job_started_wrapper(
-    tmp_path: Path, request: web.Request
+    tmp_path: Path,
+    request: web.Request,
 ) -> web.Response:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
@@ -3130,7 +3772,8 @@ async def merge_job_started_wrapper(
 
 
 async def merge_job_finished_wrapper(
-    tmp_path: Path, request: web.Request
+    tmp_path: Path,
+    request: web.Request,
 ) -> web.Response:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
@@ -3148,7 +3791,8 @@ async def merge_job_finished_wrapper(
 
 
 async def indexing_job_finish_with_error_wrapper(
-    tmp_path: Path, request: web.Request
+    tmp_path: Path,
+    request: web.Request,
 ) -> web.Response:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
@@ -3215,15 +3859,13 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
 
     workload_manager = DummyWorkloadManager()
     args = indexing_daemon.Arguments()
-    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
-    args.output_base_directory = Path("/tmp")
     # Important for the test scenario: no absolute paths allowed, so this is "mockable"
     args.amarcord_url = ""
     # Also not really important, we don't actually start CrystFEL
     args.crystfel_path = Path("/usr/bin")
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+        JobStartResult(job_id=1337, metadata=JobMetadata({})),
     )
     # start the job
     await indexing_loop_iteration(
@@ -3248,7 +3890,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     # Now get the indexing job from the DB and check that its status is indeed failed
     # Check the DB again
     indexing_jobs_result = JsonReadIndexingResultsOutput(
-        **client.get("/api/indexing").json()
+        **client.get("/api/indexing").json(),
     )
     assert len(indexing_jobs_result.indexing_jobs) == 1
     assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.DONE
@@ -3276,15 +3918,13 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
 
     workload_manager = DummyWorkloadManager()
     args = indexing_daemon.Arguments()
-    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
-    args.output_base_directory = Path("/tmp")
     # Important for the test scenario: no absolute paths allowed, so this is "mockable"
     args.amarcord_url = ""
     # Also not really important, we don't actually start CrystFEL
     args.crystfel_path = Path("/usr/bin")
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+        JobStartResult(job_id=1337, metadata=JobMetadata({})),
     )
 
     # Now start jobs
@@ -3305,15 +3945,12 @@ async def test_merge_daemon(
     daemon_session: aiohttp.ClientSession,
     simple_data_set_id: int,
     # the indexing result must be created, but we create the merge result indirectly by specifying the data set ID
-    # pylint: disable=unused-argument
-    simple_indexing_result_id: int,
+    simple_indexing_result_id: int,  # noqa: ARG001
 ) -> None:
     os.environ[MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     os.environ[MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     workload_manager = DummyWorkloadManager()
     args = merge_daemon.Arguments()
-    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
-    args.output_base_directory = Path("/tmp")
     # Important for the test scenario: no absolute paths allowed, so this is "mockable"
     args.amarcord_url = ""
     # Also not really important, we don't actually start CrystFEL
@@ -3331,6 +3968,7 @@ async def test_merge_daemon(
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
+                    space_group=LYSO_SPACE_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -3351,24 +3989,28 @@ async def test_merge_daemon(
                     min_res=None,
                     push_res=None,
                     w=None,
+                    ambigator_command_line="",
                 ),
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+        JobStartResult(job_id=1337, metadata=JobMetadata({})),
     )
 
     # One iteration, should start the job on the workload manager
     await merging_loop_iteration(
-        daemon_session, workload_manager, args, zombie_job_times={}
+        daemon_session,
+        workload_manager,
+        args,
+        zombie_job_times={},
     )
 
     assert workload_manager.job_starts
 
     queued_merge_results = JsonReadMergeResultsOutput(
-        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json(),
     )
 
     assert len(queued_merge_results.merge_jobs) == 1
@@ -3385,22 +4027,28 @@ async def test_merge_daemon(
     # when a job was first not seen anymore) as empty and expect the
     # job to still be running.
     await merging_loop_iteration(
-        daemon_session, workload_manager, args, zombie_job_times={}
+        daemon_session,
+        workload_manager,
+        args,
+        zombie_job_times={},
     )
 
     queued_merge_results = JsonReadMergeResultsOutput(
-        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json(),
     )
 
     assert len(queued_merge_results.merge_jobs) == 1
 
     # Now we set the job to be "long gone"
     await merging_loop_iteration(
-        daemon_session, workload_manager, args, zombie_job_times={1337: 0.0}
+        daemon_session,
+        workload_manager,
+        args,
+        zombie_job_times={1337: 0.0},
     )
 
     queued_merge_results = JsonReadMergeResultsOutput(
-        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json(),
     )
 
     assert not queued_merge_results.merge_jobs
@@ -3489,7 +4137,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
                 command_line="",
                 source="raw",
             ).dict(),
-        ).json()
+        ).json(),
     )
 
     assert len(create_response.jobs_started_run_external_ids) == 1
@@ -3498,8 +4146,6 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     workload_manager = DummyWorkloadManager()
     args = indexing_daemon.Arguments()
-    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
-    args.output_base_directory = Path("/tmp")
     # Important for the test scenario: no absolute paths allowed, so this is "mockable"
     args.amarcord_url = ""
     # Also not really important, we don't actually start CrystFEL
@@ -3515,17 +4161,17 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     )
 
     print(
-        "first iteration, should not do anything because it's just an update iteration"
+        "first iteration, should not do anything because it's just an update iteration",
     )
 
     assert not workload_manager.job_starts
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+        JobStartResult(job_id=1337, metadata=JobMetadata({})),
     )
 
     indexing_jobs_result = JsonReadIndexingResultsOutput(
-        **client.get("/api/indexing").json()
+        **client.get("/api/indexing").json(),
     )
     assert len(indexing_jobs_result.indexing_jobs) == 1
     assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.QUEUED
@@ -3548,7 +4194,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     # Check the DB again
     indexing_jobs_result = JsonReadIndexingResultsOutput(
-        **client.get("/api/indexing").json()
+        **client.get("/api/indexing").json(),
     )
     assert len(indexing_jobs_result.indexing_jobs) == 1
     assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.RUNNING
@@ -3586,7 +4232,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     )
 
     print(
-        "fourth iteration, job should be marked as failed, because it quit unexpectedly"
+        "fourth iteration, job should be marked as failed, because it quit unexpectedly",
     )
 
     await indexing_loop_iteration(
@@ -3600,7 +4246,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     # Now get the indexing job from the DB and check that its status is indeed failed
     # Check the DB again
     indexing_jobs_result = JsonReadIndexingResultsOutput(
-        **client.get("/api/indexing").json()
+        **client.get("/api/indexing").json(),
     )
     assert len(indexing_jobs_result.indexing_jobs) == 1
     assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.DONE

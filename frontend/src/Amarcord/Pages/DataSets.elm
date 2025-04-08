@@ -10,7 +10,7 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (HereAndNow, listContainsBy)
-import Api.Data exposing (ChemicalType(..), JsonCreateDataSetOutput, JsonDataSet, JsonDeleteDataSetOutput, JsonExperimentType, JsonReadDataSets)
+import Api.Data exposing (JsonCreateDataSetOutput, JsonDataSet, JsonDeleteDataSetOutput, JsonExperimentType, JsonReadDataSets)
 import Api.Request.Datasets exposing (createDataSetApiDataSetsPost, deleteDataSetApiDataSetsDelete, readDataSetsApiDataSetsBeamtimeIdGet)
 import Dict
 import Html exposing (Html, button, div, h4, option, select, table, text)
@@ -210,10 +210,9 @@ viewEditForm et chemicals =
         viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
         viewAttributoFormWithRole e =
             viewAttributoForm chemicals
-                (Maybe.withDefault ChemicalTypeSolution <|
-                    Maybe.map .role <|
-                        ListExtra.find (\awr -> awr.id == e.id) <|
-                            et.attributi
+                (Maybe.map .role <|
+                    ListExtra.find (\awr -> awr.id == e.id) <|
+                        et.attributi
                 )
                 e
     in

@@ -1,29 +1,17 @@
 # Python setup
 
-(PoetrySetup)=
-## Poetry
-AMARCORD uses [Poetry](https://python-poetry.org/) for managing its dependencies. So either install that and run:
+(PythonSetup)=
+## uv
+AMARCORD uses [uv](https://docs.astral.sh/uv/) for managing its dependencies. So either install that and run:
 
 ```
-poetry install
+uv venv
 ```
 
-to install the dependencies. Running programs is then simply
+to create a virtual environment with all dependencies installed. Running programs is then simply
 
 ```
-poetry run amarcord-<program-name> <arguments>
-```
-
-To get into a shell with the poetry virtual environment:
-
-```
-poetry shell
-```
-
-where you can use Python to start programs:
-
-```
-python amarcord/cli/webserver.py
+uv run amarcord-<program-name> <arguments>
 ```
 
 ## Plain pip
@@ -33,14 +21,12 @@ Since we have `requirements.txt` files, as long as you don’t want to add new d
 ```
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
-
-`requirements-dev.txt` also contains test dependencies and mypy types.
 
 ## Notes for Microsoft Windows users
 
-We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue (note that we did not include the dependency with the `platform` poetry flag, because that breaks the Nix build).
+We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue.
 
 If you manually created your virtual environment, the way to activate it on Windows is not
 

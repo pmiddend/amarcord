@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from amarcord.util import check_consecutive
 from amarcord.util import dict_union
 from amarcord.util import group_by
 from amarcord.util import last_line_of_file
@@ -52,7 +53,7 @@ def test_sha256_file() -> None:
             [
                 Path(__file__).parent / "test-file-no-newlines.txt",
                 Path(__file__).parent / "test-file-no-newlines.txt",
-            ]
+            ],
         )
         == "32ac0b1fc6f1b04aa5d8e1486afc3f3777c10784471f60143ef7616848e15db1"
     )
@@ -84,7 +85,14 @@ def test_remove_illegal_path_characters() -> None:
     [("apple", ["appel"], True), ("apple", ["mango"], False)],
 )
 def test_maybe_you_meant(
-    input_string: str, candidates: list[str], result: bool
+    input_string: str,
+    candidates: list[str],
+    result: bool,
 ) -> None:
     result_str = maybe_you_meant(input_string, candidates)
     assert (len(result_str) > 0) == result
+
+
+def test_check_consecutive() -> None:
+    assert check_consecutive([1, 2, 3, 4]) is None
+    assert check_consecutive([1, 2, 4, 4]) == (2, 4)

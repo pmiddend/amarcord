@@ -1,5 +1,6 @@
 import datetime
 from statistics import mean
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter
@@ -18,11 +19,14 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
 from amarcord.web.json_models import JsonBeamtime
 from amarcord.web.json_models import JsonCreateIndexingForDataSetInput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetOutput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobOutput
 from amarcord.web.json_models import JsonIndexingFom
 from amarcord.web.json_models import JsonIndexingJob
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
@@ -37,8 +41,10 @@ router = APIRouter()
 
 
 async def json_indexing_job_from_orm(
-    ij: orm.IndexingResult, with_files: bool
+    ij: orm.IndexingResult,
+    with_files: bool,
 ) -> JsonIndexingJob:
+    bt = ij.run.beamtime
     return JsonIndexingJob(
         id=ij.id,
         job_id=ij.job_id,
@@ -56,15 +62,16 @@ async def json_indexing_job_from_orm(
         run_external_id=ij.run.external_id,
         run_internal_id=ij.run.id,
         beamtime=JsonBeamtime(
-            id=ij.run.beamtime.id,
-            external_id=ij.run.beamtime.external_id,
-            proposal=ij.run.beamtime.proposal,
-            beamline=ij.run.beamtime.beamline,
-            title=ij.run.beamtime.title,
-            comment=ij.run.beamtime.comment,
-            start=datetime_to_attributo_int(ij.run.beamtime.start),
-            end=datetime_to_attributo_int(ij.run.beamtime.end),
+            id=bt.id,
+            external_id=bt.external_id,
+            proposal=bt.proposal,
+            beamline=bt.beamline,
+            title=bt.title,
+            comment=bt.comment,
+            start=datetime_to_attributo_int(bt.start),
+            end=datetime_to_attributo_int(bt.end),
             chemical_names=[],
+            analysis_output_path=bt.analysis_output_path,
         ),
         input_file_globs=(
             []
@@ -127,13 +134,79 @@ def summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
 
 
 @router.post(
+    "/api/indexing/import",
+    tags=["processing"],
+    response_model_exclude_defaults=True,
+)
+async def import_finished_indexing_job(
+    input_: JsonImportFinishedIndexingJobInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> JsonImportFinishedIndexingJobOutput:
+    """
+    This will import an already finished indexing job, from another beamline for example.
+
+    It's not possible to do this with the other methods here, since you'd have to queue
+    something for a whole dataset and then finish something with a concrete indexing
+    job ID.
+    """
+    run: None | orm.Run = (
+        await session.scalars(
+            select(orm.Run).where(orm.Run.id == input_.run_internal_id)
+        )
+    ).one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"internal run ID {input_.run_internal_id} not found",
+        )
+
+    new_indexing_parameters = orm.IndexingParameters(
+        is_online=input_.is_online,
+        cell_description=input_.cell_description.strip(),
+        command_line=input_.command_line.strip(),
+        geometry_file=input_.geometry_file.strip(),
+        source=input_.source.strip(),
+    )
+    session.add(new_indexing_parameters)
+    await session.flush()
+    new_indexing_result = orm.IndexingResult(
+        created=datetime.datetime.now(datetime.timezone.utc),
+        run_id=RunInternalId(input_.run_internal_id),
+        stream_file=input_.stream_file,
+        program_version=input_.program_version,
+        frames=input_.frames,
+        hits=input_.hits,
+        indexed_frames=input_.indexed_frames,
+        detector_shift_x_mm=input_.detector_shift_x_mm,
+        detector_shift_y_mm=input_.detector_shift_y_mm,
+        geometry_file=input_.geometry_file,
+        geometry_hash=input_.geometry_hash,
+        generated_geometry_file=input_.generated_geometry_file,
+        unit_cell_histograms_file_id=None,
+        job_id=None,
+        job_status=DBJobStatus.DONE,
+        job_error=None,
+        job_latest_log=input_.job_log,
+        job_started=None,
+        job_stopped=None,
+        indexing_parameters_id=new_indexing_parameters.id,
+    )
+    session.add(new_indexing_result)
+    await session.commit()
+    return JsonImportFinishedIndexingJobOutput(
+        indexing_result_id=new_indexing_result.id
+    )
+
+
+@router.post(
     "/api/indexing",
     tags=["processing"],
     response_model_exclude_defaults=True,
 )
 async def indexing_job_queue_for_data_set(
     input_: JsonCreateIndexingForDataSetInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonCreateIndexingForDataSetOutput:
     job_logger = logger.bind(data_set_id=input_.data_set_id)
     job_logger.info("start creation of indexing result")
@@ -144,23 +217,24 @@ async def indexing_job_queue_for_data_set(
     # First, get the actual data set (it contains the beamtime ID)
     data_set: None | orm.DataSet = (
         await session.scalars(
-            select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id)
+            select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id),
         )
     ).one_or_none()
 
     if data_set is None:
         raise HTTPException(
-            status_code=400, detail=f"no data set with ID {input_.data_set_id} found"
+            status_code=400,
+            detail=f"no data set with ID {input_.data_set_id} found",
         )
 
     beamtime_id = (await data_set.awaitable_attrs.experiment_type).beamtime_id
     runs_in_data_set: list[orm.Run] = await retrieve_runs_matching_data_set(
-        session, input_.data_set_id, beamtime_id
+        session, input_.data_set_id, beamtime_id, source=input_.source.strip()
     )
     if not runs_in_data_set:
         raise HTTPException(
             status_code=400,
-            detail=f"data set {input_.data_set_id} doesn't have any runs (that have finished)",
+            detail=f"data set {input_.data_set_id} doesn't have any runs that have finished and that have files attached to them",
         )
 
     existing_indexing_results: list[orm.IndexingResult] = list(
@@ -168,19 +242,19 @@ async def indexing_job_queue_for_data_set(
             await session.scalars(
                 select(orm.IndexingResult)
                 .where(orm.IndexingResult.run_id.in_([r.id for r in runs_in_data_set]))
-                .options(selectinload(orm.IndexingResult.indexing_parameters))
+                .options(selectinload(orm.IndexingResult.indexing_parameters)),
             )
-        ).all()
+        ).all(),
     )
     run_ids_without_matching_indexing_results: set[int] = {
         r.id for r in runs_in_data_set
     }
     new_parameters = orm.IndexingParameters(
         is_online=input_.is_online,
-        cell_description=input_.cell_description,
-        command_line=input_.command_line,
-        geometry_file=input_.geometry_file,
-        source=input_.source,
+        cell_description=input_.cell_description.strip(),
+        command_line=input_.command_line.strip(),
+        geometry_file=input_.geometry_file.strip(),
+        source=input_.source.strip(),
     )
     for ir in existing_indexing_results:
         # Finished, but erroneous indexing results are no use, they should be redoable
@@ -189,7 +263,7 @@ async def indexing_job_queue_for_data_set(
         # Run doesn't need to be reprocessed, nice.
         if orm.are_indexing_parameters_equal(ir.indexing_parameters, new_parameters):
             job_logger.info(
-                f"indexing parameters {ir.indexing_parameters.id} match {new_parameters}"
+                f"indexing parameters {ir.indexing_parameters.id} match {new_parameters}",
             )
             run_ids_without_matching_indexing_results.remove(ir.run_id)
 
@@ -212,7 +286,7 @@ async def indexing_job_queue_for_data_set(
         if run.id not in run_ids_without_matching_indexing_results:
             continue
         job_logger.info(
-            f"starting indexing job for run {run.id} (external ID {run.external_id})"
+            f"starting indexing job for run {run.id} (external ID {run.external_id})",
         )
         indexing_result = orm.IndexingResult(
             created=datetime.datetime.now(datetime.timezone.utc),
@@ -258,16 +332,16 @@ async def indexing_job_queue_for_data_set(
     response_class=PlainTextResponse,
 )
 async def indexing_job_get_log(
-    indexingResultId: int,
-    session: AsyncSession = Depends(get_orm_db),
+    indexingResultId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> str:
     async with session.begin():
         result = (
             (
                 await session.scalars(
                     select(orm.IndexingResult).where(
-                        orm.IndexingResult.id == indexingResultId
-                    )
+                        orm.IndexingResult.id == indexingResultId,
+                    ),
                 )
             ).one()
         ).job_latest_log
@@ -281,16 +355,16 @@ async def indexing_job_get_log(
     response_class=PlainTextResponse,
 )
 async def indexing_job_get_errorlog(
-    indexingResultId: int,
-    session: AsyncSession = Depends(get_orm_db),
+    indexingResultId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> str:
     async with session.begin():
         result = (
             (
                 await session.scalars(
                     select(orm.IndexingResult).where(
-                        orm.IndexingResult.id == indexingResultId
-                    )
+                        orm.IndexingResult.id == indexingResultId,
+                    ),
                 )
             ).one()
         ).job_error
@@ -303,9 +377,9 @@ async def indexing_job_get_errorlog(
     response_model_exclude_defaults=True,
 )
 async def indexing_job_finish_with_error(
-    indexingResultId: int,
+    indexingResultId: int,  # noqa: N803
     json_result: JsonIndexingResultFinishWithError,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonIndexingJobUpdateOutput:
     job_logger = logger.bind(
         indexing_result_id=indexingResultId,
@@ -317,8 +391,8 @@ async def indexing_job_finish_with_error(
         current_indexing_result = (
             await session.scalars(
                 select(orm.IndexingResult).where(
-                    orm.IndexingResult.id == indexingResultId
-                )
+                    orm.IndexingResult.id == indexingResultId,
+                ),
             )
         ).one_or_none()
         if current_indexing_result is None:
@@ -331,7 +405,7 @@ async def indexing_job_finish_with_error(
         if json_result.latest_log:
             current_indexing_result.job_latest_log = json_result.latest_log
         current_indexing_result.job_stopped = datetime.datetime.now(
-            tz=datetime.timezone.utc
+            tz=datetime.timezone.utc,
         )
         # Pathological case
         if current_indexing_result.job_started is None:
@@ -347,9 +421,9 @@ async def indexing_job_finish_with_error(
     response_model_exclude_defaults=True,
 )
 async def indexing_job_still_running(
-    indexingResultId: int,
+    indexingResultId: int,  # noqa: N803
     json_result: JsonIndexingResultStillRunning,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonIndexingJobUpdateOutput:
     job_logger = logger.bind(
         indexing_result_id=indexingResultId,
@@ -361,8 +435,8 @@ async def indexing_job_still_running(
         current_indexing_result = (
             await session.scalars(
                 select(orm.IndexingResult).where(
-                    orm.IndexingResult.id == indexingResultId
-                )
+                    orm.IndexingResult.id == indexingResultId,
+                ),
             )
         ).one_or_none()
         if current_indexing_result is None:
@@ -382,7 +456,7 @@ async def indexing_job_still_running(
         # job started can be missing, in case we don't have that information
         if jr.job_started is not None:
             current_indexing_result.job_started = datetime_from_attributo_int(
-                jr.job_started
+                jr.job_started,
             )
         current_indexing_result.detector_shift_x_mm = jr.detector_shift_x_mm
         current_indexing_result.detector_shift_y_mm = jr.detector_shift_y_mm
@@ -396,7 +470,7 @@ async def indexing_job_still_running(
                 hits=jr.hits,
                 indexed_frames=jr.indexed_frames,
                 indexed_crystals=jr.indexed_crystals,
-            )
+            ),
         )
 
         await session.commit()
@@ -409,9 +483,9 @@ async def indexing_job_still_running(
     response_model_exclude_defaults=True,
 )
 async def indexing_job_finish_successfully(
-    indexingResultId: int,
+    indexingResultId: int,  # noqa: N803
     json_result: JsonIndexingResultFinishSuccessfully,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonIndexingJobUpdateOutput:
     job_logger = logger.bind(
         indexing_result_id=indexingResultId,
@@ -423,8 +497,8 @@ async def indexing_job_finish_successfully(
         current_indexing_result = (
             await session.scalars(
                 select(orm.IndexingResult).where(
-                    orm.IndexingResult.id == indexingResultId
-                )
+                    orm.IndexingResult.id == indexingResultId,
+                ),
             )
         ).one_or_none()
         if current_indexing_result is None:
@@ -446,7 +520,7 @@ async def indexing_job_finish_successfully(
             json_result.unit_cell_histograms_id
         )
         current_indexing_result.job_stopped = datetime.datetime.now(
-            tz=datetime.timezone.utc
+            tz=datetime.timezone.utc,
         )
         # Pathological case
         if current_indexing_result.job_started is None:
@@ -474,8 +548,8 @@ async def indexing_job_finish_successfully(
     response_model_exclude_defaults=True,
 )
 async def read_indexing_parameters(
-    dataSetId: int,
-    session: AsyncSession = Depends(get_orm_db),
+    dataSetId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadIndexingParametersOutput:
     data_set = (
         await session.scalars(
@@ -485,8 +559,8 @@ async def read_indexing_parameters(
                 selectinload(orm.DataSet.attributo_values)
                 .selectinload(orm.DataSetHasAttributoValue.chemical)
                 .selectinload(orm.Chemical.attributo_values)
-                .selectinload(orm.ChemicalHasAttributoValue.attributo)
-            )
+                .selectinload(orm.ChemicalHasAttributoValue.attributo),
+            ),
         )
     ).one()
 
@@ -499,7 +573,9 @@ async def read_indexing_parameters(
     ]
 
     runs_in_data_set: list[orm.Run] = await retrieve_runs_matching_data_set(
-        session, dataSetId, (await data_set.awaitable_attrs.experiment_type).beamtime_id
+        session,
+        dataSetId,
+        (await data_set.awaitable_attrs.experiment_type).beamtime_id,
     )
     sources: set[str] = set()
     for run in runs_in_data_set:
@@ -519,12 +595,12 @@ async def read_indexing_parameters(
     response_model_exclude_defaults=True,
 )
 async def read_indexing_jobs(
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
     status: None | DBJobStatus = None,
-    beamtimeId: None | int = None,
-    withFiles: bool = False,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: None | int = None,  # noqa: N803
+    withFiles: bool = False,  # noqa: N803, FBT002
 ) -> JsonReadIndexingResultsOutput:
-    result = JsonReadIndexingResultsOutput(
+    return JsonReadIndexingResultsOutput(
         indexing_jobs=[
             await json_indexing_job_from_orm(
                 ij,
@@ -537,8 +613,8 @@ async def read_indexing_jobs(
                     selectinload(orm.IndexingResult.run).selectinload(orm.Run.beamtime)
                     if not withFiles
                     else selectinload(orm.IndexingResult.run).selectinload(
-                        orm.Run.beamtime
-                    )
+                        orm.Run.beamtime,
+                    ),
                 )
                 .options(selectinload(orm.IndexingResult.indexing_parameters))
                 .where(
@@ -551,9 +627,8 @@ async def read_indexing_jobs(
                         orm.Run.beamtime_id == beamtimeId
                         if beamtimeId is not None
                         else true()
-                    )
-                )
+                    ),
+                ),
             )
-        ]
+        ],
     )
-    return result

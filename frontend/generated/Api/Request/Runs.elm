@@ -14,7 +14,10 @@
 
 
 module Api.Request.Runs exposing
-    ( createOrUpdateRunApiRunsRunExternalIdPost
+    ( bulkImportApiRunBulkImportBeamtimeIdPost
+    , bulkImportInfoApiRunBulkImportBeamtimeIdGet
+    , createOrUpdateRunApiRunsRunExternalIdPost
+    , deleteRunApiRunsBeamtimeIdRunIdDelete
     , readRunsApiRunsBeamtimeIdGet
     , readRunsBulkApiRunsBulkPost
     , readRunsOverviewApiRunsOverviewBeamtimeIdGet
@@ -30,6 +33,31 @@ import Dict
 import Http
 import Json.Decode
 import Json.Encode
+import File exposing (File)
+
+bulkImportApiRunBulkImportBeamtimeIdPost : Int -> Bool -> Bool -> File -> Api.Request Api.Data.JsonRunsBulkImportOutput
+bulkImportApiRunBulkImportBeamtimeIdPost beamtimeId_path simulate_query createDataSets_query file =
+    Api.request
+        "POST"
+        "/api/run-bulk-import/{beamtimeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        [ ( "simulate", Just <| (\val -> if val then "true" else "false") simulate_query ), ( "create_data_sets", Just <| (\val -> if val then "true" else "false") createDataSets_query ) ]
+        []
+        (Just <| Http.multipartBody <| List.filterMap identity [ Just <| Http.filePart "file" file ])
+        Api.Data.jsonRunsBulkImportOutputDecoder
+
+
+bulkImportInfoApiRunBulkImportBeamtimeIdGet : Int -> Api.Request Api.Data.JsonRunsBulkImportInfo
+bulkImportInfoApiRunBulkImportBeamtimeIdGet beamtimeId_path =
+    Api.request
+        "GET"
+        "/api/run-bulk-import/{beamtimeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonRunsBulkImportInfoDecoder
+
 
 createOrUpdateRunApiRunsRunExternalIdPost : Int -> Api.Data.JsonCreateOrUpdateRun -> Api.Request Api.Data.JsonCreateOrUpdateRunOutput
 createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateRun_body =
@@ -43,13 +71,25 @@ createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateR
         Api.Data.jsonCreateOrUpdateRunOutputDecoder
 
 
-readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns
-readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query =
+deleteRunApiRunsBeamtimeIdRunIdDelete : Int -> Int -> Api.Request Api.Data.JsonDeleteRunOutput
+deleteRunApiRunsBeamtimeIdRunIdDelete beamtimeId_path runId_path =
+    Api.request
+        "DELETE"
+        "/api/runs/{beamtimeId}/{runId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "runId", String.fromInt runId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonDeleteRunOutputDecoder
+
+
+readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns
+readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query runRanges_query =
     Api.request
         "GET"
         "/api/runs/{beamtimeId}"
         [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
-        [ ( "date", Maybe.map identity date_query ), ( "filter", Maybe.map identity filter_query ) ]
+        [ ( "date", Maybe.map identity date_query ), ( "filter", Maybe.map identity filter_query ), ( "runRanges", Maybe.map identity runRanges_query ) ]
         []
         Nothing
         Api.Data.jsonReadRunsDecoder

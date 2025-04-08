@@ -1,9 +1,12 @@
 import json
+from typing import Annotated
 from typing import Iterable
 
+import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
+from sqlalchemy import BooleanClauseList
 from sqlalchemy import false
 from sqlalchemy import intersect_all
 from sqlalchemy import true
@@ -22,25 +25,30 @@ from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.orm_utils import determine_cell_description_from_runs
+from amarcord.db.orm_utils import determine_point_group_from_runs
+from amarcord.db.orm_utils import determine_space_group_from_runs
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import group_by
 from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import encode_run_attributo_value
-from amarcord.web.fastapi_utils import format_run_id_intervals
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import orm_encode_merge_result_to_json
 from amarcord.web.fastapi_utils import orm_indexing_parameters_to_json
 from amarcord.web.fastapi_utils import orm_indexing_result_to_json
+from amarcord.web.fastapi_utils import run_id_to_run_ranges
 from amarcord.web.json_models import JsonAnalysisRun
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonChemicalIdAndName
 from amarcord.web.json_models import JsonDataSet
+from amarcord.web.json_models import JsonDataSetStatistics
 from amarcord.web.json_models import JsonDataSetWithIndexingResults
 from amarcord.web.json_models import JsonDetectorShift
 from amarcord.web.json_models import JsonExperimentTypeWithBeamtimeInformation
 from amarcord.web.json_models import JsonIndexingParametersWithResults
 from amarcord.web.json_models import JsonIndexingStatistic
+from amarcord.web.json_models import JsonMergeStatus
 from amarcord.web.json_models import JsonReadBeamtimeGeometryDetails
 from amarcord.web.json_models import JsonReadNewAnalysisInput
 from amarcord.web.json_models import JsonReadNewAnalysisOutput
@@ -66,18 +74,18 @@ router = APIRouter()
     response_model_exclude_defaults=True,
 )
 async def read_beamtime_geometry_details(
-    beamtimeId: BeamtimeId,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: BeamtimeId,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadBeamtimeGeometryDetails:
     runs = (
         await session.scalars(
             select(orm.Run)
-            .where((orm.Run.beamtime_id == beamtimeId))
+            .where(orm.Run.beamtime_id == beamtimeId)
             .options(
                 selectinload(orm.Run.indexing_results).selectinload(
-                    orm.IndexingResult.indexing_parameters
-                )
-            )
+                    orm.IndexingResult.indexing_parameters,
+                ),
+            ),
         )
     ).all()
     detector_shifts: list[JsonDetectorShift] = []
@@ -102,7 +110,7 @@ async def read_beamtime_geometry_details(
                         geometry_hash=(
                             ir.geometry_hash if ir.geometry_hash is not None else ""
                         ),
-                    )
+                    ),
                 )
 
     return JsonReadBeamtimeGeometryDetails(detector_shifts=detector_shifts)
@@ -114,9 +122,9 @@ async def read_beamtime_geometry_details(
     response_model_exclude_defaults=True,
 )
 async def read_run_analysis(
-    beamtimeId: BeamtimeId,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+    beamtimeId: BeamtimeId,  # noqa: N803
     run_id: None | RunInternalId = None,
-    session: AsyncSession = Depends(get_orm_db),
 ) -> JsonReadRunAnalysis:
     def extract_summary(o: orm.IndexingResult) -> DBIndexingFOM:
         if o.job_error is not None:
@@ -128,9 +136,9 @@ async def read_run_analysis(
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
     runs = (
         await session.scalars(select(orm.Run).where(orm.Run.beamtime_id == beamtimeId))
@@ -144,7 +152,7 @@ async def read_run_analysis(
     indexing_results = await session.scalars(
         select(orm.IndexingResult)
         .where(orm.IndexingResult.run_id == run_id)
-        .options(selectinload(orm.IndexingResult.statistics))
+        .options(selectinload(orm.IndexingResult.statistics)),
     )
 
     return JsonReadRunAnalysis(
@@ -153,7 +161,7 @@ async def read_run_analysis(
             for s in await session.scalars(
                 select(orm.Chemical)
                 .where(orm.Chemical.beamtime_id == beamtimeId)
-                .options(selectinload(orm.Chemical.files))
+                .options(selectinload(orm.Chemical.files)),
             )
         ],
         run_ids=[
@@ -166,7 +174,7 @@ async def read_run_analysis(
                 external_id=run.external_id,
                 attributi=[encode_run_attributo_value(v) for v in run.attributo_values],
                 file_paths=[
-                    JsonRunFile(glob=rf.glob, source=rf.source)
+                    JsonRunFile(id=rf.id, glob=rf.glob, source=rf.source)
                     for rf in await run.awaitable_attrs.files
                 ],
             )
@@ -207,24 +215,24 @@ async def read_run_analysis(
     response_model_exclude_defaults=True,
 )
 async def read_single_data_set_results(
-    beamtimeId: BeamtimeId,
-    dataSetId: int,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: BeamtimeId,  # noqa: N803
+    dataSetId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadSingleDataSetResults:
     attributi = list(
         (
             await session.scalars(
                 select(orm.Attributo)
                 .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
+                .order_by(orm.Attributo.name),
             )
-        ).all()
+        ).all(),
     )
 
     chemical_id_to_name = [
         JsonChemicalIdAndName(chemical_id=x.id, name=x.name)
         for x in await session.scalars(
-            select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId)
+            select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId),
         )
     ]
 
@@ -232,7 +240,7 @@ async def read_single_data_set_results(
         await session.scalars(
             select(orm.DataSet)
             .join(orm.DataSet.experiment_type)
-            .where(orm.DataSet.id == dataSetId)
+            .where(orm.DataSet.id == dataSetId),
         )
     ).one()
 
@@ -243,8 +251,8 @@ async def read_single_data_set_results(
         for r in await session.scalars(
             select(orm.Run).where(
                 (orm.Run.beamtime_id == beamtimeId)
-                & (orm.Run.experiment_type_id == data_set.experiment_type_id)
-            )
+                & (orm.Run.experiment_type_id == data_set.experiment_type_id),
+            ),
         )
     }
     run_external_id_for_internal_id: dict[int, int] = {
@@ -268,25 +276,108 @@ async def read_single_data_set_results(
         for r in runs.values()
         if r.experiment_type_id == data_set.experiment_type_id
         and run_matches_dataset(
-            attributo_types, run_attributi_maps[r.id], ds_attributi_map
+            attributo_types,
+            run_attributi_maps[r.id],
+            ds_attributi_map,
         )
     ]
+
+    relevant_run_ids: set[RunInternalId] = set(x.id for x in relevant_runs)
+
+    try:
+        point_group_for_ds = await determine_point_group_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a point group assigned to the chemical
+        point_group_for_ds = ""
+
+    try:
+        space_group_for_ds = await determine_space_group_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a space group assigned to the chemical
+        space_group_for_ds = ""
+
+    try:
+        cell_description_for_ds = await determine_cell_description_from_runs(
+            session, beamtimeId, list(relevant_run_ids)
+        )
+    except:
+        # could be that we have indexing results but not a point group assigned to the chemical
+        cell_description_for_ds = ""
+
+    # The following code is pretty complicated. In the end, it lists
+    # all the indexing parameters with corresponding indexing results,
+    # and merge results for the indexing results.
+    #
+    # The problem is the parameters. They are compared not by ID, but
+    # by their content. Meaning, we have to look inside each of them
+    # and figure out which are equivalent.
+    #
+    # Associating an indexing parameter ID to the indexing results is
+    # thus not "strict". We elect a "main parameter object" and
+    # associate all equivalent parameter objects to that, and return
+    # this main object only.
+    #
+    # We start by retrieving all indexing results for this beam time,
+    # and group those by run ID.
     indexing_results_for_runs: dict[RunInternalId, list[orm.IndexingResult]] = group_by(
         await session.scalars(
             select(orm.IndexingResult)
             .join(orm.Run, orm.Run.id == orm.IndexingResult.run_id)
             .where(orm.Run.beamtime_id == beamtimeId)
             .options(selectinload(orm.IndexingResult.indexing_parameters))
+            .options(selectinload(orm.IndexingResult.run)),
         ),
         lambda ir: ir.run_id,
     )
-    indexing_parameter_ids = set(
-        x.indexing_parameters_id
-        for run_results in indexing_results_for_runs.values()
-        for x in run_results
-    )
-    merge_results_per_data_set: dict[int, list[orm.MergeResult]] = {
-        ip_id: [] for ip_id in indexing_parameter_ids
+
+    # Then we store some maps. First, "main_ips" is the list of all
+    # main indexing parameter objects. However, for fast access, we
+    # store them in a dict by their ID.
+    main_ips: dict[int, orm.IndexingParameters] = {}
+
+    # This is the map from any indexing parameter object to its main
+    # indexing parameter obejct (see comment above as to why we need
+    # that).
+    main_indexing_parameter_id: dict[int, int] = {}
+
+    # In this dict, we store, for each main indexing parameter object,
+    # all corresponding indexing results.
+    ip_and_ix_results: dict[int, list[orm.IndexingResult]] = {}
+    for ir in (
+        v
+        for vs in indexing_results_for_runs.values()
+        for v in vs
+        if v.run_id in relevant_run_ids
+    ):
+        new_ip = ir.indexing_parameters
+
+        # We either have a new indexing parmeter object, or this one
+        # is equivalent to one of the previously selected "main" ones.
+        # We don't know yet.
+        main_parameter_id: None | int = None
+        for existing_ip in main_ips.values():
+            if orm.are_indexing_parameters_equal(existing_ip, new_ip):
+                # Okay, we have seen this parameter object before.
+                main_parameter_id = existing_ip.id
+                break
+
+        # This one is new, so add it to the corresponding maps.
+        if main_parameter_id is None:
+            main_parameter_id = new_ip.id
+            # We add ourselves as the main IP object
+            main_ips[new_ip.id] = new_ip
+
+            # And we start a new list of indexing results
+            ip_and_ix_results[main_parameter_id] = []
+        main_indexing_parameter_id[new_ip.id] = main_parameter_id
+        ip_and_ix_results[main_parameter_id].append(ir)
+    # Strictly speaking, this is "merge results by indexing parameters ID"
+    merge_results_per_indexing_parameters: dict[int, list[orm.MergeResult]] = {
+        ip_id: [] for ip_id in main_indexing_parameter_id
     }
     data_set_run_ids: set[int] = set(r.id for r in relevant_runs)
 
@@ -301,6 +392,9 @@ async def read_single_data_set_results(
     # result's runs.
     #
     # This is what's tested here.
+    #
+    # First, we retrieve all merge results of this beam time, by
+    # joining the indexing results and then the runs, as described.
     for merge_result in await session.scalars(
         select(orm.MergeResult)
         .where(
@@ -308,46 +402,24 @@ async def read_single_data_set_results(
                 select(orm.MergeResult.id)
                 .join(orm.MergeResult.indexing_results)
                 .join(orm.Run, orm.Run.id == orm.IndexingResult.run_id)
-                .where((orm.Run.beamtime_id == beamtimeId))
-            )
+                .where(orm.Run.beamtime_id == beamtimeId),
+            ),
         )
         .options(selectinload(orm.MergeResult.indexing_results))
-        .options(selectinload(orm.MergeResult.refinement_results))
+        .options(selectinload(orm.MergeResult.refinement_results)),
     ):
         runs_in_merge_result: set[RunInternalId] = set(
             ir.run_id for ir in merge_result.indexing_results
         )
         if data_set_run_ids.issuperset(runs_in_merge_result):
             for ir in merge_result.indexing_results:
-                merge_results = merge_results_per_data_set[ir.indexing_parameters_id]
+                merge_results = merge_results_per_indexing_parameters[
+                    main_indexing_parameter_id[ir.indexing_parameters_id]
+                ]
                 if merge_result.id not in (mr.id for mr in merge_results):
                     merge_results.append(merge_result)
 
     def _build_data_set_result(ds: orm.DataSet) -> JsonDataSetWithIndexingResults:
-        # In the code that follows: ip is "indexing parameters"
-        ip_and_ix_results: list[
-            tuple[orm.IndexingParameters, list[orm.IndexingResult]]
-        ] = []
-
-        for run in relevant_runs:
-            for new_result in indexing_results_for_runs.get(run.id, []):
-                new_ip = new_result.indexing_parameters
-                # Check if this parameter is already captured. If so,
-                # add result to list Complexity is too high here I
-                # realize. Hashing the orm.IndexingParameters would be
-                # advantageous, but I'm not sure about hash and
-                # compatibility with sqlalchemy. Would have to be an
-                # external hash.
-                ip_is_really_new = True
-                for existing_ip, existing_result in ip_and_ix_results:
-                    if orm.are_indexing_parameters_equal(existing_ip, new_ip):
-                        existing_result.append(new_result)
-                        ip_is_really_new = False
-                        break
-
-                if ip_is_really_new:
-                    ip_and_ix_results.append((new_ip, [new_result]))
-
         return JsonDataSetWithIndexingResults(
             data_set=JsonDataSet(
                 id=ds.id,
@@ -355,26 +427,35 @@ async def read_single_data_set_results(
                 attributi=[
                     encode_data_set_attributo_value(v) for v in ds.attributo_values
                 ],
+                beamtime_id=beamtimeId,
             ),
             internal_run_ids=[r.id for r in relevant_runs],
-            runs=format_run_id_intervals(r.external_id for r in relevant_runs),
+            runs=run_id_to_run_ranges(r.external_id for r in relevant_runs),
+            point_group=point_group_for_ds,
+            space_group=space_group_for_ds,
+            cell_description=cell_description_for_ds,
             indexing_results=[
                 JsonIndexingParametersWithResults(
-                    parameters=orm_indexing_parameters_to_json(ip),
+                    parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),
                     indexing_results=[
                         orm_indexing_result_to_json(result) for result in results
                     ],
-                    merge_results=[
-                        orm_encode_merge_result_to_json(
-                            mr,
-                            run_id_formatter=lambda id: run_external_id_for_internal_id[
-                                id
-                            ],
-                        )
-                        for mr in merge_results_per_data_set.get(ip.id, [])
-                    ],
+                    merge_results=sorted(
+                        [
+                            orm_encode_merge_result_to_json(
+                                mr,
+                                run_id_formatter=lambda id: run_external_id_for_internal_id[
+                                    id
+                                ],
+                            )
+                            for mr in merge_results_per_indexing_parameters.get(
+                                ip_id, []
+                            )
+                        ],
+                        key=lambda x: x.id,
+                    ),
                 )
-                for ip, results in ip_and_ix_results
+                for ip_id, results in ip_and_ix_results.items()
             ],
         )
 
@@ -382,7 +463,7 @@ async def read_single_data_set_results(
         attributi=[encode_attributo(a) for a in attributi],
         chemical_id_to_name=chemical_id_to_name,
         experiment_type=encode_experiment_type(
-            await data_set.awaitable_attrs.experiment_type
+            await data_set.awaitable_attrs.experiment_type,
         ),
         data_set=_build_data_set_result(data_set),
     )
@@ -394,18 +475,17 @@ async def read_single_data_set_results(
     response_model_exclude_defaults=True,
 )
 async def read_single_merge_result(
-    # pylint: disable=unused-argument
-    beamtimeId: BeamtimeId,
-    experimentTypeId: int,
-    mergeResultId: int,
-    session: AsyncSession = Depends(get_orm_db),
+    beamtimeId: BeamtimeId,  # noqa: N803, ARG001
+    experimentTypeId: int,  # noqa: N803
+    mergeResultId: int,  # noqa: N803
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadSingleMergeResult:
     merge_result = (
         await session.scalars(
             select(orm.MergeResult)
             .where(orm.MergeResult.id == mergeResultId)
             .options(selectinload(orm.MergeResult.indexing_results))
-            .options(selectinload(orm.MergeResult.refinement_results))
+            .options(selectinload(orm.MergeResult.refinement_results)),
         )
     ).one()
 
@@ -413,10 +493,10 @@ async def read_single_merge_result(
         (
             await session.scalars(
                 select(orm.ExperimentType).where(
-                    orm.ExperimentType.id == experimentTypeId
-                )
+                    orm.ExperimentType.id == experimentTypeId,
+                ),
             )
-        ).one()
+        ).one(),
     )
 
     return JsonReadSingleMergeResult(
@@ -432,7 +512,7 @@ async def read_single_merge_result(
 )
 async def read_analysis_results(
     input_: JsonReadNewAnalysisInput,
-    session: AsyncSession = Depends(get_orm_db),
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadNewAnalysisOutput:
     experiment_types = list(
         (
@@ -441,16 +521,16 @@ async def read_analysis_results(
                 .where(
                     orm.ExperimentType.beamtime_id == input_.beamtime_id
                     if input_.beamtime_id is not None
-                    else true()
+                    else true(),
                 )
                 .options(
                     selectinload(orm.ExperimentType.attributi).selectinload(
-                        orm.ExperimentHasAttributo.attributo
-                    )
+                        orm.ExperimentHasAttributo.attributo,
+                    ),
                 )
-                .options(selectinload(orm.ExperimentType.beamtime))
+                .options(selectinload(orm.ExperimentType.beamtime)),
             )
-        ).all()
+        ).all(),
     )
 
     # One part of the response is the list of all attributi values,
@@ -472,8 +552,8 @@ async def read_analysis_results(
         .where(
             # only consider attributi in experiment types just queried
             orm.DataSetHasAttributoValue.attributo_id.in_(
-                [a.attributo_id for et in experiment_types for a in et.attributi]
-            )
+                [a.attributo_id for et in experiment_types for a in et.attributi],
+            ),
         )
         .distinct()
     )
@@ -489,7 +569,8 @@ async def read_analysis_results(
     # attributo_to_duplicates: dict[AttributoId, set[AttributoId]] = {}
 
     filter_by_id: dict[int, list[JsonAttributoValue]] = group_by(
-        input_.attributi_filter, lambda a: a.attributo_id
+        input_.attributi_filter,
+        lambda a: a.attributo_id,
     )
 
     attributi_groups: dict[int, set[int]] = {}
@@ -503,7 +584,7 @@ async def read_analysis_results(
                 a.name,
                 a.associated_table,
                 json.dumps(a.json_schema),
-            )
+            ),
         )
         if primary_id is None:
             primary_attributi.append(a)
@@ -524,7 +605,10 @@ async def read_analysis_results(
     # attributo_id = $id AND (comparison1 OR comparison2)
     #
     # Since we want to filter with a combination of AND and OR.
-    def filter_clause_for_group(attributo_id: int, values: list[JsonAttributoValue]):
+    def ds_filter_clause_for_group(
+        attributo_id: int,
+        values: list[JsonAttributoValue],
+    ) -> BooleanClauseList:
         sub_base = false()
         for value in values:
             if value.attributo_value_bool is not None:
@@ -561,34 +645,77 @@ async def read_analysis_results(
                 raise Exception("list filters aren't supported right now")
         return (
             orm.DataSetHasAttributoValue.attributo_id.in_(
-                attributi_groups[attributo_id]
+                attributi_groups[attributo_id],
             )
         ) & sub_base
 
-    compound_select = []
-    for aid, values in filter_by_id.items():
-        compound_select.append(
-            select(orm.DataSetHasAttributoValue.data_set_id).join(orm.Attributo)
-            # This beamtime ID works for now, but in principle, we
-            # want to select all attributi values for data sets
-            # where the _data set_ is in the beamtime, not the
-            # attributo. But that needs two joins:
-            #
-            # ds has attributo value -> ds
-            # ds -> experiment type
-            #
-            # ....and we're too lazy for that right now.
-            .where(
-                (
-                    orm.Attributo.beamtime_id == input_.beamtime_id
-                    if input_.beamtime_id is not None
-                    else true()
+    def run_filter_clause_for_group(
+        attributo_id: int,
+        values: list[JsonAttributoValue],
+    ) -> BooleanClauseList:
+        sub_base = false()
+        for value in values:
+            if value.attributo_value_bool is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.bool_value == value.attributo_value_bool
                 )
-                & filter_clause_for_group(aid, values)
+            elif value.attributo_value_chemical is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.chemical_value
+                    == value.attributo_value_chemical
+                )
+            elif value.attributo_value_datetime is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.datetime_value
+                    == value.attributo_value_datetime
+                )
+            elif value.attributo_value_float is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.float_value == value.attributo_value_float
+                )
+            elif value.attributo_value_int is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.integer_value == value.attributo_value_int
+                )
+            elif value.attributo_value_str is not None:
+                sub_base = sub_base | (
+                    orm.RunHasAttributoValue.string_value == value.attributo_value_str
+                )
+            else:
+                raise Exception("list filters aren't supported right now")
+        return (
+            orm.RunHasAttributoValue.attributo_id.in_(attributi_groups[attributo_id])
+        ) & sub_base
+
+    # This is a nasty special case: if we only have one data set, we
+    # don't display any attributo filters, and the user thus cannot
+    # really find any data sets. We hard-code this case here in a sort
+    # of performant manner hopefully
+    number_of_data_sets = await session.scalar(
+        select(sa.func.count())
+        .select_from(orm.DataSet)
+        .where(orm.DataSet.experiment_type_id.in_(et.id for et in experiment_types))
+    )
+    if number_of_data_sets == 1:
+        attributo_values = list(
+            await session.scalars(
+                select(orm.DataSetHasAttributoValue).where(
+                    orm.DataSetHasAttributoValue.data_set_id.in_(
+                        select(orm.DataSet.id).where(
+                            orm.DataSet.experiment_type_id.in_(
+                                et.id for et in experiment_types
+                            )
+                        )
+                    )
+                )
             )
         )
+        filter_by_id[attributo_values[0].attributo_id] = [
+            encode_data_set_attributo_value(attributo_values[0])
+        ]
 
     filtered_data_sets: Iterable[orm.DataSet]
+    filtered_runs: Iterable[orm.Run]
     if filter_by_id:
         ds_select_statement = select(orm.DataSet).where(
             orm.DataSet.id.in_(
@@ -604,17 +731,58 @@ async def read_analysis_results(
                                 if input_.beamtime_id is not None
                                 else true()
                             )
-                            & filter_clause_for_group(aid, values)
+                            & ds_filter_clause_for_group(aid, values),
                         )
                         for aid, values in filter_by_id.items()
-                    )
-                )
+                    ),
+                ),
+            ),
+        )
+
+        filtered_data_sets = list(await session.scalars(ds_select_statement))
+
+        run_select_statement = (
+            select(orm.Run)
+            .where(
+                orm.Run.id.in_(
+                    intersect_all(
+                        *(
+                            select(orm.RunHasAttributoValue.run_id)
+                            .join(orm.Attributo)
+                            .join(orm.RunHasAttributoValue.run)
+                            .join(orm.Run.experiment_type)
+                            .where(
+                                (
+                                    orm.ExperimentType.beamtime_id == input_.beamtime_id
+                                    if input_.beamtime_id is not None
+                                    else true()
+                                )
+                                & run_filter_clause_for_group(aid, values),
+                            )
+                            for aid, values in filter_by_id.items()
+                        ),
+                    ),
+                ),
+            )
+            .options(
+                selectinload(orm.Run.indexing_results).selectinload(
+                    orm.IndexingResult.merge_results,
+                ),
             )
         )
 
-        filtered_data_sets = await session.scalars(ds_select_statement)
+        filtered_runs = list(await session.scalars(run_select_statement))
     else:
         filtered_data_sets = []
+        filtered_runs = []
+
+    # We group runs by experiment type so the matching of data set to
+    # runs is easier. We don't compare every data set with every run,
+    # but only by the runs found in the experiment type.
+    runs_by_experiment_type_id: dict[int, list[orm.Run]] = group_by(
+        filtered_runs,
+        lambda r: r.experiment_type_id,
+    )
 
     chemical_id_to_name = [
         JsonChemicalIdAndName(chemical_id=x.id, name=x.name)
@@ -622,10 +790,86 @@ async def read_analysis_results(
             select(orm.Chemical).where(
                 orm.Chemical.beamtime_id == input_.beamtime_id
                 if input_.beamtime_id is not None
-                else true()
-            )
+                else true(),
+            ),
         )
     ]
+
+    attributo_types_by_id: dict[AttributoId, AttributoType] = {
+        a.id: schema_dict_to_attributo_type(a.json_schema) for a in attributi
+    }
+
+    output_data_sets: list[JsonDataSet] = []
+    output_data_set_statistics: list[JsonDataSetStatistics] = []
+    for ds in filtered_data_sets:
+        ds_attributi_map = {dsa.attributo_id: dsa for dsa in ds.attributo_values}
+        runs_raw = runs_by_experiment_type_id.get(ds.experiment_type_id, [])
+        runs_in_this_ds = [
+            r
+            for r in runs_raw
+            if run_matches_dataset(
+                attributo_types_by_id,
+                {dsa.attributo_id: dsa for dsa in r.attributo_values},
+                ds_attributi_map,
+            )
+        ]
+        indexed_frames_per_run: dict[int, list[orm.IndexingResult]] = group_by(
+            [
+                ir
+                for r in runs_in_this_ds
+                for ir in r.indexing_results
+                if not ir.job_error
+            ],
+            lambda ir: ir.run_id,
+        )
+        merge_results = {
+            mr.id
+            for r in runs_in_this_ds
+            for ir in r.indexing_results
+            for mr in ir.merge_results
+            if mr.job_status == DBJobStatus.DONE and not mr.job_error
+        }
+
+        if (
+            input_.merge_status == JsonMergeStatus.BOTH
+            or (input_.merge_status == JsonMergeStatus.UNMERGED and not merge_results)
+            or (input_.merge_status == JsonMergeStatus.MERGED and merge_results)
+        ):
+            output_data_sets.append(
+                JsonDataSet(
+                    id=ds.id,
+                    experiment_type_id=ds.experiment_type_id,
+                    attributi=[
+                        encode_data_set_attributo_value(dsa)
+                        for dsa in ds.attributo_values
+                    ],
+                    beamtime_id=ds.experiment_type.beamtime_id,
+                ),
+            )
+            output_data_set_statistics.append(
+                JsonDataSetStatistics(
+                    data_set_id=ds.id,
+                    run_count=len(runs_in_this_ds),
+                    indexed_frames=sum(
+                        max(ir.indexed_frames for ir in ir_list)
+                        for ir_list in indexed_frames_per_run.values()
+                    ),
+                    merge_results_count=len(merge_results),
+                    merge_or_indexing_jobs_running=any(
+                        True
+                        for r in runs_in_this_ds
+                        for ir in r.indexing_results
+                        for mr in ir.merge_results
+                        if mr.job_status != DBJobStatus.DONE
+                    )
+                    or any(
+                        True
+                        for r in runs_in_this_ds
+                        for ir in r.indexing_results
+                        if ir.job_status != DBJobStatus.DONE
+                    ),
+                ),
+            )
 
     return JsonReadNewAnalysisOutput(
         searchable_attributi=[encode_attributo(a) for a in primary_attributi],
@@ -638,16 +882,8 @@ async def read_analysis_results(
             )
             for et in experiment_types
         ],
-        filtered_data_sets=[
-            JsonDataSet(
-                id=ds.id,
-                experiment_type_id=ds.experiment_type_id,
-                attributi=[
-                    encode_data_set_attributo_value(dsa) for dsa in ds.attributo_values
-                ],
-            )
-            for ds in filtered_data_sets
-        ],
+        filtered_data_sets=output_data_sets,
+        data_set_statistics=output_data_set_statistics,
         attributi_values=[
             JsonAttributoValue(
                 attributo_id=to_primary[a.attributo_id],

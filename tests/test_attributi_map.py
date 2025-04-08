@@ -21,11 +21,12 @@ RUN_ATTRIBUTI_STRING_THERE_BOOL_MISSING: dict[AttributoId, orm.RunHasAttributoVa
         datetime_value=None,
         chemical_value=None,
         list_value=None,
-    )
+    ),
 }
 
 DS_ATTRIBUTI_STRING_THERE_BOOL_FALSE: dict[
-    AttributoId, orm.DataSetHasAttributoValue
+    AttributoId,
+    orm.DataSetHasAttributoValue,
 ] = {
     STRING_ATTRIBUTO_ID: orm.DataSetHasAttributoValue(
         attributo_id=STRING_ATTRIBUTO_ID,

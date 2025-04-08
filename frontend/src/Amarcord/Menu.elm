@@ -2,7 +2,7 @@ module Amarcord.Menu exposing (viewMenu)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Route as Route exposing (Route)
+import Amarcord.Route as Route exposing (MergeFilter(..), Route)
 import Html exposing (Html, a, div, h3, li, text, ul)
 import Html.Attributes exposing (attribute, class, href, target)
 import Html.Attributes.Extra exposing (role)
@@ -57,7 +57,7 @@ menu bt =
     [ Dropdown "Runs"
         "card-list"
         [ { route = Route.RunOverview bt, description = "Current Run", iconName = "caret-right" }
-        , { route = Route.Runs bt, description = "All Runs", iconName = "folder2" }
+        , { route = Route.Runs bt [], description = "All Runs", iconName = "folder2" }
         ]
     , Dropdown "Library"
         "collection"
@@ -66,16 +66,17 @@ menu bt =
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"
-        [ { route = Route.AnalysisOverview bt [] False, description = "By Experiment Type", iconName = "clipboard-check" }
+        [ { route = Route.AnalysisOverview bt [] False Both, description = "By Experiment Type", iconName = "clipboard-check" }
         , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
         ]
     , Dropdown "Admin"
         "gear-fill"
         [ { route = Route.ExperimentTypes bt, description = "Experiment Types", iconName = "clipboard-check" }
-        , { route = Route.Attributi bt, description = "Attributi", iconName = "card-list" }
+        , { route = Route.Attributi bt Nothing, description = "Attributi", iconName = "card-list" }
         , { route = Route.AdvancedControls bt, description = "Advanced", iconName = "speedometer" }
         , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
         , { route = Route.EventLog bt, description = "Events", iconName = "book" }
+        , { route = Route.Import bt Route.ImportAttributi, description = "Import", iconName = "upload" }
         ]
     , VerticalRule
     , Leaf { route = Route.Root bt, description = "All Beamtimes", iconName = "globe" }

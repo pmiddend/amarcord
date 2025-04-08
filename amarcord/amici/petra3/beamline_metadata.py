@@ -5,17 +5,17 @@ from pydantic import BaseModel
 
 
 class OnlineAnalysis(BaseModel):
-    reservedNodes: list[str]
-    slurmPartition: str | None
-    slurmReservation: str | None
-    sshPrivateKeyPath: Path | None
-    sshPublicKeyPath: Path | None
-    userAccount: str | None
+    reservedNodes: list[str]  # noqa: N815
+    slurmPartition: str | None  # noqa: N815
+    slurmReservation: str | None  # noqa: N815
+    sshPrivateKeyPath: Path | None  # noqa: N815
+    sshPublicKeyPath: Path | None  # noqa: N815
+    userAccount: str | None  # noqa: N815
 
 
 class BeamlineMetadata(BaseModel):
-    beamtimeId: str
-    onlineAnalysis: OnlineAnalysis
+    beamtimeId: str  # noqa: N815
+    onlineAnalysis: OnlineAnalysis  # noqa: N815
 
 
 def beamtime_directory(beamtime_id: str, beamline: str, year: int) -> Path:
@@ -23,7 +23,9 @@ def beamtime_directory(beamtime_id: str, beamline: str, year: int) -> Path:
 
 
 def locate_beamtime_metadata(
-    beamtime_id: str, beamline: str, year: int
+    beamtime_id: str,
+    beamline: str,
+    year: int,
 ) -> None | BeamlineMetadata:
     result = (
         beamtime_directory(beamtime_id, beamline, year)

@@ -27,9 +27,9 @@ from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
+from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
-from amarcord.web.constants import ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonBeamtime
 
@@ -66,13 +66,14 @@ def default_online_indexing_parameters() -> orm.IndexingParameters:
 
 
 async def retrieve_latest_config(
-    session: AsyncSession, beamtime_id: BeamtimeId
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
 ) -> orm.UserConfiguration:
     result = (
         await session.scalars(
             select(orm.UserConfiguration)
             .where(orm.UserConfiguration.beamtime_id == beamtime_id)
-            .order_by(orm.UserConfiguration.id.desc())
+            .order_by(orm.UserConfiguration.id.desc()),
         )
     ).first()
     return result if result is not None else default_user_configuration(beamtime_id)
@@ -92,13 +93,14 @@ def duplicate_run_attributo(a: orm.RunHasAttributoValue) -> orm.RunHasAttributoV
 
 
 async def retrieve_latest_run(
-    session: AsyncSession, beamtime_id: BeamtimeId
+    session: AsyncSession,
+    beamtime_id: BeamtimeId,
 ) -> None | orm.Run:
     return (
         await session.scalars(
             select(orm.Run)
             .where(orm.Run.beamtime_id == beamtime_id)
-            .order_by(orm.Run.started.desc())
+            .order_by(orm.Run.started.desc()),
         )
     ).first()
 
@@ -232,13 +234,14 @@ def update_orm_entity_has_attributo_value(
         assert isinstance(v, str), f"expected a string (choice), got {v}"
         chav.string_value = v
     elif isinstance(type_, AttributoTypeDecimal):
-        assert isinstance(v, (int, float)), f"expected a number, got {v}"
+        assert isinstance(v, float | int), f"expected a number, got {v}"
         chav.float_value = v
     elif isinstance(type_, AttributoTypeDateTime):
         assert isinstance(v, datetime.datetime), f"expected a datetime value, got {v}"
         chav.datetime_value = v
     elif isinstance(type_, AttributoTypeChemical) and not isinstance(
-        chav, orm.ChemicalHasAttributoValue
+        chav,
+        orm.ChemicalHasAttributoValue,
     ):
         assert isinstance(v, int), f"expected an int value (chemical), got {v}"
         chav.chemical_value = v
@@ -253,7 +256,8 @@ async def migrate(engine: AsyncEngine) -> None:
 
 
 def validate_json_attributo_return_error(
-    a: JsonAttributoValue, atype_raw: orm.Attributo
+    a: JsonAttributoValue,
+    atype_raw: orm.Attributo,
 ) -> None | str:
     atype = schema_dict_to_attributo_type(atype_raw.json_schema)
 
@@ -421,11 +425,6 @@ async def determine_run_indexing_metadata(
     # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
     # example in the case where you actually don't know that and want to find out.
     crystal_chemicals: list[orm.Chemical] = []
-    # "protein" is for old beamtimes and acts as a fallback for now. Not a good solution, we know.
-    crystal_attributo_names = [
-        f"channel_{channel}_chemical_id"
-        for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS + 1)
-    ] + ["protein"]
     async for this_channel_chemical in (
         (
             await session.scalars(
@@ -433,14 +432,13 @@ async def determine_run_indexing_metadata(
                 .where(orm.Chemical.id == attributo_value.chemical_value)
                 .options(
                     selectinload(orm.Chemical.attributo_values).selectinload(
-                        orm.ChemicalHasAttributoValue.attributo
-                    )
-                )
+                        orm.ChemicalHasAttributoValue.attributo,
+                    ),
+                ),
             )
         ).one()
         for attributo_value in r.attributo_values
         if attributo_value.chemical_value is not None
-        and attributo_value.attributo.name in crystal_attributo_names
     ):
         if this_channel_chemical.type == ChemicalType.CRYSTAL:
             crystal_chemicals.append(this_channel_chemical)
@@ -473,7 +471,7 @@ async def determine_run_indexing_metadata(
         channel_chemical = crystal_chemicals[0]
         log_messages.append(
             "no chemicals with cell information found, taking the first chemical of type "
-            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})'
+            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})',
         )
 
     cell_description: None | CrystFELCellFile
@@ -492,7 +490,7 @@ async def determine_run_indexing_metadata(
     )
 
 
-def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:
+def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:  # noqa: FBT002
     return JsonBeamtime(
         id=bt.id,
         external_id=bt.external_id,
@@ -505,4 +503,158 @@ def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamti
         chemical_names=(
             [chemical.name for chemical in bt.chemicals] if with_chemicals else []
         ),
+        analysis_output_path=bt.analysis_output_path,
     )
+
+
+def run_has_attributo_to_data_set_has_attributo(
+    r: orm.RunHasAttributoValue,
+) -> orm.DataSetHasAttributoValue:
+    return orm.DataSetHasAttributoValue(
+        attributo_id=r.attributo_id,
+        integer_value=r.integer_value,
+        float_value=r.float_value,
+        string_value=r.string_value,
+        bool_value=r.bool_value,
+        datetime_value=r.datetime_value,
+        list_value=r.list_value,
+        chemical_value=r.chemical_value,
+    )
+
+
+async def determine_string_attributo_from_runs(
+    session: AsyncSession, beamtime_id: int, run_ids: list[int], attributo_name: str
+) -> set[str]:
+    # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
+    chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
+        (orm.RunHasAttributoValue.run_id.in_(run_ids))
+        & (orm.RunHasAttributoValue.chemical_value.is_not(None)),
+    )
+    # attributi, plural, but there should be only one since names are hopefully unique
+    string_chemical_attributi = (
+        select(orm.Attributo.id)
+        .where(
+            (orm.Attributo.name == attributo_name)
+            & (orm.Attributo.beamtime_id == beamtime_id),
+        )
+        .scalar_subquery()
+    )
+    select_all_strings = select(orm.ChemicalHasAttributoValue.string_value).where(
+        (orm.ChemicalHasAttributoValue.attributo_id == string_chemical_attributi)
+        & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs)),
+    )
+    return set(
+        s.strip()
+        for s in (await session.scalars(select_all_strings.distinct()))
+        if s is not None and s.strip()
+    )
+
+
+async def determine_point_group_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    point_groups = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, POINT_GROUP_ATTRIBUTO
+    )
+
+    if len(point_groups) > 1:
+        raise ValueError(
+            "Found more than one point group! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following point groups (determined by going through all chemicals in the runs): "
+            + ", ".join(point_groups)
+            + ". To correct this, you have to either specify a separate point group while merging, or (better choice, probably) take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
+        )
+    if not point_groups:
+        raise ValueError(
+            "found no point groups at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no point group inside them.",
+        )
+    return next(iter(point_groups))
+
+
+async def determine_space_group_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    space_groups = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, SPACE_GROUP_ATTRIBUTO
+    )
+
+    if len(space_groups) > 1:
+        raise ValueError(
+            "Found more than one space group! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following space groups (determined by going through all chemicals in the runs): "
+            + ", ".join(space_groups)
+            + ". To correct this, you have to either specify a separate space group while merging, or (better choice, probably) take care of the space groups for your chemicals: you should have exactly one space group for all chemicals for all runs.",
+        )
+    if not space_groups:
+        raise ValueError(
+            "found no space groups at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no space group inside them.",
+        )
+    return next(iter(space_groups))
+
+
+async def determine_cell_description_from_runs(
+    session: AsyncSession,
+    beamtime_id: int,
+    run_ids: list[int],
+) -> str:
+    cell_descriptions = await determine_string_attributo_from_runs(
+        session, beamtime_id, run_ids, CELL_DESCRIPTION_ATTRIBUTO
+    )
+
+    if len(cell_descriptions) > 1:
+        raise ValueError(
+            "Found more than one cell description! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which results in the following cell descriptions (determined by going through all chemicals in the runs): "
+            + ", ".join(cell_descriptions)
+            + ". To correct this, you have to take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
+        )
+    if not cell_descriptions:
+        raise ValueError(
+            "found no cell_description at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(run_id) for run_id in run_ids)
+            + ", which either have no chemicals attached, or the chemicals have no cell description inside them.",
+        )
+    return next(iter(cell_descriptions))
+
+
+async def determine_point_group_from_indexing_results(
+    session: AsyncSession,
+    beamtime_id: int,
+    indexing_results_matching_params: list[orm.IndexingResult],
+) -> str:
+    return await determine_point_group_from_runs(
+        session, beamtime_id, [ir.run_id for ir in indexing_results_matching_params]
+    )
+
+
+def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
+    if a.experiment_type_id != b.experiment_type_id:
+        return False
+
+    a_attributi: dict[int, orm.DataSetHasAttributoValue] = {
+        av.attributo_id: av for av in a.attributo_values
+    }
+    b_attributi: dict[int, orm.DataSetHasAttributoValue] = {
+        av.attributo_id: av for av in b.attributo_values
+    }
+
+    if a_attributi.keys() != b_attributi.keys():
+        return False
+
+    for aid, av in a_attributi.items():
+        bv = b_attributi[aid]
+
+        if not av.is_value_equal(bv):
+            return False
+    return True

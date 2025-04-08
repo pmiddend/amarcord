@@ -29,7 +29,7 @@ async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:
     if boundary is None:
         raise Exception(
             "can't find boundary in headers, got the following headers: "
-            + ", ".join(header_lines)
+            + ", ".join(header_lines),
         )
 
     # Seek ahead to the first chunk
@@ -53,7 +53,7 @@ async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:
     if length is None:
         raise Exception(
             "didn't receive Content-Length; received the following headers: "
-            + ",".join(sub_header_lines)
+            + ",".join(sub_header_lines),
         )
 
     image = b""
@@ -62,7 +62,7 @@ async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:
             image = image + await reader.read(length - len(image))
         except ValueError:
             raise Exception(
-                f"read {len(image)} byte(s) and got a premature EOF, waiting for {length} byte(s)"
+                f"read {len(image)} byte(s) and got a premature EOF, waiting for {length} byte(s)",
             )
     return image
 
@@ -72,7 +72,8 @@ async def mjpeg_grab_single_frame(mjpeg_stream_url: str) -> bytes:
     parsed = urlparse(mjpeg_stream_url)
 
     reader, writer = await asyncio.open_connection(
-        parsed.hostname, parsed.port if parsed.port else 80
+        parsed.hostname,
+        parsed.port if parsed.port else 80,
     )
 
     get_url = parsed.path.encode("utf-8") + b"?" + parsed.query.encode("utf-8")
@@ -113,6 +114,6 @@ async def mjpeg_stream_loop(
                 data={"file": BytesIO(image)},
             ) as update_response:
                 logger.info(
-                    f"live stream updated, file ID {(await update_response.json())['id']}"
+                    f"live stream updated, file ID {(await update_response.json())['id']}",
                 )
             await asyncio.sleep(delay)

@@ -70,11 +70,13 @@ class JsonRefinementResultInternal(BaseModel):
 class JsonMergeResultInternal(BaseModel):
     mtz_file_id: int
     fom: JsonMergeResultFom
+    ambigator_fg_graph_file_id: None | int
     detailed_foms: list[JsonMergeResultShell]
     refinement_results: list[JsonRefinementResultInternal]
 
 
 class JsonMergeJobFinishedInput(BaseModel):
+    latest_log: None | str
     error: None | str
     result: None | JsonMergeResultInternal
 

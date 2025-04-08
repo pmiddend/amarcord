@@ -32,11 +32,11 @@ class DummyWorkloadManager(WorkloadManager):
         self,
         working_directory: Path,
         script: str,
-        name: str,
+        name: str,  # noqa: ARG002
         time_limit: datetime.timedelta,
-        environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        environment: dict[str, str],  # noqa: ARG002
+        stdout: None | Path = None,  # noqa: ARG002
+        stderr: None | Path = None,  # noqa: ARG002
     ) -> JobStartResult:
         self.job_starts.append(JobStart(working_directory, script, time_limit, []))
         assert (
@@ -50,7 +50,7 @@ class DummyWorkloadManager(WorkloadManager):
                     started=datetime.datetime.now(),
                     id=result.job_id,
                     metadata=result.metadata,
-                )
+                ),
             )
             return result
         raise JobStartError("some error")

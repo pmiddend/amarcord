@@ -11,6 +11,7 @@ when inside the directory containing this file.
 
 -}
 
+import NoBrokenParserFunctions
 import NoDeprecated
 import NoEtaReducibleLambdas
 import NoMissingTypeAnnotation
@@ -37,6 +38,7 @@ config =
         , NoDeprecated.rule NoDeprecated.defaults
         , NoPrematureLetComputation.rule
         , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument
+        , NoBrokenParserFunctions.rule
         , NoUnused.Dependencies.rule
         , NoUnsafeDivision.rule
         , NoUnused.Variables.rule

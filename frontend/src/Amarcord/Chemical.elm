@@ -3,25 +3,6 @@ module Amarcord.Chemical exposing (..)
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue, ChemicalNameDict, convertAttributoMapFromApi)
 import Api.Data exposing (ChemicalType(..), JsonChemical, JsonFileOutput)
 import Dict
-import Json.Decode as Decode
-import Json.Encode as Encode
-
-
-chemicalTypeDecoder : Decode.Decoder ChemicalType
-chemicalTypeDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\str ->
-                case str of
-                    "crystal" ->
-                        Decode.succeed ChemicalTypeCrystal
-
-                    "solution" ->
-                        Decode.succeed ChemicalTypeSolution
-
-                    _ ->
-                        Decode.fail <| "unknown chemical type " ++ str
-            )
 
 
 chemicalTypeToString : ChemicalType -> String
@@ -32,21 +13,6 @@ chemicalTypeToString ct =
 
         ChemicalTypeSolution ->
             "solution"
-
-
-chemicalTypeToPrettyString : ChemicalType -> String
-chemicalTypeToPrettyString ct =
-    case ct of
-        ChemicalTypeCrystal ->
-            "Crystal"
-
-        ChemicalTypeSolution ->
-            "Solution"
-
-
-encodeChemicalType : ChemicalType -> Encode.Value
-encodeChemicalType =
-    Encode.string << chemicalTypeToString
 
 
 type alias Chemical idType attributiType fileType =
@@ -107,12 +73,3 @@ convertChemicalFromApi c =
     , attributi = convertAttributoMapFromApi c.attributi
     , files = c.files
     }
-
-
-chemicalTypeFromString : String -> ChemicalType
-chemicalTypeFromString s =
-    if s == "crystal" then
-        ChemicalTypeCrystal
-
-    else
-        ChemicalTypeSolution

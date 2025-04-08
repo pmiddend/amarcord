@@ -49,26 +49,25 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
                             logger.info("killing current camera loop")
                             current_mjpeg_loop.cancel()
                             current_mjpeg_loop = None
-                    else:
-                        if current_mjpeg_loop is None:
-                            logger.info(
-                                f"creating camera loop for beam time {current_beamtime.id}"
-                            )
-                            current_mjpeg_loop = asyncio.create_task(
-                                mjpeg_stream_loop(
-                                    args.amarcord_url,
-                                    args.stream_url,
-                                    args.delay_seconds,
-                                    current_beamtime.id,
-                                )
-                            )
+                    elif current_mjpeg_loop is None:
+                        logger.info(
+                            f"creating camera loop for beam time {current_beamtime.id}",
+                        )
+                        current_mjpeg_loop = asyncio.create_task(
+                            mjpeg_stream_loop(
+                                args.amarcord_url,
+                                args.stream_url,
+                                args.delay_seconds,
+                                current_beamtime.id,
+                            ),
+                        )
                 if previous_failure:
                     logger.info("server is back!")
                     previous_failure = False
             except:
                 if not previous_failure:
                     logger.exception(
-                        f"couldn't retrieve beam times from {args.amarcord_url}"
+                        f"couldn't retrieve beam times from {args.amarcord_url}",
                     )
                     previous_failure = True
 

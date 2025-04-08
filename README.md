@@ -1,47 +1,54 @@
-# AMARCORD
+<div align="center">
+  <p>
+	<a href="http://cfel-sc.pages.desy.de/amarcord-parent/amarcord-serial/"><img src="/docs/source/amarcord-logo-with-title.png" alt="AMARCORD Logo with Title Text"></a>
+  </p>
+  <p>
+	  <em>A Flexible Database for Multi-Dimensional Serial Crystallography</em>
+  </p>
 
-## Python setup
+  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/badges/main/pipeline.svg" alt="Pipeline Status Badge" />
+  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/badges/main/coverage.svg?min_good=79" alt="Test Coverage Badge" />
+  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/badges/release.svg" alt="Latest Release Badge" />
+</div>
 
-### Poetry
-AMARCORD uses [Poetry](https://python-poetry.org/) for managing its dependencies. So either install that and run:
+---
+
+**Documentation**: We have extensive documentation in the form of *GitLab pages* on https://cfel-sc.pages.desy.de/amarcord-parent/amarcord-serial/
+
+**Source Code**: https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial
+
+---
+
+AMARCORD is a free and open-source database application designed to gather metadata about chemicals, runs and analysis results of serial crystallography (SX) experiments. The software features an easy-to-use, web-based user interface and was used in numerous experiments in order to cope with both the amount of data collected, as well as different experimental groups working during the same beam time. It was further extended not only to collect metadata, but also trigger analysis jobs and ingest the resulting figures of merit, resulting in a complete framework for running an SX experiment.
+
+# Python setup
+
+## uv
+AMARCORD uses [uv](https://docs.astral.sh/uv/) for managing its dependencies. So either install that and run:
 
 ```
-poetry install
+uv venv
 ```
 
-to install the dependencies. Running programs is then simply
+to create a venv with all dependencies installed. Running programs is then simply
 
 ```
-poetry run amarcord-<program-name> <arguments>
+uv run amarcord-<program-name> <arguments>
 ```
 
-To get into a shell with the poetry virtual environment:
-
-```
-poetry shell
-```
-
-where you can use Python to start programs:
-
-```
-python amarcord/cli/webserver.py
-```
-
-### Plain pip
+## Plain pip
 
 Since we have `requirements.txt` files, as long as you don’t want to add new dependencies, you can just create a virtual environment and activte it to get up and running:
 
 ```
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
 
-`requirements-dev.txt` also contains test dependencies and mypy types.
+## Notes for Microsoft Windows users
 
-### Notes for Microsoft Windows users
-
-We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue (note that we didn’t include the dependency with the `platform` poetry flag, because that breaks the Nix build).
+We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue.
 
 If you manually created your virtual environment, the way to activate it on Windows isn’t
 
@@ -59,27 +66,21 @@ this is for [idiotic reasons](https://stackoverflow.com/questions/43826134/why-i
 
 ## How to start a backend server
 
-To start a backend server, you have to create a database first. This isn't done implicitly when starting the web server, since this created problems. It's easy to create one, however, just do this:
+To start a backend server, you have to create a database first. This isn't done implicitly when starting the web server, since this created problems. It's easy to create one, however, just do this (yes, there are four `/` in the URL):
 
 ```
-python amarcord/cli/upgrade_to_latest.py --db-connection-url 'sqlite+aiosqlite:///tmp/test.db'
+python amarcord/cli/upgrade_db_to_latest.py --db-connection-url 'sqlite+aiosqlite:////tmp/test.db'
 ```
 
 To start a web server with a “blank”, but usable SQLite database in `/tmp/test.db` (adapt if you're on Windows), run:
 
 ```
-DB_URL=sqlite+aiosqlite:////tmp/test.db 
+DB_URL='sqlite+aiosqlite:////tmp/test.db' uvicorn --port 5000 amarcord.cli.webserver:app
 ```
 
-which will open a web server on port `5000` with an in-memory database, so restarting the server means deleting the database. To get something that sticks around a bit longer:
+which will open a web server on port `5000`.
 
-```
-poetry run amarcord-webserver --db-connection-url 'sqlite+aiosqlite:////tmp/database.db'
-```
-
-(and yes, there are four slashes in that URL!)
-
-You can also change the port using `--port`.
+You won't see much when you point your browser to http://localhost:5000 though, because we haven't built the front-end yet, and we don't have a prebuilt version of the front-end in the repository. But, read on.
 
 ## How to build and start the frontend
 
@@ -107,7 +108,7 @@ You can also just build the latest version without any node.js shenenigans by ex
 cd frontend
 mkdir output
 elm make src/Main.elm --optimize --output output/main.js
-cp App.css desy-cfel.png src/index.html output
+cp -R assets/* src/index.html output
 ```
 
 Then run `amarcord-webserver` (as described above) and go to http://localhost:5000/index.html

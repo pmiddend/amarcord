@@ -18,6 +18,7 @@ import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
+import Amarcord.Pages.Import as Import
 import Amarcord.Pages.MergeResult as MergeResult
 import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
@@ -26,7 +27,7 @@ import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
-import Amarcord.Version exposing (version)
+import Amarcord.Version exposing (amarcordClientVersion)
 import Api.Data exposing (JsonBeamtime)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
@@ -84,6 +85,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | ImportPageMsg Import.Msg
     | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
@@ -107,6 +109,7 @@ type Page
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
     | RunsPage Runs.Model
+    | ImportPage Import.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
@@ -166,7 +169,12 @@ init localStorageStr url navKey =
                 }
             }
     in
-    ( model, Cmd.batch [ Task.perform HereAndNowReceived retrieveHereAndNow, retrieveRouteBeamtime route ] )
+    ( model
+    , Cmd.batch
+        [ Task.perform HereAndNowReceived retrieveHereAndNow
+        , retrieveRouteBeamtime route
+        ]
+    )
 
 
 buildTitleForPage : Page -> String
@@ -186,6 +194,9 @@ buildTitleForPage page =
 
         RunOverviewPage model ->
             RunOverview.pageTitle model
+
+        ImportPage model ->
+            Import.pageTitle model
 
         RunsPage model ->
             Runs.pageTitle model
@@ -261,11 +272,20 @@ view model =
             [ div [ class "container" ]
                 [ header
                     [ class "d-flex align-items-center justify-content-center py-3 mb-4 border-bottom" ]
-                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo" ] [], displayTitle, viewMenu model.route ]
+                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo me-3" ] []
+                    , displayTitle
+                    , viewMenu model.route
+                    ]
                 ]
             , currentViewOuter model
-            , div [ class "container mt-5 text-center" ]
-                [ p [ class "text-muted" ] [ img_ [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ], text <| "AMARCORD Version: " ++ version ]
+            , div [ class "container mt-5" ]
+                [ div [ class "d-flex gap-1 justify-content-center" ]
+                    [ img_ [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "amarcord-logo" ]
+                    , p [ class "text-muted" ]
+                        [ text "Client version "
+                        , span [ class "font-monospace" ] [ text amarcordClientVersion ]
+                        ]
+                    ]
                 ]
             ]
         ]
@@ -341,6 +361,12 @@ currentView model =
             div []
                 [ RunOverview.view pageModel
                     |> Html.map RunOverviewPageMsg
+                ]
+
+        ImportPage pageModel ->
+            div []
+                [ Import.view pageModel
+                    |> Html.map ImportPageMsg
                 ]
 
         AnalysisOverviewPage pageModel ->
@@ -509,6 +535,15 @@ updateInner hereAndNow msg model =
             , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
+        ( ImportPageMsg subMsg, ImportPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Import.update subMsg pageModel
+            in
+            ( { model | page = ImportPage updatedPageModel }
+            , Cmd.map ImportPageMsg updatedCmd
+            )
+
         ( BeamtimeSelectionPageMsg subMsg, BeamtimeSelectionPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -568,7 +603,7 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path then
+                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path || contains "run-bulk-import-template" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -651,10 +686,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Root _ ->
                     ( RootPage, Cmd.none )
 
-                Route.Attributi beamtimeId ->
+                Route.Attributi beamtimeId tab ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init hereAndNow beamtimeId
+                            Attributi.init hereAndNow beamtimeId tab
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 
@@ -679,10 +714,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( MergeResultPage pageModel, Cmd.map MergeResultPageMsg pageCmds )
 
-                Route.Runs beamtimeId ->
+                Route.Runs beamtimeId runsRange ->
                     let
                         ( pageModel, pageCmds ) =
-                            Runs.init hereAndNow localStorage beamtimeId
+                            Runs.init hereAndNow localStorage beamtimeId runsRange
                     in
                     ( RunsPage pageModel, Cmd.map RunsPageMsg pageCmds )
 
@@ -693,10 +728,17 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.AnalysisOverview beamtimeId filters across ->
+                Route.Import beamtimeId step ->
                     let
                         ( pageModel, pageCmds ) =
-                            AnalysisOverview.init model.navKey hereAndNow beamtimeId filters across
+                            Import.init hereAndNow beamtimeId step
+                    in
+                    ( ImportPage pageModel, Cmd.map ImportPageMsg pageCmds )
+
+                Route.AnalysisOverview beamtimeId filters across mergeFilter ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            AnalysisOverview.init model.navKey hereAndNow beamtimeId filters across mergeFilter
                     in
                     ( AnalysisOverviewPage pageModel, Cmd.map AnalysisOverviewPageMsg pageCmds )
 

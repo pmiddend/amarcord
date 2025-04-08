@@ -2,10 +2,13 @@ module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
+import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
+import Dict
+import Maybe.Extra
 import Time exposing (millisToPosix, posixToMillis)
 import Url
-import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, parse, s, top)
+import Url.Parser exposing ((</>), (<?>), Parser, custom, int, map, oneOf, parse, s, top)
 import Url.Parser.Query as Query
 
 
@@ -15,6 +18,76 @@ type alias AnalysisFilter =
     }
 
 
+type MergeFilter
+    = Merged
+    | Unmerged
+    | Both
+
+
+type ImportStep
+    = ImportAttributi
+    | ImportExperimentTypes
+    | ImportRuns
+
+
+importStepToString : ImportStep -> String
+importStepToString x =
+    case x of
+        ImportAttributi ->
+            "attributi"
+
+        ImportExperimentTypes ->
+            "experiment-types"
+
+        ImportRuns ->
+            "runs"
+
+
+importStepFromString : String -> Maybe ImportStep
+importStepFromString x =
+    case x of
+        "attributi" ->
+            Just ImportAttributi
+
+        "experiment-types" ->
+            Just ImportExperimentTypes
+
+        "runs" ->
+            Just ImportRuns
+
+        _ ->
+            Nothing
+
+
+type alias RunRange =
+    { runIdFrom : Int, runIdTo : Int }
+
+
+runRangeFromString : String -> Maybe RunRange
+runRangeFromString input =
+    case String.split "-" input of
+        [ from, to ] ->
+            Maybe.map2 RunRange (String.toInt from) (String.toInt to)
+
+        _ ->
+            Nothing
+
+
+runRangesFromString : List String -> List RunRange
+runRangesFromString runRanges =
+    case runRanges of
+        x :: _ ->
+            Maybe.withDefault [] (Maybe.Extra.combineMap runRangeFromString (String.split "," x))
+
+        _ ->
+            []
+
+
+runRangesToString : List RunRange -> String
+runRangesToString =
+    String.join "," << List.map (\{ runIdFrom, runIdTo } -> String.fromInt runIdFrom ++ "-" ++ String.fromInt runIdTo)
+
+
 type Route
     = BeamtimeSelection
     | Root BeamtimeId
@@ -22,11 +95,12 @@ type Route
     | DataSets BeamtimeId
     | Schedule BeamtimeId
     | ExperimentTypes BeamtimeId
-    | Runs BeamtimeId
+    | Runs BeamtimeId (List RunRange)
     | RunOverview BeamtimeId
-    | Attributi BeamtimeId
+    | Import BeamtimeId ImportStep
+    | Attributi BeamtimeId (Maybe AssociatedTable)
     | AdvancedControls BeamtimeId
-    | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool
+    | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool MergeFilter
     | AnalysisDataSet BeamtimeId Int
     | MergeResult BeamtimeId ExperimentTypeId DataSetId MergeResultId
     | RunAnalysis BeamtimeId
@@ -57,19 +131,22 @@ beamtimeIdInRoute x =
         ExperimentTypes btid ->
             Just btid
 
-        Runs btid ->
+        Runs btid _ ->
             Just btid
 
         RunOverview btid ->
             Just btid
 
-        Attributi btid ->
+        Import btid _ ->
+            Just btid
+
+        Attributi btid _ ->
             Just btid
 
         AdvancedControls btid ->
             Just btid
 
-        AnalysisOverview btId _ _ ->
+        AnalysisOverview btId _ _ _ ->
             Just btId
 
         AnalysisDataSet btid _ ->
@@ -119,6 +196,29 @@ routePrefix =
     "index.html#"
 
 
+addQuery : List String -> String
+addQuery xs =
+    case xs of
+        [] ->
+            ""
+
+        xss ->
+            "?" ++ String.join "&" xss
+
+
+mergeFilterToString : MergeFilter -> String
+mergeFilterToString x =
+    case x of
+        Both ->
+            "both"
+
+        Merged ->
+            "merged"
+
+        Unmerged ->
+            "unmerged"
+
+
 makeLink : Route -> String
 makeLink x =
     case x of
@@ -128,43 +228,54 @@ makeLink x =
         Root beamtimeId ->
             routePrefix ++ "/" ++ beamtimeIdToString beamtimeId
 
-        Attributi beamtimeId ->
-            routePrefix ++ "/attributi/" ++ beamtimeIdToString beamtimeId
+        Attributi beamtimeId associatedTableMaybe ->
+            routePrefix
+                ++ "/attributi/"
+                ++ beamtimeIdToString beamtimeId
+                ++ (case associatedTableMaybe of
+                        Nothing ->
+                            ""
 
-        Runs beamtimeId ->
+                        Just associatedTable ->
+                            "?tab=" ++ associatedTableToString associatedTable
+                   )
+
+        Runs beamtimeId [] ->
             routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId
+
+        Runs beamtimeId runRanges ->
+            routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId ++ "?runs=" ++ runRangesToString runRanges
 
         RunOverview beamtimeId ->
             routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
+
+        Import beamtimeId step ->
+            routePrefix ++ "/import/" ++ beamtimeIdToString beamtimeId ++ "/" ++ importStepToString step
 
         AdvancedControls beamtimeId ->
             routePrefix ++ "/advancedcontrols/" ++ beamtimeIdToString beamtimeId
 
         Chemicals beamtimeId ->
-            routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
+            routePrefix
+                ++ "/chemicals/"
+                ++ beamtimeIdToString beamtimeId
 
-        AnalysisOverview beamtimeId [] across ->
-            routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
-                ++ (if across then
-                        "?across=1"
-
-                    else
-                        ""
-                   )
-
-        AnalysisOverview beamtimeId filters acrossBeamtimes ->
+        AnalysisOverview beamtimeId filters acrossBeamtimes mergeFilter ->
             routePrefix
                 ++ "/analysis/"
                 ++ beamtimeIdToString beamtimeId
-                ++ "?filter="
-                ++ (String.join "&filter=" <| filtersSerializer filters)
-                ++ "&across="
-                ++ (if acrossBeamtimes then
-                        "1"
+                ++ addQuery
+                    (("across="
+                        ++ (if acrossBeamtimes then
+                                "1"
 
-                    else
-                        "0"
-                   )
+                            else
+                                "0"
+                           )
+                     )
+                        :: ("merge=" ++ mergeFilterToString mergeFilter)
+                        :: List.map (\filterString -> "filter=" ++ filterString) (filtersSerializer filters)
+                    )
 
         AnalysisDataSet beamtimeId dsId ->
             routePrefix ++ "/data-set/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt dsId
@@ -196,6 +307,11 @@ makeLink x =
             routePrefix ++ "/event-log/" ++ beamtimeIdToString beamtimeId
 
 
+makeImportSpreadsheetLink : BeamtimeId -> String
+makeImportSpreadsheetLink beamtimeId =
+    "api/run-bulk-import-template/" ++ String.fromInt beamtimeId ++ ".xlsx"
+
+
 makeFilesLink : Int -> Maybe String -> String
 makeFilesLink id suggestedNameMaybe =
     case suggestedNameMaybe of
@@ -209,6 +325,11 @@ makeFilesLink id suggestedNameMaybe =
 makeIndexingIdLogLink : Int -> String
 makeIndexingIdLogLink id =
     "api/indexing/" ++ String.fromInt id ++ "/log"
+
+
+makeMergeIdLogLink : Int -> String
+makeMergeIdLogLink id =
+    "api/merging/" ++ String.fromInt id ++ "/log"
 
 
 makeIndexingIdErrorLogLink : Int -> String
@@ -308,14 +429,28 @@ filtersSerializer filters =
     List.map filterSerializer filters
 
 
+tabFromString : List String -> Maybe AssociatedTable
+tabFromString =
+    List.head
+        >> Maybe.map
+            (\x ->
+                if x == "Run" then
+                    Run
+
+                else
+                    Chemical
+            )
+
+
 matchRoute : Parser (Route -> a) a
 matchRoute =
     oneOf
         [ map BeamtimeSelection top
-        , map Attributi (s "attributi" </> int)
+        , map Attributi (s "attributi" </> int <?> Query.custom "tab" tabFromString)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
-        , map Runs (s "runs" </> int)
+        , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)
+        , map Runs (s "runs" </> int <?> Query.custom "runs" runRangesFromString)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)
@@ -323,6 +458,15 @@ matchRoute =
             AnalysisOverview
             ((s "analysis" </> int <?> Query.custom "filter" filtersParser)
                 <?> Query.map (\x -> x == Just 1) (Query.int "across")
+                <?> Query.map (Maybe.withDefault Both)
+                        (Query.enum "merge"
+                            (Dict.fromList
+                                [ ( "both", Both )
+                                , ( "merged", Merged )
+                                , ( "unmerged", Unmerged )
+                                ]
+                            )
+                        )
             )
         , map AnalysisDataSet (s "data-set" </> int </> int)
         , map MergeResult (s "mergeresult" </> int </> int </> int </> int)

@@ -14,12 +14,14 @@
 
 
 module Api.Request.Processing exposing
-    ( indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost
+    ( importFinishedIndexingJobApiIndexingImportPost
+    , indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost
     , indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost
     , indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet
     , indexingJobGetLogApiIndexingIndexingResultIdLogGet
     , indexingJobQueueForDataSetApiIndexingPost
     , indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost
+    , mergeJobGetLogApiMergingMergeResultIdLogGet
     , readIndexingJobsApiIndexingGet
     , readIndexingParametersApiIndexingParametersDataSetIdGet
     )
@@ -30,6 +32,20 @@ import Dict
 import Http
 import Json.Decode
 import Json.Encode
+
+{-| This will import an already finished indexing job, from another beamline for example.  It's not possible to do this with the other methods here, since you'd have to queue something for a whole dataset and then finish something with a concrete indexing job ID.
+-}
+importFinishedIndexingJobApiIndexingImportPost : Api.Data.JsonImportFinishedIndexingJobInput -> Api.Request Api.Data.JsonImportFinishedIndexingJobOutput
+importFinishedIndexingJobApiIndexingImportPost jsonImportFinishedIndexingJobInput_body =
+    Api.request
+        "POST"
+        "/api/indexing/import"
+        []
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonImportFinishedIndexingJobInput jsonImportFinishedIndexingJobInput_body)))
+        Api.Data.jsonImportFinishedIndexingJobOutputDecoder
+
 
 indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost : Int -> Api.Data.JsonIndexingResultFinishSuccessfully -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
 indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost indexingResultId_path jsonIndexingResultFinishSuccessfully_body =
@@ -101,6 +117,18 @@ indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost indexingResul
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultStillRunning jsonIndexingResultStillRunning_body)))
         Api.Data.jsonIndexingJobUpdateOutputDecoder
+
+
+mergeJobGetLogApiMergingMergeResultIdLogGet : Int -> Api.Request String
+mergeJobGetLogApiMergingMergeResultIdLogGet mergeResultId_path =
+    Api.request
+        "GET"
+        "/api/merging/{mergeResultId}/log"
+        [ ( "mergeResultId", String.fromInt mergeResultId_path ) ]
+        []
+        []
+        Nothing
+        Json.Decode.string
 
 
 readIndexingJobsApiIndexingGet : Maybe DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput
