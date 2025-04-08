@@ -19,11 +19,14 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
 from amarcord.web.json_models import JsonBeamtime
 from amarcord.web.json_models import JsonCreateIndexingForDataSetInput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetOutput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobOutput
 from amarcord.web.json_models import JsonIndexingFom
 from amarcord.web.json_models import JsonIndexingJob
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
@@ -127,6 +130,72 @@ def summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
         indexed_frames=sum(x.indexed_frames for x in ir),
         detector_shift_x_mm=mean(shifts_x) if shifts_x else None,
         detector_shift_y_mm=mean(shifts_y) if shifts_y else None,
+    )
+
+
+@router.post(
+    "/api/indexing/import",
+    tags=["processing"],
+    response_model_exclude_defaults=True,
+)
+async def import_finished_indexing_job(
+    input_: JsonImportFinishedIndexingJobInput,
+    session: Annotated[AsyncSession, Depends(get_orm_db)],
+) -> JsonImportFinishedIndexingJobOutput:
+    """
+    This will import an already finished indexing job, from another beamline for example.
+
+    It's not possible to do this with the other methods here, since you'd have to queue
+    something for a whole dataset and then finish something with a concrete indexing
+    job ID.
+    """
+    run: None | orm.Run = (
+        await session.scalars(
+            select(orm.Run).where(orm.Run.id == input_.run_internal_id)
+        )
+    ).one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"internal run ID {input_.run_internal_id} not found",
+        )
+
+    new_indexing_parameters = orm.IndexingParameters(
+        is_online=input_.is_online,
+        cell_description=input_.cell_description.strip(),
+        command_line=input_.command_line.strip(),
+        geometry_file=input_.geometry_file.strip(),
+        source=input_.source.strip(),
+    )
+    session.add(new_indexing_parameters)
+    await session.flush()
+    new_indexing_result = orm.IndexingResult(
+        created=datetime.datetime.now(datetime.timezone.utc),
+        run_id=RunInternalId(input_.run_internal_id),
+        stream_file=input_.stream_file,
+        program_version=input_.program_version,
+        frames=input_.frames,
+        hits=input_.hits,
+        indexed_frames=input_.indexed_frames,
+        detector_shift_x_mm=input_.detector_shift_x_mm,
+        detector_shift_y_mm=input_.detector_shift_y_mm,
+        geometry_file=input_.geometry_file,
+        geometry_hash=input_.geometry_hash,
+        generated_geometry_file=input_.generated_geometry_file,
+        unit_cell_histograms_file_id=None,
+        job_id=None,
+        job_status=DBJobStatus.DONE,
+        job_error=None,
+        job_latest_log=input_.job_log,
+        job_started=None,
+        job_stopped=None,
+        indexing_parameters_id=new_indexing_parameters.id,
+    )
+    session.add(new_indexing_result)
+    await session.commit()
+    return JsonImportFinishedIndexingJobOutput(
+        indexing_result_id=new_indexing_result.id
     )
 
 

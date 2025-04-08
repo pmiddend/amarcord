@@ -361,6 +361,29 @@ class JsonCreateIndexingForDataSetInput(BaseModel):
     source: str
 
 
+class JsonImportFinishedIndexingJobInput(BaseModel):
+    is_online: bool
+    cell_description: str
+    command_line: str
+    source: str
+    run_internal_id: int
+    stream_file: str
+    program_version: str
+    frames: int
+    hits: int
+    indexed_frames: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
+    geometry_file: str
+    geometry_hash: str
+    generated_geometry_file: None | str
+    job_log: str
+
+
+class JsonImportFinishedIndexingJobOutput(BaseModel):
+    indexing_result_id: int
+
+
 class JsonReadIndexingParametersOutput(BaseModel):
     data_set_id: int
     cell_description: str

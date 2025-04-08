@@ -92,6 +92,8 @@ module Api.Data exposing
     , JsonExperimentTypeAndRuns
     , JsonExperimentTypeWithBeamtimeInformation
     , JsonFileOutput
+    , JsonImportFinishedIndexingJobInput
+    , JsonImportFinishedIndexingJobOutput
     , JsonIndexingFom
     , JsonIndexingJob
     , JsonIndexingJobUpdateOutput
@@ -249,6 +251,8 @@ module Api.Data exposing
     , encodeJsonExperimentTypeAndRuns
     , encodeJsonExperimentTypeWithBeamtimeInformation
     , encodeJsonFileOutput
+    , encodeJsonImportFinishedIndexingJobInput
+    , encodeJsonImportFinishedIndexingJobOutput
     , encodeJsonIndexingFom
     , encodeJsonIndexingJob
     , encodeJsonIndexingJobUpdateOutput
@@ -414,6 +418,8 @@ module Api.Data exposing
     , jsonExperimentTypeAndRunsDecoder
     , jsonExperimentTypeWithBeamtimeInformationDecoder
     , jsonFileOutputDecoder
+    , jsonImportFinishedIndexingJobInputDecoder
+    , jsonImportFinishedIndexingJobOutputDecoder
     , jsonIndexingFomDecoder
     , jsonIndexingJobDecoder
     , jsonIndexingJobUpdateOutputDecoder
@@ -1165,6 +1171,31 @@ type alias JsonFileOutput =
     , originalPath : Maybe String
     , fileName : String
     , sizeInBytes : Int
+    }
+
+
+type alias JsonImportFinishedIndexingJobInput =
+    { isOnline : Bool
+    , cellDescription : String
+    , commandLine : String
+    , source : String
+    , runInternalId : Int
+    , streamFile : String
+    , programVersion : String
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , detectorShiftXMm : Maybe Float
+    , detectorShiftYMm : Maybe Float
+    , geometryFile : String
+    , geometryHash : String
+    , generatedGeometryFile : Maybe String
+    , jobLog : String
+    }
+
+
+type alias JsonImportFinishedIndexingJobOutput =
+    { indexingResultId : Int
     }
 
 
@@ -3682,6 +3713,61 @@ encodeJsonFileOutputPairs model =
             , maybeEncode "original_path" Json.Encode.string model.originalPath
             , encode "file_name" Json.Encode.string model.fileName
             , encode "size_in_bytes" Json.Encode.int model.sizeInBytes
+            ]
+    in
+    pairs
+
+
+encodeJsonImportFinishedIndexingJobInput : JsonImportFinishedIndexingJobInput -> Json.Encode.Value
+encodeJsonImportFinishedIndexingJobInput =
+    encodeObject << encodeJsonImportFinishedIndexingJobInputPairs
+
+
+encodeJsonImportFinishedIndexingJobInputWithTag : ( String, String ) -> JsonImportFinishedIndexingJobInput -> Json.Encode.Value
+encodeJsonImportFinishedIndexingJobInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonImportFinishedIndexingJobInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonImportFinishedIndexingJobInputPairs : JsonImportFinishedIndexingJobInput -> List EncodedField
+encodeJsonImportFinishedIndexingJobInputPairs model =
+    let
+        pairs =
+            [ encode "is_online" Json.Encode.bool model.isOnline
+            , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "command_line" Json.Encode.string model.commandLine
+            , encode "source" Json.Encode.string model.source
+            , encode "run_internal_id" Json.Encode.int model.runInternalId
+            , encode "stream_file" Json.Encode.string model.streamFile
+            , encode "program_version" Json.Encode.string model.programVersion
+            , encode "frames" Json.Encode.int model.frames
+            , encode "hits" Json.Encode.int model.hits
+            , encode "indexed_frames" Json.Encode.int model.indexedFrames
+            , maybeEncode "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
+            , maybeEncode "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , maybeEncode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
+            , encode "job_log" Json.Encode.string model.jobLog
+            ]
+    in
+    pairs
+
+
+encodeJsonImportFinishedIndexingJobOutput : JsonImportFinishedIndexingJobOutput -> Json.Encode.Value
+encodeJsonImportFinishedIndexingJobOutput =
+    encodeObject << encodeJsonImportFinishedIndexingJobOutputPairs
+
+
+encodeJsonImportFinishedIndexingJobOutputWithTag : ( String, String ) -> JsonImportFinishedIndexingJobOutput -> Json.Encode.Value
+encodeJsonImportFinishedIndexingJobOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonImportFinishedIndexingJobOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonImportFinishedIndexingJobOutputPairs : JsonImportFinishedIndexingJobOutput -> List EncodedField
+encodeJsonImportFinishedIndexingJobOutputPairs model =
+    let
+        pairs =
+            [ encode "indexing_result_id" Json.Encode.int model.indexingResultId
             ]
     in
     pairs
@@ -6352,6 +6438,33 @@ jsonFileOutputDecoder =
         |> maybeDecode "original_path" Json.Decode.string Nothing
         |> decode "file_name" Json.Decode.string 
         |> decode "size_in_bytes" Json.Decode.int 
+
+
+jsonImportFinishedIndexingJobInputDecoder : Json.Decode.Decoder JsonImportFinishedIndexingJobInput
+jsonImportFinishedIndexingJobInputDecoder =
+    Json.Decode.succeed JsonImportFinishedIndexingJobInput
+        |> decode "is_online" Json.Decode.bool 
+        |> decode "cell_description" Json.Decode.string 
+        |> decode "command_line" Json.Decode.string 
+        |> decode "source" Json.Decode.string 
+        |> decode "run_internal_id" Json.Decode.int 
+        |> decode "stream_file" Json.Decode.string 
+        |> decode "program_version" Json.Decode.string 
+        |> decode "frames" Json.Decode.int 
+        |> decode "hits" Json.Decode.int 
+        |> decode "indexed_frames" Json.Decode.int 
+        |> maybeDecode "detector_shift_x_mm" Json.Decode.float Nothing
+        |> maybeDecode "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_hash" Json.Decode.string 
+        |> maybeDecode "generated_geometry_file" Json.Decode.string Nothing
+        |> decode "job_log" Json.Decode.string 
+
+
+jsonImportFinishedIndexingJobOutputDecoder : Json.Decode.Decoder JsonImportFinishedIndexingJobOutput
+jsonImportFinishedIndexingJobOutputDecoder =
+    Json.Decode.succeed JsonImportFinishedIndexingJobOutput
+        |> decode "indexing_result_id" Json.Decode.int 
 
 
 jsonIndexingFomDecoder : Json.Decode.Decoder JsonIndexingFom

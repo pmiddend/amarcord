@@ -109,6 +109,8 @@ from amarcord.web.json_models import JsonDeleteRunOutput
 from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
 from amarcord.web.json_models import JsonEventTopLevelOutput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
+from amarcord.web.json_models import JsonImportFinishedIndexingJobOutput
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
 from amarcord.web.json_models import JsonIndexingResultFinishSuccessfully
 from amarcord.web.json_models import JsonIndexingResultFinishWithError
@@ -1528,6 +1530,77 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
         ).json(),
     )
     assert len(read_indexing_results_response.indexing_jobs) == 1
+
+
+def test_create_run_and_import_external_indexing_result(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Create the run and check the result
+    response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                files=[],
+                # Deliberately empty list of attributi - we want to
+                # show that we can still create an indexing result
+                # just fine, even without a chemical and so on
+                attributi=[],
+                create_data_set=False,
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json(),
+    )
+
+    assert response.run_created
+    assert response.run_internal_id is not None and response.run_internal_id > 0
+    assert response.indexing_result_id is None
+
+    # Create the run and check the result
+    indexing_creation_response = JsonImportFinishedIndexingJobOutput(
+        **client.post(
+            "/api/indexing/import",
+            json=JsonImportFinishedIndexingJobInput(
+                is_online=False,
+                cell_description="",
+                command_line="--multi",
+                source="raw",
+                run_internal_id=response.run_internal_id,
+                stream_file="/tmp/stream.file",  # noqa: S108
+                program_version="0.11.1",
+                frames=10,
+                hits=2,
+                indexed_frames=3,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
+                geometry_file="/tmp/geom",  # noqa: S108
+                geometry_hash="00000000000000000000000000",
+                generated_geometry_file=None,
+                job_log="test log",
+            ).dict(),
+        ).json()
+    )
+
+    # Next, test the "read indexing jobs" request with the status parameter
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?status={DBJobStatus.DONE.value}&beamtimeId={beamtime_id}",
+        ).json(),
+    )
+    assert len(read_indexing_results_response.indexing_jobs) == 1
+    assert (
+        read_indexing_results_response.indexing_jobs[0].id
+        == indexing_creation_response.indexing_result_id
+    )
 
 
 def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
