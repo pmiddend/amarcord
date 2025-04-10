@@ -594,9 +594,9 @@ def initialize_db(
     with input_files_path.open("w", encoding="utf-8") as input_files_file:
         for input_file in args.input_files:
             input_files_file.write(str(input_file) + "\n")
-        input_files_file.flush()
-        output_file_name = Path("output.lst")
-        logger.info(f"=> listing events into {output_file_name}")
+            input_files_file.flush()
+            output_file_name = Path("output.lst")
+            logger.info(f"=> listing events into {output_file_name}")
 
         list_events_args: list[str] = [
             f"{args.crystfel_path}/bin/list_events",
@@ -608,12 +608,25 @@ def initialize_db(
             str(output_file_name),
         ]
         logger.info("list_events args: " + " ".join(list_events_args))
-        result = subprocess.run(list_events_args, check=True, capture_output=True)  # noqa: S603
-        logger.info(f"list events completed, return code: {result.returncode}")
-        # This used to be a FIFO, but due to a bug that wasn't
-        # diagnosed completely, for now it's a regular file. Which
-        # is a bummer, because with a FIFO you could do parallel
-        # processing, but whatever.
+        result = subprocess.run(  # noqa: S603
+            list_events_args,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        )
+        if result.returncode != 0:
+            first_lines = result.stdout.splitlines()[0:100]
+            exit_with_error(
+                args,
+                "list_events failed! cannot continue further; list_events output follows:\n\n"
+                + "\n".join(first_lines),
+            )
+            logger.info(f"list events completed, return code: {result.returncode}")
+            # This used to be a FIFO, but due to a bug that wasn't
+            # diagnosed completely, for now it's a regular file. Which
+            # is a bummer, because with a FIFO you could do parallel
+            # processing, but whatever.
         with output_file_name.open(encoding="utf-8") as fifo_file_obj:
             logger.info(f"opened list files: {output_file_name}")
             job_array_id = 0
@@ -642,7 +655,7 @@ def initialize_db(
                             detector_shift_y_mm=None,
                         ),
                     )
-                images_total = 0
+                    images_total = 0
                 with Path(f"job-{indexamajig_job_id}.lst").open(
                     "w",
                     encoding="utf-8",
@@ -662,12 +675,12 @@ def initialize_db(
                             0,
                         ),
                     )
-                indexamajig_job_id += 1
+                    indexamajig_job_id += 1
                 if indexamajig_job_id % INDEXAMAJIG_JOBS_PER_JOB_ARRAY == 0:
                     job_array_id += 1
                     job_array_ids.add(job_array_id)
-            logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
-            logger.info("<= list_events finished!")
+                    logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
+                    logger.info("<= list_events finished!")
     return job_array_ids
 
 

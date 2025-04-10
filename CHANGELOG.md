@@ -10,6 +10,7 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 - Indexing: jobs now give more meaningful error messages in case there are files missing for runs. Instead of just `input file list empty - maybe the run has the wrong files entered?`, you now also get `I've searched the following patterns for files:  ...` ([\#462](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/462))
 - Indexing: in a similar vein to the above, you now get a better error message when the geometry file is missing; this previously complained about `cannot resolve geometry hash`, which is true, but unhelpful. Now you see `cannot find the given geometry file ..., check that it exists and is readable`
+- Indexing: now, also an error in `list_events` will be reported properly
 
 ## Fixes
 
