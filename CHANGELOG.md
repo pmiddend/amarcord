@@ -2,6 +2,12 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 [TOC]
 
+# 🚧 v1.3 - Q2 2025
+
+## Fixes
+
+- Run Overview: The browser tab title now changes even if the tab is in the background ([\#460](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/460))
+
 # v1.2 - Q1 2025
 
 ## Features
@@ -36,7 +42,7 @@ Now, the Data Set view shows which parameters have changed since the previous in
 
 As you can see, for the geometry file, we only get “changed” for now. In the future we might be more specific.
 
-### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435), [#452](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/452))
+### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435), [\#452](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/452))
 
 Editing a unit cell (UC) description was a purely text-based affair previously. You had an input field and had to fill it correctly. There was no feedback on whether what you typed was actually a valid unit cell!
 
@@ -112,7 +118,7 @@ If you do, then the “Details” view contains the fg-graph plot and can tell y
 
 ![ambigator output graph](changelog-assets/ambigator-output.png){width=650 height=510px}
 
-### Event log: Date filter ([#456](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/456))
+### Event log: Date filter ([\#456](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/456))
 The under-used “Events” view (accessible via the menu “Admin” → “Event Log”) now has a date filter just like the run table:
 
 <figure>
@@ -131,8 +137,8 @@ This view now also sorts events in reverse chronological order.
 - Merging now also outputs a log file ([\#437](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/437), [\#438](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/438))
 - Indexing jobs will now output a nicer error message if things go “expectedly” wrong ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/431))
 - Indexing jobs now show the resulting `.stream` file ([\#444](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/444))
-- API: When creating (or updating) a run, you can instruct it to create a Data Set for the run as well ([#457](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/457))
-- API: You can now create a finished indexing result ([#458](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/458))
+- API: When creating (or updating) a run, you can instruct it to create a Data Set for the run as well ([\#457](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/457))
+- API: You can now create a finished indexing result ([\#458](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/458))
 
 ## Fixes
 

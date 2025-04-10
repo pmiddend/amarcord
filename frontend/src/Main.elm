@@ -34,6 +34,7 @@ import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Ports exposing (changeTitle)
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains, endsWith)
 import Task
@@ -530,9 +531,15 @@ updateInner hereAndNow msg model =
             let
                 ( updatedPageModel, updatedCmd ) =
                     RunOverview.update subMsg pageModel
+
+                updatedModel =
+                    { model | page = RunOverviewPage updatedPageModel }
             in
-            ( { model | page = RunOverviewPage updatedPageModel }
-            , Cmd.map RunOverviewPageMsg updatedCmd
+            ( updatedModel
+            , Cmd.batch
+                [ Cmd.map RunOverviewPageMsg updatedCmd
+                , changeTitle (buildTitle updatedModel)
+                ]
             )
 
         ( ImportPageMsg subMsg, ImportPage pageModel ) ->
