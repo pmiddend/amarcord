@@ -1238,6 +1238,12 @@ def run_online(args: OnlineArgs) -> None:
     else:
         resolved_geometry = args.geometry_file
 
+        if not resolved_geometry.is_file():
+            exit_with_error(
+                args,
+                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
+            )
+
     if resolved_geometry is None:
         exit_with_error(
             args,
@@ -1879,6 +1885,12 @@ def run_primary(args: PrimaryArgs) -> None:
         resolved_geometry = find_geometry(args.input_files[0])
     else:
         resolved_geometry = args.geometry_file
+
+        if not resolved_geometry.is_file():
+            exit_with_error(
+                args,
+                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
+            )
 
     if resolved_geometry is None:
         logger.error("did not find any geometry file, exiting.")
