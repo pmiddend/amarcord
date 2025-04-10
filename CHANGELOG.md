@@ -4,6 +4,12 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 # 🚧 v1.3 - Q2 2025
 
+## Features
+
+### Miscellaneous features
+
+- Indexing: jobs now give more meaningful error messages in case there are files missing for runs. Instead of just `input file list empty - maybe the run has the wrong files entered?`, you now also get `I've searched the following patterns for files:  ...` ([\#462](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/462))
+
 ## Fixes
 
 - Run Overview: The browser tab title now changes even if the tab is in the background ([\#460](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/460))

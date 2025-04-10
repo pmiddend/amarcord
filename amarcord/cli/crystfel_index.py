@@ -295,6 +295,7 @@ class PrimaryArgs:
     # Where to store the stream file into
     stream_file: Path
     amarcord_api_url: None | str
+    original_globs: list[str]
     # the file list gets extremely long sometimes, so don't include this by default
     input_files: list[Path] = field(repr=False)
     cell_description: None | str
@@ -1869,7 +1870,9 @@ def run_primary(args: PrimaryArgs) -> None:
     if not args.input_files:
         logger.error("input file list empty, exiting immediately")
         exit_with_error(
-            args, "input file list empty - maybe the run has the wrong files entered?"
+            args,
+            "input file list empty - maybe the run has the wrong files entered? I've searched the following patterns for files: "
+            + ", ".join(args.original_globs),
         )
 
     if args.geometry_file is None:
@@ -2085,12 +2088,16 @@ def parse_primary_args() -> PrimaryArgs:
     master_files = [x for x in input_files if "_master.nx5" in x.name]
     return PrimaryArgs(
         use_slurm=use_slurm,
-        slurm_partition_to_use=os.environ[OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE],
+        # Only makes sense if you use slurm, so use empty string by default
+        slurm_partition_to_use=os.environ.get(
+            OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE, ""
+        ),
         workload_manager_job_id=(
             int(os.environ["SLURM_JOB_ID"]) if use_slurm else os.getpid()
         ),
         stream_file=Path(os.environ[OFF_INDEX_ENVIRON_STREAM_FILE]),
         amarcord_api_url=os.environ.get(OFF_INDEX_ENVIRON_AMARCORD_API_URL),
+        original_globs=glob_list,
         # A little hack here: if we have a file "master", and possibly
         # other data files (to which master links to), then just take
         # the master file. Otherwise, consider all files
