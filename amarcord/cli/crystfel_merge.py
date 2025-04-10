@@ -1396,13 +1396,30 @@ def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
         ):
             logger.info("All hkl files already present, not restarting partialator")
         else:
-            partialator = subprocess.run(partialator_command_line_args, check=False)  # noqa: S603
+            with subprocess.Popen(  # noqa: S603
+                partialator_command_line_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                encoding="utf-8",
+                bufsize=1,
+            ) as partialator:
+                while True:
+                    assert partialator.stdout is not None
 
-            if partialator.returncode != 0:
-                exit_with_error(
-                    args,
-                    f"error running partialator, error code is {partialator.returncode}",
-                )
+                    line = partialator.stdout.readline()
+
+                    if not line:
+                        break
+
+                    logger.info(line)
+
+                partialator.wait()
+
+                if partialator.returncode != 0:
+                    exit_with_error(
+                        args,
+                        f"error running partialator, error code is {partialator.returncode}",
+                    )
     except:
         exit_with_error(args, "error running partialator")
 
