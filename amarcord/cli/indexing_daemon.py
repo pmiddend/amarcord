@@ -385,7 +385,7 @@ async def _start_new_jobs(
                     error_message=cast(str, new_status.job_error),
                     workload_manager_job_id=indexing_result.job_id,
                     latest_log="",
-                ).dict(),
+                ).model_dump(),
             ) as update_response:
                 bound_logger.info(f"indexing job errored, result: {update_response}")
         else:
@@ -409,7 +409,7 @@ async def _start_new_jobs(
 
             async with session.post(
                 f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
-                json=update_request.dict(),
+                json=update_request.model_dump(),
             ) as update_response:
                 if update_response.status // 200 != 1:
                     bound_logger.error(
@@ -504,7 +504,7 @@ async def _update_jobs(
                 error_message=job_error,
                 workload_manager_job_id=indexing_result.job_id,
                 latest_log="",
-            ).dict(),
+            ).model_dump(),
         ) as update_response:
             bound_logger.info(f"indexing job finished, result: {update_response}")
 

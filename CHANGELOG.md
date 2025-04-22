@@ -17,6 +17,11 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 - Run Overview: The browser tab title now changes even if the tab is in the background ([\#460](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/460))
 - Merging: Error output from partialator was omitted from job log ([\#461](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/461))
 
+## Development changes
+
+- Upgraded the pydantic serialization/deserialization framework to version 2 now, resulting in increased performance ([\#463](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/463))
+
+
 # v1.2 - Q1 2025
 
 ## Features

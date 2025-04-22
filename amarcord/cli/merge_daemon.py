@@ -332,7 +332,7 @@ async def _start_new_jobs(
                 json=JsonMergeJobStartedInput(
                     job_id=start_result.job_id,
                     time=datetime_to_attributo_int(start_result.time),
-                ).dict(),
+                ).model_dump(),
             ) as start_response:
                 if start_response.status // 200 != 1:
                     bound_logger.error(
@@ -347,7 +347,7 @@ async def _start_new_jobs(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
                     error=start_result.job_error, result=None, latest_log=None
-                ).dict(),
+                ).model_dump(),
             ) as update_response:
                 if update_response.status // 200 != 1:
                     bound_logger.error(
@@ -419,7 +419,7 @@ async def _update_jobs(
             f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
             json=JsonMergeJobFinishedInput(
                 error=job_error, result=None, latest_log=None
-            ).dict(),
+            ).model_dump(),
         ) as finish_request:
             if finish_request.status // 200 != 1:
                 bound_logger.info(

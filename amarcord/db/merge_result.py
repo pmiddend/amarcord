@@ -16,8 +16,8 @@ class JsonMergeResultOuterShell(BaseModel):
 
 class JsonMergeResultFom(BaseModel):
     snr: float
-    wilson: None | float
-    ln_k: None | float
+    wilson: None | float = None
+    ln_k: None | float = None
     discarded_reflections: int
     one_over_d_from: float
     one_over_d_to: float
@@ -31,10 +31,10 @@ class JsonMergeResultFom(BaseModel):
     r2: float
     cc: float
     ccstar: float
-    ccano: None | float
-    crdano: None | float
-    rano: None | float
-    rano_over_r_split: None | float
+    ccano: None | float = None
+    crdano: None | float = None
+    rano: None | float = None
+    rano_over_r_split: None | float = None
     d1sig: float
     d2sig: float
     outer_shell: JsonMergeResultOuterShell
@@ -58,7 +58,7 @@ class JsonMergeResultShell(BaseModel):
 
 
 class JsonRefinementResultInternal(BaseModel):
-    id: None | int
+    id: None | int = None
     pdb_file_id: int
     mtz_file_id: int
     r_free: float
@@ -70,15 +70,15 @@ class JsonRefinementResultInternal(BaseModel):
 class JsonMergeResultInternal(BaseModel):
     mtz_file_id: int
     fom: JsonMergeResultFom
-    ambigator_fg_graph_file_id: None | int
+    ambigator_fg_graph_file_id: None | int = None
     detailed_foms: list[JsonMergeResultShell]
     refinement_results: list[JsonRefinementResultInternal]
 
 
 class JsonMergeJobFinishedInput(BaseModel):
-    latest_log: None | str
-    error: None | str
-    result: None | JsonMergeResultInternal
+    latest_log: None | str = None
+    error: None | str = None
+    result: None | JsonMergeResultInternal = None
 
 
 class JsonMergeJobStartedInput(BaseModel):

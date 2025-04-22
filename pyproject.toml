@@ -29,7 +29,7 @@ dependencies = [
     # For validating units
     "pint==0.23",
     # For the config file
-    "pydantic==1.10.19",
+    "pydantic==2.11.3",
     # asynchronous db client
     "pymysql==1.1.1",
     "asyncmy==0.2.10",

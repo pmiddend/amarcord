@@ -34,7 +34,7 @@ module Amarcord.Attributo exposing
 
 import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableFromApi)
 import Amarcord.NumericRange as NumericRange exposing (NumericRange, emptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
-import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaArrayType(..), JSONSchemaBoolean, JSONSchemaBooleanType(..), JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaIntegerType(..), JSONSchemaNumber, JSONSchemaNumberFormat(..), JSONSchemaNumberType(..), JSONSchemaString, JSONSchemaStringType(..), JsonAttributo, JsonAttributoValue)
+import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaBoolean, JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaNumber, JSONSchemaString, JsonAttributoOutput, JsonAttributoValue)
 import Dict exposing (Dict)
 import List exposing (filterMap)
 import Maybe
@@ -371,7 +371,7 @@ attributoExposureTime =
     "exposure_time"
 
 
-convertAttributoTypeFromApi : Api.Data.JsonAttributo -> AttributoType
+convertAttributoTypeFromApi : JsonAttributoOutput -> AttributoType
 convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attributoTypeString, attributoTypeArray } =
     case attributoTypeInteger of
         Just { format } ->
@@ -391,7 +391,7 @@ convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attribu
                         { suffix = params.suffix
                         , tolerance = params.tolerance
                         , toleranceIsAbsolute = Maybe.withDefault True params.toleranceIsAbsolute
-                        , standardUnit = params.format == Just JSONSchemaNumberFormatStandardUnit
+                        , standardUnit = params.format == Just "standard-unit"
                         , range =
                             NumericRange.rangeFromJsonSchema
                                 params.minimum
@@ -438,7 +438,7 @@ convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attribu
                                     Boolean
 
 
-convertAttributoFromApi : JsonAttributo -> Attributo AttributoType
+convertAttributoFromApi : JsonAttributoOutput -> Attributo AttributoType
 convertAttributoFromApi a =
     { id = a.id
     , name = a.name
@@ -481,13 +481,13 @@ attributoTypeToSchemaInt : AttributoType -> Maybe JSONSchemaInteger
 attributoTypeToSchemaInt x =
     case x of
         Int ->
-            Just { type_ = JSONSchemaIntegerTypeInteger, format = Nothing }
+            Just { type_ = "integer", format = Nothing }
 
         ChemicalId ->
-            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatChemicalId }
+            Just { type_ = "integer", format = Just JSONSchemaIntegerFormatChemicalId }
 
         DateTime ->
-            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatDateTime }
+            Just { type_ = "integer", format = Just JSONSchemaIntegerFormatDateTime }
 
         _ ->
             Nothing
@@ -497,7 +497,7 @@ attributoTypeToSchemaBoolean : AttributoType -> Maybe JSONSchemaBoolean
 attributoTypeToSchemaBoolean x =
     case x of
         Boolean ->
-            Just { type_ = JSONSchemaBooleanTypeBoolean }
+            Just { type_ = "boolean" }
 
         _ ->
             Nothing
@@ -508,7 +508,7 @@ attributoTypeToSchemaNumber x =
     case x of
         Number { range, suffix, tolerance, toleranceIsAbsolute, standardUnit } ->
             Just
-                { type_ = JSONSchemaNumberTypeNumber
+                { type_ = "number"
                 , minimum = numericRangeMinimum range
                 , maximum = numericRangeMaximum range
                 , exclusiveMinimum = numericRangeExclusiveMinimum range
@@ -516,7 +516,7 @@ attributoTypeToSchemaNumber x =
                 , suffix = suffix
                 , format =
                     if standardUnit then
-                        Just JSONSchemaNumberFormatStandardUnit
+                        Just "standard-unit"
 
                     else
                         Nothing
@@ -533,13 +533,13 @@ attributoTypeToSchemaString x =
     case x of
         String ->
             Just
-                { type_ = JSONSchemaStringTypeString
+                { type_ = "string"
                 , enum = Nothing
                 }
 
         Choice { choiceValues } ->
             Just
-                { type_ = JSONSchemaStringTypeString
+                { type_ = "string"
                 , enum = Just choiceValues
                 }
 
@@ -552,7 +552,7 @@ attributoTypeToSchemaArray x =
     case x of
         List { minLength, maxLength, subType } ->
             Just
-                { type_ = JSONSchemaArrayTypeArray
+                { type_ = "array"
                 , minItems = minLength
                 , maxItems = maxLength
                 , itemType =

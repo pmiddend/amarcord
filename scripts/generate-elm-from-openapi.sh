@@ -13,8 +13,8 @@ die() {
     exit 1
 }
 
-command -v "python" || die "Python not found, cannot generate openapi.json"
-command -v "openapi-generator-cli" || die "openapi-generator-cli not found, cannot generate Elm code"
+command -v "python" >/dev/null || die "Python not found, cannot generate openapi.json"
+command -v "openapi-generator-cli" >/dev/null || die "openapi-generator-cli not found, cannot generate Elm code"
 
 MY_TARGET_DIR="frontend/generated"
 
@@ -35,9 +35,17 @@ MY_OPENAPI_JSON_FILE="${MY_TEMP_DIR}/openapi.json"
 # development builds. So we create it here.
 mkdir -p frontend/output
 python amarcord/cli/generate_openapi_schema.py  > "$MY_OPENAPI_JSON_FILE"
-#cp "$MY_OPENAPI_JSON_FILE" "$MY_TARGET_DIR/openapi.json"
+echo "generated openapi.json"
+
+# From pydantic-2 on (somehow it depends on pydantic, not fastapi), for the JSON schema discriminated unions, we get objects with "const" in them. For example: "const": "integer". These are not recognized by openapi-generator-cli yet, see
+#
+# https://github.com/OpenAPITools/openapi-generator/issues/10445
+#
+# To circumvent it, we remove the fields - for now.
+sed -i -e 's/"const": "[^"]*", //g' -e 's/, "const": "[^"]*"\}/}/g' "$MY_OPENAPI_JSON_FILE"
 
 openapi-generator-cli generate --generator-name elm --input-spec "$MY_OPENAPI_JSON_FILE" --output "$MY_TEMP_DIR"
+echo "generated Elm code"
 
 # This warrants an explanation: the openapi-generator (at least for
 # Elm) always wants the concrete address of the server to generate an

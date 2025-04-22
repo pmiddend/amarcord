@@ -50,7 +50,7 @@ def parse_schema_type(json_schema: dict[str, Any]) -> JSONSchemaUnion:
 
 
 def coparse_schema_type(s: JSONSchemaUnion) -> dict[str, Any]:
-    return s.dict()
+    return s.model_dump()
 
 
 def schema_union_to_attributo_type(s: JSONSchemaUnion) -> AttributoType:

@@ -202,7 +202,7 @@ def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> Beam
     response = JsonBeamtimeOutput(
         **client.post(
             "/api/beamtimes",
-            json=input_.dict(),
+            json=input_.model_dump(),
         ).json(),
     )
     assert response.id > 0
@@ -291,7 +291,7 @@ def cell_description_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -
         associated_table=AssociatedTable.CHEMICAL,
         attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -311,7 +311,7 @@ def point_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int
         associated_table=AssociatedTable.CHEMICAL,
         attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response_json = client.post(
         "/api/attributi",
         json=input_,
@@ -329,7 +329,7 @@ def space_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int
         associated_table=AssociatedTable.CHEMICAL,
         attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response_json = client.post(
         "/api/attributi",
         json=input_,
@@ -347,7 +347,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
         associated_table=AssociatedTable.RUN,
         attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -367,7 +367,7 @@ def run_int_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
         associated_table=AssociatedTable.RUN,
         attributo_type_integer=JSONSchemaInteger(type="integer", format=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -387,7 +387,7 @@ def run_int_automatic_attributo_id(client: TestClient, beamtime_id: BeamtimeId) 
         associated_table=AssociatedTable.RUN,
         attributo_type_integer=JSONSchemaInteger(type="integer", format=None),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -410,7 +410,7 @@ def run_channel_1_chemical_attributo_id(
         associated_table=AssociatedTable.RUN,
         attributo_type_integer=JSONSchemaInteger(type="integer", format="chemical-id"),
         beamtime_id=beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -433,7 +433,7 @@ def run_channel_1_chemical_attributo_id_in_second_beamtime(
         associated_table=AssociatedTable.RUN,
         attributo_type_integer=JSONSchemaInteger(type="integer", format="chemical-id"),
         beamtime_id=second_beamtime_id,
-    ).dict()
+    ).model_dump()
     response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -459,7 +459,7 @@ def chemical_experiment_type_id(
                 role=ChemicalType.CRYSTAL,
             ),
         ],
-    ).dict()
+    ).model_dump()
     response = JsonCreateExperimentTypeOutput(
         **client.post(
             "/api/experiment-types",
@@ -485,7 +485,7 @@ def string_experiment_type_id(
                 role=ChemicalType.CRYSTAL,
             ),
         ],
-    ).dict()
+    ).model_dump()
     response = JsonCreateExperimentTypeOutput(
         **client.post(
             "/api/experiment-types",
@@ -538,7 +538,7 @@ def lyso_chemical_id(
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[test_file],
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert response.id > 0
@@ -576,7 +576,7 @@ def second_lyso_chemical_id(
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[],
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert response.id > 0
@@ -611,7 +611,7 @@ def simple_run_id(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -647,7 +647,7 @@ def run_without_files_id(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -662,7 +662,7 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=simple_run_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -685,7 +685,7 @@ def simple_indexing_result_id(
                 geometry_file="/mock/geometry.geom",
                 command_line="",
                 source="raw",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -709,7 +709,7 @@ def simple_indexing_result_id(
             generated_geometry_file="",
             unit_cell_histograms_id=None,
             latest_log="",
-        ).dict(),
+        ).model_dump(),
     )
 
     return create_indexing_response.indexing_result_id
@@ -725,7 +725,7 @@ def run_without_files_data_set_id(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=run_without_files_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -785,7 +785,7 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
                 start=2,
                 end=1002,
                 analysis_output_path="/",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert response.id == beamtime_id
@@ -930,7 +930,7 @@ def test_chemical_creation_and_deletion(
     client.request(
         "DELETE",
         "/api/chemicals",
-        json=JsonDeleteChemicalInput(id=lyso_chemical_id).dict(),
+        json=JsonDeleteChemicalInput(id=lyso_chemical_id).model_dump(),
     )
 
     response = read_chemicals(client, beamtime_id)
@@ -980,7 +980,9 @@ def test_chemical_creation_and_update(
     )
 
     single_response = JsonCreateChemicalOutput(
-        **client.patch("/api/chemicals", json=patched_chemical_json.dict()).json(),
+        **client.patch(
+            "/api/chemicals", json=patched_chemical_json.model_dump()
+        ).json(),
     )
     assert single_response.id == lyso_chemical_id
 
@@ -1024,7 +1026,7 @@ def test_chemical_creation_with_invalid_attributo_value(
             chemical_type=ChemicalType.CRYSTAL,
             file_ids=[],
             beamtime_id=beamtime_id,
-        ).dict(),
+        ).model_dump(),
     )
     assert response.status_code // 100 == 4
 
@@ -1042,7 +1044,7 @@ def test_chemical_copy_from_other_beamtime_with_copy_attributi(
         chemical_id=lyso_chemical_id,
         target_beamtime_id=second_beamtime_id,
         create_attributi=True,
-    ).dict()
+    ).model_dump()
     response = JsonCopyChemicalOutput(
         **client.post(
             "/api/copy-chemical",
@@ -1083,7 +1085,7 @@ def test_create_and_delete_event_without_live_stream_and_files(
                     file_ids=[],
                 ),
                 with_live_stream=False,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert create_event_response.id > 0
@@ -1105,7 +1107,7 @@ def test_create_and_delete_event_without_live_stream_and_files(
     client.request(
         "DELETE",
         "/api/events",
-        json=JsonDeleteEventInput(id=create_event_response.id).dict(),
+        json=JsonDeleteEventInput(id=create_event_response.id).model_dump(),
     )
 
     read_events_output_after_deletion = JsonReadEvents(
@@ -1154,7 +1156,7 @@ def test_create_event_with_file(
                     file_ids=[test_file],
                 ),
                 with_live_stream=False,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1195,7 +1197,7 @@ def test_create_event_with_live_stream(
                     file_ids=[],
                 ),
                 with_live_stream=True,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1233,7 +1235,7 @@ def test_copy_experiment_types_from_other_beamtime_where_attributi_are_missing(
         json=JsonCopyExperimentTypesInput(
             from_beamtime=beamtime_id,
             to_beamtime=second_beamtime_id,
-        ).dict(),
+        ).model_dump(),
     )
     assert copy_ets_output.status_code == 400
 
@@ -1251,7 +1253,7 @@ def test_copy_experiment_types_from_other_beamtime_where_attributi_are_present(
             json=JsonCopyExperimentTypesInput(
                 from_beamtime=beamtime_id,
                 to_beamtime=second_beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert len(copy_ets_output.to_beamtime_experiment_type_ids) == 1
@@ -1287,7 +1289,7 @@ def test_create_or_update_run_fails_without_experiment_type(
             create_data_set=False,
             started=1,
             stopped=None,
-        ).dict(),
+        ).model_dump(),
     )
 
     # Doesn't work, because we haven't set the current experiment type yet
@@ -1348,7 +1350,7 @@ def test_create_and_update_run_adding_some_files_later(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1367,7 +1369,7 @@ def test_create_and_update_run_adding_some_files_later(
                 create_data_set=False,
                 started=None,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1408,7 +1410,7 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1448,7 +1450,7 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
                 started=1,
                 # and signal a stop
                 stopped=2,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1506,7 +1508,7 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1557,7 +1559,7 @@ def test_create_run_and_import_external_indexing_result(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1586,7 +1588,7 @@ def test_create_run_and_import_external_indexing_result(
                 geometry_hash="00000000000000000000000000",
                 generated_geometry_file=None,
                 job_log="test log",
-            ).dict(),
+            ).model_dump(),
         ).json()
     )
 
@@ -1632,7 +1634,7 @@ def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
             create_data_set=False,
             started=1,
             stopped=None,
-        ).dict(),
+        ).model_dump(),
     )
     client.post(
         f"/api/runs/{external_run_id+1}",
@@ -1648,7 +1650,7 @@ def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
             create_data_set=False,
             started=1,
             stopped=None,
-        ).dict(),
+        ).model_dump(),
     )
 
     # ...and remove the run again
@@ -1694,7 +1696,7 @@ def test_create_and_update_run_with_patch(
             create_data_set=False,
             started=1,
             stopped=None,
-        ).dict(),
+        ).model_dump(),
     ).json()
 
     # Create the run and check the result
@@ -1728,7 +1730,7 @@ def test_create_and_update_run_with_patch(
                     ),
                 ],
                 files=new_files,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1786,7 +1788,7 @@ def test_create_and_stop_run(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1830,7 +1832,7 @@ def test_update_indexing_job(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1861,7 +1863,7 @@ def test_update_indexing_job(
                 generated_geometry_file="",
                 unit_cell_histograms_id=None,
                 latest_log="",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1876,7 +1878,7 @@ def test_update_indexing_job(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1915,7 +1917,7 @@ def test_update_indexing_job(
                 ],
                 beamtime_id=beamtime_id,
                 merge_status=JsonMergeStatus.BOTH,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1961,7 +1963,7 @@ def test_indexing_result_with_two_equal_parameter(
                 geometry_file="/mock/geometry.geom",
                 command_line="",
                 source="raw",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -1975,7 +1977,7 @@ def test_indexing_result_with_two_equal_parameter(
                 error_message="",
                 latest_log="",
                 workload_manager_job_id=1,
-            ).dict(),
+            ).model_dump(),
         ).json()
     )
     assert finish_with_error_response.result
@@ -1990,7 +1992,7 @@ def test_indexing_result_with_two_equal_parameter(
                 geometry_file="/mock/geometry.geom",
                 command_line="",
                 source="raw",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2023,7 +2025,7 @@ def test_indexing_result_with_two_equal_parameter(
             generated_geometry_file="",
             unit_cell_histograms_id=None,
             latest_log="",
-        ).dict(),
+        ).model_dump(),
     )
 
     # Now queue a merge job. The bug we encountered before lead to
@@ -2063,7 +2065,7 @@ def test_indexing_result_with_two_equal_parameter(
                     w=None,
                     ambigator_command_line="",
                 ),
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert queue_merge_job_response.merge_result_id > 0
@@ -2105,7 +2107,7 @@ def test_analysis_view_with_single_data_set_directly_returns_results(
                         attributo_value_chemical=lyso_chemical_id,
                     ),
                 ],
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2119,7 +2121,7 @@ def test_analysis_view_with_single_data_set_directly_returns_results(
                 attributi_filter=[],
                 beamtime_id=beamtime_id,
                 merge_status=JsonMergeStatus.BOTH,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2157,7 +2159,7 @@ def test_change_run_experiment_type(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert create_response.run_created
@@ -2180,7 +2182,7 @@ def test_change_run_experiment_type(
                 create_data_set=False,
                 started=2,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert second_create_response.run_created
@@ -2192,7 +2194,7 @@ def test_change_run_experiment_type(
             json=JsonChangeRunExperimentType(
                 run_internal_id=create_response.run_internal_id,
                 experiment_type_id=string_experiment_type_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2223,7 +2225,7 @@ def test_create_and_delete_data_set(
                         attributo_value_chemical=lyso_chemical_id,
                     ),
                 ],
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2252,7 +2254,7 @@ def test_create_and_delete_data_set(
         **client.request(
             "DELETE",
             "/api/data-sets",
-            json=JsonDeleteDataSetInput(id=create_response.id).dict(),
+            json=JsonDeleteDataSetInput(id=create_response.id).model_dump(),
         ).json(),
     ).result
 
@@ -2292,7 +2294,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2323,7 +2325,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                 unit_cell_histograms_id=None,
                 generated_geometry_file="",
                 latest_log="",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     ).result
 
@@ -2338,7 +2340,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2380,7 +2382,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                     w=None,
                     ambigator_command_line="",
                 ),
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert queue_merge_job_response.merge_result_id > 0
@@ -2426,7 +2428,7 @@ def test_queue_then_start_then_finish_merge_job(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2457,7 +2459,7 @@ def test_queue_then_start_then_finish_merge_job(
                 unit_cell_histograms_id=None,
                 generated_geometry_file="",
                 latest_log="",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     ).result
 
@@ -2472,7 +2474,7 @@ def test_queue_then_start_then_finish_merge_job(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2512,7 +2514,7 @@ def test_queue_then_start_then_finish_merge_job(
                     w=None,
                     ambigator_command_line="",
                 ),
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert queue_merge_job_response.merge_result_id > 0
@@ -2528,7 +2530,7 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/start",
             # job ID is the SLURM (or similar) job ID, so it's random
-            json=JsonMergeJobStartedInput(job_id=1337, time=10).dict(),
+            json=JsonMergeJobStartedInput(job_id=1337, time=10).model_dump(),
         ).json(),
     )
     assert start_merge_job_response.time > 0
@@ -2619,7 +2621,7 @@ def test_queue_then_start_then_finish_merge_job(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/finish",
             json=JsonMergeJobFinishedInput(
                 error=None, result=merge_result, latest_log=None
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2638,7 +2640,7 @@ def test_queue_then_start_then_finish_merge_job(
                 ],
                 beamtime_id=beamtime_id,
                 merge_status=JsonMergeStatus.BOTH,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -2761,7 +2763,7 @@ def test_start_two_runs_and_enable_auto_pilot(
                 ),
             ],
             files=[],
-        ).dict(),
+        ).model_dump(),
     )
     assert update_run_result.status_code // 100 == 2
     stop_result = client.get(f"/api/runs/stop-latest/{beamtime_id}")
@@ -2808,7 +2810,7 @@ def test_start_two_runs_and_enable_auto_pilot(
                     ),
                 ],
                 create_data_set=False,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert fourth_run_response.run_created
@@ -2866,7 +2868,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                 ),
             ],
             files=[],
-        ).dict(),
+        ).model_dump(),
     )
     assert update_run_result.status_code // 100 == 2
     stop_result = client.get(f"/api/runs/stop-latest/{beamtime_id}")
@@ -2885,7 +2887,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                 # not appear, but the manual one should.
                 attributi=[],
                 create_data_set=False,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert second_run_response.run_created
@@ -2965,7 +2967,7 @@ def test_read_and_update_runs_bulk(
                     started=1,
                     stopped=None,
                     files=[],
-                ).dict(),
+                ).model_dump(),
             ).json(),
         )
         assert response.run_created
@@ -2978,7 +2980,7 @@ def test_read_and_update_runs_bulk(
             json=JsonReadRunsBulkInput(
                 beamtime_id=beamtime_id,
                 external_run_ids=[x["id"] for x in run_definitions],  # type: ignore
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -3050,7 +3052,7 @@ def test_read_and_update_runs_bulk(
                     ),
                 ],
                 new_experiment_type_id=string_experiment_type_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -3229,7 +3231,7 @@ def test_delete_experiment_types(
                         attributo_value_chemical=lyso_chemical_id,
                     ),
                 ],
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -3239,7 +3241,7 @@ def test_delete_experiment_types(
         **client.request(
             "DELETE",
             "/api/experiment-types",
-            json=JsonDeleteExperimentType(id=chemical_experiment_type_id).dict(),
+            json=JsonDeleteExperimentType(id=chemical_experiment_type_id).model_dump(),
         ).json(),
     )
 
@@ -3261,7 +3263,7 @@ def test_delete_file(client: TestClient, test_file: int) -> None:
         **client.request(
             "DELETE",
             "/api/files",
-            json=JsonDeleteFileInput(id=test_file).dict(),
+            json=JsonDeleteFileInput(id=test_file).model_dump(),
         ).json(),
     )
     assert result.id == test_file
@@ -3302,7 +3304,7 @@ def test_update_beamtime_schedule(
             json=JsonUpdateBeamtimeScheduleInput(
                 beamtime_id=beamtime_id,
                 schedule=schedule_rows,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -3369,7 +3371,7 @@ def test_check_standard_unit(client: TestClient) -> None:
     output = JsonCheckStandardUnitOutput(
         **client.post(
             "/api/unit",
-            json=JsonCheckStandardUnitInput(input="mm").dict(),
+            json=JsonCheckStandardUnitInput(input="mm").model_dump(),
         ).json(),
     )
     assert output.error is None
@@ -3379,7 +3381,7 @@ def test_check_standard_unit(client: TestClient) -> None:
     output = JsonCheckStandardUnitOutput(
         **client.post(
             "/api/unit",
-            json=JsonCheckStandardUnitInput(input="bananas").dict(),
+            json=JsonCheckStandardUnitInput(input="bananas").model_dump(),
         ).json(),
     )
     assert output.error is not None
@@ -3389,7 +3391,7 @@ def test_check_standard_unit(client: TestClient) -> None:
     output = JsonCheckStandardUnitOutput(
         **client.post(
             "/api/unit",
-            json=JsonCheckStandardUnitInput(input="").dict(),
+            json=JsonCheckStandardUnitInput(input="").model_dump(),
         ).json(),
     )
     assert output.error is not None
@@ -3407,7 +3409,7 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 associated_table=AssociatedTable.CHEMICAL,
                 attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert attributo_response.id > 0
@@ -3428,7 +3430,7 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[],
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert chemical_response.id > 0
@@ -3450,7 +3452,7 @@ def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
             json=JsonUpdateAttributoInput(
                 attributo=updated_attributo,
                 conversion_flags=JsonUpdateAttributoConversionFlags(ignore_units=True),
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert attributo_update_response.id > 0
@@ -3482,7 +3484,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 associated_table=AssociatedTable.CHEMICAL,
                 attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert attributo_response.id > 0
@@ -3503,7 +3505,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
                 chemical_type=ChemicalType.CRYSTAL,
                 file_ids=[],
                 beamtime_id=beamtime_id,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert chemical_response.id > 0
@@ -3512,7 +3514,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
         **client.request(
             "DELETE",
             "/api/attributi",
-            json=JsonDeleteAttributoInput(id=attributo_response.id).dict(),
+            json=JsonDeleteAttributoInput(id=attributo_response.id).model_dump(),
         ).json(),
     )
     assert output.id == attributo_response.id
@@ -3551,7 +3553,7 @@ def test_download_spreadsheet(
                 create_data_set=False,
                 started=1,
                 stopped=None,
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert (
@@ -3603,7 +3605,7 @@ def test_create_run_attributi_from_schema(
                         description=second_attributo_name + "description",
                     ),
                 ],
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
     assert response.created_attributi == 2
@@ -3647,7 +3649,7 @@ def test_create_two_compatible_data_sets(
                         attributo_value_chemical=lyso_chemical_id,
                     ),
                 ],
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -3664,7 +3666,7 @@ def test_create_two_compatible_data_sets(
                     attributo_value_chemical=lyso_chemical_id,
                 ),
             ],
-        ).dict(),
+        ).model_dump(),
     )
     assert second_create_response.status_code // 100 == 4
 
@@ -3688,7 +3690,7 @@ async def read_indexing_jobs_wrapper(
             withFiles=request.query.get("withFiles") == "True",
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def read_merge_jobs_wrapper(tmp_path: Path, request: web.Request) -> web.Response:
@@ -3705,7 +3707,7 @@ async def read_merge_jobs_wrapper(tmp_path: Path, request: web.Request) -> web.R
             session=web_async_session,
         )
         print(result)
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def create_file_wrapper(tmp_path: Path, request: web.Request) -> web.Response:
@@ -3730,7 +3732,7 @@ async def create_file_wrapper(tmp_path: Path, request: web.Request) -> web.Respo
             deduplicate=deduplicate,
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def indexing_job_still_running_wrapper(
@@ -3749,7 +3751,7 @@ async def indexing_job_still_running_wrapper(
             json_result=JsonIndexingResultStillRunning(**await request.json()),
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def merge_job_started_wrapper(
@@ -3768,7 +3770,7 @@ async def merge_job_started_wrapper(
             json_result=JsonMergeJobStartedInput(**await request.json()),
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def merge_job_finished_wrapper(
@@ -3787,7 +3789,7 @@ async def merge_job_finished_wrapper(
             json_result=JsonMergeJobFinishedInput(**await request.json()),
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 async def indexing_job_finish_with_error_wrapper(
@@ -3806,7 +3808,7 @@ async def indexing_job_finish_with_error_wrapper(
             json_result=JsonIndexingResultFinishWithError(**await request.json()),
             session=web_async_session,
         )
-        return web.json_response(result.dict())
+        return web.json_response(result.model_dump())
 
 
 @pytest.fixture
@@ -3854,7 +3856,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
             geometry_file="/mock/geometry.geom",
             command_line="",
             source="raw",
-        ).dict(),
+        ).model_dump(),
     )
 
     workload_manager = DummyWorkloadManager()
@@ -3913,7 +3915,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
             geometry_file="",
             command_line="",
             source="raw",
-        ).dict(),
+        ).model_dump(),
     )
 
     workload_manager = DummyWorkloadManager()
@@ -3991,7 +3993,7 @@ async def test_merge_daemon(
                     w=None,
                     ambigator_command_line="",
                 ),
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 
@@ -4136,7 +4138,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
                 geometry_file="/mock/geometry.geom",
                 command_line="",
                 source="raw",
-            ).dict(),
+            ).model_dump(),
         ).json(),
     )
 

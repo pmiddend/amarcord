@@ -13,7 +13,7 @@ import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
-import Api.Data as Api exposing (JSONSchemaStringType(..), JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
+import Api.Data as Api exposing (JsonAttributoOutput, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
 import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
 import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
 import Html exposing (..)
@@ -1188,7 +1188,7 @@ update msg model =
                     , name = "cell description"
                     , attributoTypeInteger = Nothing
                     , attributoTypeNumber = Nothing
-                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeString = Just { type_ = "string", enum = Nothing }
                     , attributoTypeArray = Nothing
                     , attributoTypeBoolean = Nothing
                     }
@@ -1206,7 +1206,7 @@ update msg model =
                     , name = "point group"
                     , attributoTypeInteger = Nothing
                     , attributoTypeNumber = Nothing
-                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeString = Just { type_ = "string", enum = Nothing }
                     , attributoTypeArray = Nothing
                     , attributoTypeBoolean = Nothing
                     }
@@ -1224,7 +1224,7 @@ update msg model =
                     , name = "space group"
                     , attributoTypeInteger = Nothing
                     , attributoTypeNumber = Nothing
-                    , attributoTypeString = Just { type_ = JSONSchemaStringTypeString, enum = Nothing }
+                    , attributoTypeString = Just { type_ = "string", enum = Nothing }
                     , attributoTypeArray = Nothing
                     , attributoTypeBoolean = Nothing
                     }
@@ -1495,7 +1495,7 @@ update msg model =
 
                                 Just _ ->
                                     let
-                                        updateAttributoInput : JsonAttributo
+                                        updateAttributoInput : JsonAttributoOutput
                                         updateAttributoInput =
                                             { associatedTable = associatedTableToApi baseAttributo.associatedTable
                                             , description = baseAttributo.description
