@@ -12,6 +12,7 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 - Indexing: in a similar vein to the above, you now get a better error message when the geometry file is missing; this previously complained about `cannot resolve geometry hash`, which is true, but unhelpful. Now you see `cannot find the given geometry file ..., check that it exists and is readable`
 - Indexing: now, also an error in `list_events` will be reported properly
 - SLURM REST interface: you now need to explicitly specify an `api-version` parameter (since the version changes frequently and it shouldn't be hard-coded) ([\#467](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/455))
+- Indexing results: failed results are now hidden, and can be shown with a check-box ([\#468](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/468))
 
 ## Fixes
 
