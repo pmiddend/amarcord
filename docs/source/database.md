@@ -10,7 +10,7 @@
 
 ## SQL
 
-AMARCORD is built on top of the concept of a [relational database](https://en.wikipedia.org/wiki/Relational_database) (an SQL database). Due to the use of Python's [SQLAlchemy](https://www.sqlalchemy.org/) library, the concrete type of SQL database shouldn't matter much. We're using both [SQLite](https://www.sqlite.org/index.html) and [MySQL](https://www.mysql.com/), with the same code base.
+AMARCORD is built on top of the concept of a [relational database](https://en.wikipedia.org/wiki/Relational_database) (an SQL database). Due to the use of Python's [SQLAlchemy](https://www.sqlalchemy.org/) library, the concrete type of SQL database shouldn't matter much. We're using both [SQLite](https://www.sqlite.org/index.html) and MySQL, with the same code base.
 
 ## Configuration
 
