@@ -15,6 +15,7 @@ import aiohttp
 import structlog
 from aiohttp import BasicAuth
 from aiohttp import ContentTypeError
+from pydantic import BaseModel
 
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
@@ -26,7 +27,7 @@ from amarcord.json_types import JSONDict
 
 _SLURM_TOKEN_PREFIX = "SLURM_TOKEN="  # noqa: S105
 MAXWELL_PREFIX: Final = "https://max-portal.desy.de"
-MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm/v0.0.38"
+MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm"
 MAXWELL_SLURM_TOOLS_VERSION: Final = "4.6.0"
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -141,28 +142,51 @@ class DynamicTokenRetriever:
         return self._token
 
 
-def _convert_job(job: JSONDict) -> None | Job:
-    job_state = job.get("job_state", None)
-    if job_state is None:
-        return None
-    assert isinstance(job_state, str)
-    job_start_time = job.get("start_time", None)
-    if job_start_time is None:
-        return None
-    assert isinstance(job_start_time, float | int), f"start time is {job_start_time}"
-    job_id = job.get("job_id", None)
-    if job_id is None:
-        return None
-    assert isinstance(job_id, int)
-    return Job(
-        status=parse_job_state(job_state),
-        started=datetime.datetime.fromtimestamp(
-            job_start_time,
-            tz=datetime.timezone.utc,
-        ),
-        metadata=JobMetadata({"job_id": job_id}),
-        id=job_id,
-    )
+class JsonSlurmJobPre40(BaseModel):
+    job_state: str
+    start_time: int | float
+    job_id: int
+
+
+class JsonSlurmTime(BaseModel):
+    set: bool
+    infinite: bool
+    number: int | float
+
+
+class JsonSlurmJob(BaseModel):
+    job_state: list[str]
+    start_time: JsonSlurmTime
+    job_id: int
+
+
+def _convert_job(job_in: JSONDict) -> None | Job:
+    try:
+        job = JsonSlurmJobPre40(**job_in)  # type: ignore
+        return Job(
+            status=parse_job_state(job.job_state),
+            started=datetime.datetime.fromtimestamp(
+                job.start_time,
+                tz=datetime.timezone.utc,
+            ),
+            metadata=JobMetadata({"job_id": job.job_id}),
+            id=job.job_id,
+        )
+    except:
+        try:
+            job = JsonSlurmJob(**job_in)  # type: ignore
+            return Job(
+                status=parse_job_state(job.job_state[0]),
+                started=datetime.datetime.fromtimestamp(
+                    job.start_time.number,
+                    tz=datetime.timezone.utc,
+                ),
+                metadata=JobMetadata({"job_id": job.job_id}),
+                id=job.job_id,
+            )
+        except:
+            logger.exception("couldn't deserialize job")
+            return None
 
 
 class SlurmError(TypedDict):
@@ -210,6 +234,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         explicit_node: None | str,
         token_retriever: TokenRetriever,
         request_wrapper: SlurmHttpWrapper,
+        api_version: str,
         rest_url: str,
         rest_user: None | str = None,
     ) -> None:
@@ -217,9 +242,10 @@ class SlurmRestWorkloadManager(WorkloadManager):
         self._reservation = reservation
         self._explicit_node = explicit_node
         self._token_retriever = token_retriever
-        self._rest_url = rest_url
+        self.rest_url = rest_url
         self._rest_user = rest_user if rest_user is not None else getpass.getuser()
         self._request_wrapper = request_wrapper
+        self._api_version = api_version
 
     def name(self) -> str:
         return "Slurm REST"
@@ -244,22 +270,37 @@ class SlurmRestWorkloadManager(WorkloadManager):
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        url = f"{self._rest_url}/job/submit"
+        url = f"{self.rest_url}/job/submit"
         headers_output = json.dumps(await self._headers())
         logger.info(
             f"sending the following script (excerpt) to {url} (headers {headers_output}): {script[0:50]}...",
         )
-        job_dict: dict[str, int | str | dict[str, str]] = {
-            "nodes": 1,
+        time_limit_number = int(time_limit.total_seconds()) // 60
+        environment_extended = {
+            "SHELL": "/bin/bash",
+            "PATH": "/bin:/usr/bin:/usr/local/bin",
+            "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
+        } | environment
+        env_in_dict: dict[str, str] | list[str] = (
+            environment_extended
+            if self._api_version <= "v0.0.39"
+            else [f"{k}={v}" for k, v in environment_extended.items()]
+        )
+        job_dict: dict[
+            str,
+            int
+            | str
+            | float
+            | dict[str, str]
+            | list[str]
+            | dict[str, bool | int | float],
+        ] = {
             "current_working_directory": str(working_directory),
-            "time_limit": int(time_limit.total_seconds()) // 60,
+            "time_limit": time_limit_number
+            if self._api_version <= "v0.0.39"
+            else {"set": True, "number": time_limit_number},
             "name": name,
-            "environment": {
-                "SHELL": "/bin/bash",
-                "PATH": "/bin:/usr/bin:/usr/local/bin",
-                "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
-            }
-            | environment,
+            "environment": env_in_dict,
             "partition": self.partition,
             "standard_output": (
                 str(working_directory / "stdout.txt") if stdout is None else str(stdout)
@@ -313,7 +354,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
 
     async def list_jobs(self) -> list[Job]:
         response = await self._request_wrapper.get(
-            f"{self._rest_url}/jobs",
+            f"{self.rest_url}/jobs",
             headers=await self._headers(),
         )
         errors = response.get("errors", None)

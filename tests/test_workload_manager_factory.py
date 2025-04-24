@@ -26,43 +26,46 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
         ("shit:", None),
         ("maxwell-rest:", None),
         (
-            "maxwell-rest:partition=foo|user=user",
+            "maxwell-rest:partition=foo|user=user|api-version=v0.0.40",
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation=None,
                 explicit_node=None,
                 token=None,
                 user="user",
-                url=MAXWELL_SLURM_URL,
+                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                api_version="v0.0.40",
                 portal_token=None,
             ),
         ),
         (
-            "maxwell-rest:partition=foo|reservation=bar|user=user|token=blub",
+            "maxwell-rest:partition=foo|reservation=bar|user=user|token=blub|api-version=v0.0.40",
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
                 explicit_node=None,
                 token="blub",  # noqa: S106
                 user="user",
-                url=MAXWELL_SLURM_URL,
+                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                api_version="v0.0.40",
                 portal_token=None,
             ),
         ),
         (
-            "maxwell-rest:partition=foo|reservation=bar|user=user|portal-token=blub",
+            "maxwell-rest:partition=foo|reservation=bar|user=user|portal-token=blub|api-version=v0.0.40",
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
                 explicit_node=None,
                 token=None,
                 user="user",
-                url=MAXWELL_SLURM_URL,
+                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                api_version="v0.0.40",
                 portal_token="blub",  # noqa: S106
             ),
         ),
         (
-            "slurm-rest:partition=foo|reservation=bar|user=user|token=blub|host=myhost|port=80|path=/foo",
+            "slurm-rest:partition=foo|reservation=bar|user=user|token=blub|host=myhost|port=80|path=/foo|api-version=v0.0.40",
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
@@ -70,11 +73,12 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token="blub",  # noqa: S106
                 user="user",
                 url="https://myhost:80/foo",
+                api_version="v0.0.40",
                 portal_token=None,
             ),
         ),
         (
-            "slurm-rest:partition=foo|reservation=bar|user=user|explicit-node=foo|token=blub|host=myhost|port=80|path=/foo",
+            "slurm-rest:partition=foo|reservation=bar|user=user|explicit-node=foo|token=blub|host=myhost|port=80|path=/foo|api-version=v0.0.40",
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
@@ -82,6 +86,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token="blub",  # noqa: S106
                 user="user",
                 url="https://myhost:80/foo",
+                api_version="v0.0.40",
                 portal_token=None,
             ),
         ),

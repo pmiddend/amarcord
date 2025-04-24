@@ -79,6 +79,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
+        api_version="v0.0.40",
     )
 
     http_wrapper.responses.append({"job_id": 1})
@@ -103,6 +104,7 @@ async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
+        api_version="v0.0.40",
     )
 
     http_wrapper.responses.append({"errors": ["hehe"]})
@@ -121,10 +123,41 @@ async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> 
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
+        api_version="v0.0.40",
     )
 
     http_wrapper.responses.append({"jobs": [{"user_id": 2}]})
     assert not await controller.list_jobs()
+
+
+async def test_slurm_rest_job_controller_list_jobs_success_pre40() -> None:
+    http_wrapper = MockHttpWrapper()
+    controller = SlurmRestWorkloadManager(
+        partition=_TEST_PARTITION,
+        reservation=None,
+        explicit_node=None,
+        token_retriever=_test_token_retriever,
+        request_wrapper=http_wrapper,
+        rest_user=_REST_USER,
+        rest_url=MAXWELL_SLURM_URL,
+        api_version="v0.0.40",
+    )
+
+    http_wrapper.responses.append(
+        {
+            "jobs": [
+                {
+                    "user_id": 1,
+                    "job_id": 1,
+                    "job_state": "RUNNING",
+                    "start_time": 1625570627,
+                },
+            ],
+        },
+    )
+    jobs = await controller.list_jobs()
+    assert len(jobs) == 1
+    assert jobs[0].status == JobStatus.RUNNING
 
 
 async def test_slurm_rest_job_controller_list_jobs_success() -> None:
@@ -137,6 +170,7 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
         rest_url=MAXWELL_SLURM_URL,
+        api_version="v0.0.40",
     )
 
     http_wrapper.responses.append(
@@ -145,8 +179,8 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
                 {
                     "user_id": 1,
                     "job_id": 1,
-                    "job_state": "RUNNING",
-                    "start_time": 1625570627,
+                    "job_state": ["RUNNING"],
+                    "start_time": {"set": True, "infinite": False, "number": 10},
                 },
             ],
         },

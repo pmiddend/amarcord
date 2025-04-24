@@ -154,11 +154,10 @@ OFF_INDEX_ENVIRON_GNUPLOT_PATH = "AMARCORD_GNUPLOT_PATH"
 OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS = "AMARCORD_INDEXAMAJIG_PARAMS"
 OFF_INDEX_ENVIRON_RUN_ID = "AMARCORD_RUN_ID"
 OFF_INDEX_ENVIRON_PERFORMANCE_METRICS = "AMARCORD_PERFORMANCE_METRICS"
+OFF_INDEX_SLURM_URL = "AMARCORD_SLURM_URL"
 ON_INDEX_ENVIRON_ASAPO_SOURCE = "AMARCORD_ASAPO_SOURCE"
 ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER = "AMARCORD_CPU_COUNT_MULTIPLIER"
 
-# We should probably make this less of a constant
-MAXWELL_URL: Final = "https://max-portal.desy.de/sapi/slurm/v0.0.38"
 # No real reason why we haven't parametrized this into an environment
 # argument (see the other options below). 1000 seems like a nice
 # number for now, and CrystFEL uses the same:
@@ -291,6 +290,8 @@ class PrimaryArgs:
     use_slurm: bool
     # can be empty if slurm isn't used
     slurm_partition_to_use: str
+    # can be empty if slurm isn't used
+    slurm_url: str
     workload_manager_job_id: int
     # Where to store the stream file into
     stream_file: Path
@@ -558,7 +559,7 @@ def cancel_job(args: PrimaryArgs, job_id: JobArray) -> None:
 
 def cancel_job_slurm(args: PrimaryArgs, job_id: JobArraySlurm) -> None:
     req = request.Request(
-        f"{MAXWELL_URL}/job/{job_id.job_id}",
+        f"{args.slurm_url}/job/{job_id.job_id}",
         method="DELETE",
         headers=args.maxwell_headers,
     )
@@ -622,7 +623,6 @@ def initialize_db(
                 "list_events failed! cannot continue further; list_events output follows:\n\n"
                 + "\n".join(first_lines),
             )
-            logger.info(f"list events completed, return code: {result.returncode}")
             # This used to be a FIFO, but due to a bug that wasn't
             # diagnosed completely, for now it's a regular file. Which
             # is a bummer, because with a FIFO you could do parallel
@@ -720,16 +720,16 @@ def start_job_array_slurm(
             "nodes": 1,
             "array": f"0-{number_of_indexamajig_jobs-1}",
             "current_working_directory": str(cwd),
-            "environment": environment,
+            "environment": [f"{k}={v}" for k, v in environment.items()],
             # This is in minutes
-            "time_limit": 360,
+            "time_limit": {"set": True, "number": 360},
             "standard_output": (str(cwd / f"job-{job_array_id}-%a-stdout.txt")),
             "standard_error": (str(cwd / f"job-{job_array_id}-%a-stderr.txt")),
         },
         "script": script_file_contents,
     }
     req = request.Request(
-        f"{MAXWELL_URL}/job/submit",
+        f"{args.slurm_url}/job/submit",
         method="POST",
         headers=args.maxwell_headers,
         data=json.dumps(request_json).encode("utf-8"),
@@ -752,10 +752,10 @@ def start_job_array_slurm(
         logger.exception(
             f"HTTP error sending job for {job_array_id}: {e.fp.read().decode('utf-8')}",
         )
-        raise
+        exit_with_error(args, "HTTP error sending job sub array")
     except:
         logger.exception(f"unknown error sending job for {job_array_id}")
-        raise
+        exit_with_error(args, "error sending job sub array")
 
 
 def start_job_array(
@@ -811,7 +811,7 @@ def get_all_slurm_job_stati(
     job_array_id: JobArraySlurm,
 ) -> list[str]:
     req = request.Request(
-        f"{MAXWELL_URL}/jobs",
+        f"{args.slurm_url}/jobs",
         method="GET",
         headers=args.maxwell_headers,
     )
@@ -821,9 +821,10 @@ def get_all_slurm_job_stati(
         result = []
         for job in response_content_json["jobs"]:
             if (
-                job["array_job_id"] > 0 and job["array_job_id"] == job_array_id.job_id
+                job["array_job_id"]["number"] > 0
+                and job["array_job_id"]["number"] == job_array_id.job_id
             ) or job["job_id"] == job_array_id.job_id:
-                result.append(job["job_state"])
+                result.append(job["job_state"][0])
         return result
 
 
@@ -2113,6 +2114,7 @@ def parse_primary_args() -> PrimaryArgs:
     master_files = [x for x in input_files if "_master.nx5" in x.name]
     return PrimaryArgs(
         use_slurm=use_slurm,
+        slurm_url=os.environ.get(OFF_INDEX_SLURM_URL, ""),
         # Only makes sense if you use slurm, so use empty string by default
         slurm_partition_to_use=os.environ.get(
             OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE, ""
