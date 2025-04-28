@@ -22,6 +22,7 @@ Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn
    backend
    frontend
    tests
+   setups
    nix
    documentation
    faq

@@ -92,4 +92,4 @@ pages:
     paths:
     - public
   only:
-    - main
+    - next-beamtime
