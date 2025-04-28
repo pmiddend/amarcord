@@ -14,7 +14,7 @@ import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (RunRange, makeFilesLink, runRangesToString)
 import Amarcord.RunAttributiForm as RunAttributiForm
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore)
+import Amarcord.Util exposing (HereAndNow, formatDateHumanFriendly, formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Api.Data exposing (JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
@@ -217,8 +217,10 @@ viewRunRow chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCo
             ]
             :: td_ [ strongText (String.fromInt r.externalId) ]
             :: td_ [ text (String.fromInt r.id) ]
+            :: td_ [ text <| formatDateHumanFriendly utc (millisToPosix r.startedLocal) ]
             :: td_ [ text <| formatPosixTimeOfDayHumanFriendly utc (millisToPosix r.startedLocal) ]
-            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly utc) (Maybe.map millisToPosix r.stoppedLocal) ]
+            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatDateHumanFriendly utc << millisToPosix) r.stoppedLocal ]
+            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly utc << millisToPosix) r.stoppedLocal ]
             :: attributiColumns chemicalIds experimentTypeIds attributi r
         )
         :: (case runEditInfo of
@@ -350,7 +352,9 @@ viewRunsTable chosenColumns runEditInfo { runs, events, chemicals, experimentTyp
                 th_ [ text "Actions" ]
                     :: th_ [ text "ID" ]
                     :: th_ [ text "Internal ID" ]
+                    :: th_ [ text "Started date" ]
                     :: th_ [ text "Started" ]
+                    :: th_ [ text "Stopped date" ]
                     :: th_ [ text "Stopped" ]
                     :: attributiColumnHeaders chosenColumns
             ]
