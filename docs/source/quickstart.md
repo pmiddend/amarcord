@@ -1,5 +1,6 @@
 # Quick Start
 
+(QuickStart)=
 ## Using the Docker image 
 
 If you have Docker installed (or podman) and just want to see "something", you can do that quite easily. First, we create a Docker volume to store the (SQLite in our case) database into:
