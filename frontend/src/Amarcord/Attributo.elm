@@ -1,5 +1,6 @@
 module Amarcord.Attributo exposing
     ( Attributo
+    , AttributoDateTime
     , AttributoId
     , AttributoMap
     , AttributoName
@@ -46,10 +47,16 @@ type alias ChemicalNameDict =
     Dict Int String
 
 
+type alias AttributoDateTime =
+    { datetimeUtc : Posix
+    , datetimeLocal : Posix
+    }
+
+
 type AttributoValue
     = ValueInt Int
     | ValueChemical Int
-    | ValueDateTime Posix
+    | ValueDateTime AttributoDateTime
     | ValueString String
     | ValueList (List AttributoValue)
     | ValueNumber Float
@@ -77,7 +84,7 @@ attributoValueToInt x =
             Nothing
 
 
-attributoValueToDateTime : AttributoValue -> Maybe Posix
+attributoValueToDateTime : AttributoValue -> Maybe AttributoDateTime
 attributoValueToDateTime x =
     case x of
         ValueDateTime b ->
@@ -153,7 +160,8 @@ attributoValueToJson aid a =
     , attributoValueBool = attributoValueToBool a
     , attributoValueFloat = attributoValueToFloat a
     , attributoValueInt = attributoValueToInt a
-    , attributoValueDatetime = Maybe.map posixToMillis (attributoValueToDateTime a)
+    , attributoValueDatetime = Maybe.map (posixToMillis << .datetimeUtc) (attributoValueToDateTime a)
+    , attributoValueDatetimeLocal = Maybe.map (posixToMillis << .datetimeLocal) (attributoValueToDateTime a)
     , attributoValueChemical = attributoValueToChemical a
     , attributoValueListBool = attributoValueToListOfBool a
     , attributoValueListFloat = attributoValueToListOfFloat a
@@ -180,8 +188,8 @@ prettyPrintAttributoValue chemicalIdsToName x =
         ValueInt int ->
             String.fromInt int
 
-        ValueDateTime posix ->
-            String.fromInt (posixToMillis posix)
+        ValueDateTime { datetimeLocal } ->
+            String.fromInt (posixToMillis datetimeLocal)
 
         ValueChemical chemicalId ->
             case chemicalIdsToName of
@@ -456,7 +464,15 @@ convertAttributoValueFromApi v =
         , Maybe.map ValueNumber v.attributoValueFloat
         , Maybe.map ValueInt v.attributoValueInt
         , Maybe.map ValueChemical v.attributoValueChemical
-        , Maybe.map (ValueDateTime << millisToPosix) v.attributoValueDatetime
+        , Maybe.map2
+            (\utc local ->
+                ValueDateTime
+                    { datetimeUtc = millisToPosix utc
+                    , datetimeLocal = millisToPosix local
+                    }
+            )
+            v.attributoValueDatetime
+            v.attributoValueDatetimeLocal
         , Maybe.map (ValueList << List.map ValueBoolean) v.attributoValueListBool
         , Maybe.map (ValueList << List.map ValueNumber) v.attributoValueListFloat
         , Maybe.map (ValueList << List.map ValueString) v.attributoValueListStr

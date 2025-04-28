@@ -33,13 +33,9 @@ dependencies = [
     # asynchronous db client
     "pymysql==1.1.1",
     "asyncmy==0.2.10",
-    # for correcting UTC timezone for dates
-    "python-dateutil==2.8.2",
     # For the file upload in the web server
     # see https://fastapi.tiangolo.com/tutorial/request-files/
     "python-multipart==0.0.9",
-    # for time zone detection and conversion of timestamps in attributi
-    "pytz==2024.2",
     # for general DB access
     "sqlalchemy==2.0.36",
     "structlog-overtime==1.0.1",

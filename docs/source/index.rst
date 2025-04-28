@@ -17,6 +17,7 @@ Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn
    executables
    database
    pythonsetup
+   timestamps
    backend_frontend_openapi
    backend
    frontend

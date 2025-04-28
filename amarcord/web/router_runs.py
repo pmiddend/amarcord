@@ -1,5 +1,4 @@
 import datetime
-import os
 import re
 from dataclasses import dataclass
 from io import BytesIO
@@ -8,7 +7,6 @@ from typing import Any
 from typing import Generator
 from typing import Iterable
 from typing import Mapping
-from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import APIRouter
@@ -28,10 +26,12 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import coparse_cell_description
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import local_int_to_utc_datetime
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
@@ -60,6 +60,7 @@ from amarcord.db.run_internal_id import RunInternalId
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
+from amarcord.util import get_local_tz
 from amarcord.web.constants import DATE_FORMAT
 from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import encode_run_attributo_value
@@ -298,12 +299,16 @@ async def create_or_update_run(
                 started=(
                     datetime.datetime.now(datetime.timezone.utc)
                     if input_.started is None
-                    else datetime_from_attributo_int(input_.started)
+                    else utc_int_to_utc_datetime(input_.started)
+                    if input_.is_utc
+                    else local_int_to_utc_datetime(input_.started)
                 ),
                 stopped=(
                     None
                     if input_.stopped is None
-                    else datetime_from_attributo_int(input_.stopped)
+                    else utc_int_to_utc_datetime(input_.stopped)
+                    if input_.is_utc
+                    else local_int_to_utc_datetime(input_.stopped)
                 ),
                 modified=datetime.datetime.now(datetime.timezone.utc),
             )
@@ -400,9 +405,9 @@ async def create_or_update_run(
                         orm.RunHasFiles(glob=f.glob, source=f.source)
                     )
             if input_.started is not None:
-                run_in_db.started = datetime_from_attributo_int(input_.started)
+                run_in_db.started = utc_int_to_utc_datetime(input_.started)
             if input_.stopped is not None:
-                run_in_db.stopped = datetime_from_attributo_int(input_.stopped)
+                run_in_db.stopped = utc_int_to_utc_datetime(input_.stopped)
 
         if input_.create_data_set:
             await _create_data_set_for_run(session, latest_config, run_in_db)
@@ -579,6 +584,16 @@ def encode_attributo_value(
         attributo_value_bool=(
             attributo_value if isinstance(attributo_value, bool) else None
         ),
+        attributo_value_datetime=(
+            utc_datetime_to_utc_int(attributo_value)
+            if isinstance(attributo_value, datetime.datetime)
+            else None
+        ),
+        attributo_value_datetime_local=(
+            utc_datetime_to_local_int(attributo_value)
+            if isinstance(attributo_value, datetime.datetime)
+            else None
+        ),
         # we cannot thoroughly test the array for type-correctness (or we dont' want to, rather)
         attributo_value_list_str=(  # pyright: ignore
             attributo_value
@@ -634,7 +649,12 @@ def _encode_dataclass(
         attributo_value_int=r.integer_value,
         attributo_value_chemical=r.chemical_value,
         attributo_value_datetime=(
-            datetime_to_attributo_int(r.datetime_value)
+            utc_datetime_to_utc_int(r.datetime_value)
+            if r.datetime_value is not None
+            else None
+        ),
+        attributo_value_datetime_local=(
+            utc_datetime_to_local_int(r.datetime_value)
             if r.datetime_value is not None
             else None
         ),
@@ -762,9 +782,7 @@ async def _find_schedule_entry(
     session: AsyncSession,
     beamtime_id: BeamtimeId,
 ) -> None | orm.BeamtimeSchedule:
-    now = datetime.datetime.now(
-        ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin")),
-    )
+    now = datetime.datetime.now(get_local_tz())
     minutes_since_midnight_now = now.hour * 60 + now.minute
     for schedule_entry in await session.scalars(
         select(orm.BeamtimeSchedule).where(
@@ -923,9 +941,15 @@ async def read_runs(
                 id=r.id,
                 external_id=r.external_id,
                 attributi=[encode_run_attributo_value(v) for v in r.attributo_values],
-                started=datetime_to_attributo_int(r.started),
+                started=utc_datetime_to_utc_int(r.started),
+                started_local=utc_datetime_to_local_int(r.started),
                 stopped=(
-                    datetime_to_attributo_int(r.stopped)
+                    utc_datetime_to_utc_int(r.stopped)
+                    if r.stopped is not None
+                    else None
+                ),
+                stopped_local=(
+                    utc_datetime_to_local_int(r.stopped)
                     if r.stopped is not None
                     else None
                 ),
@@ -1111,7 +1135,7 @@ async def read_runs_overview(
             in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
             indexing_statistics=[
                 JsonIndexingStatistic(
-                    time=datetime_to_attributo_int(stat.time),
+                    time=(stat.time - latest_run.started).seconds,
                     frames=stat.frames,
                     hits=stat.hits,
                     indexed=stat.indexed_frames,
@@ -1134,9 +1158,13 @@ async def read_runs_overview(
             id=r.id,
             external_id=r.external_id,
             attributi=[encode_run_attributo_value(v) for v in r.attributo_values],
-            started=datetime_to_attributo_int(r.started),
+            started=utc_datetime_to_utc_int(r.started),
+            started_local=utc_datetime_to_local_int(r.started),
             stopped=(
-                datetime_to_attributo_int(r.stopped) if r.stopped is not None else None
+                utc_datetime_to_utc_int(r.stopped) if r.stopped is not None else None
+            ),
+            stopped_local=(
+                utc_datetime_to_local_int(r.stopped) if r.stopped is not None else None
             ),
             files=[JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in r.files],
             summary=encode_indexing_fom_to_json(this_run_fom),
@@ -1156,7 +1184,8 @@ async def read_runs_overview(
             if live_stream_file is None
             else JsonLiveStream(
                 file_id=live_stream_file.id,
-                modified=datetime_to_attributo_int(live_stream_file.modified),
+                modified=utc_datetime_to_utc_int(live_stream_file.modified),
+                modified_local=utc_datetime_to_local_int(live_stream_file.modified),
             )
         ),
         attributi=[encode_attributo(a) for a in attributi],

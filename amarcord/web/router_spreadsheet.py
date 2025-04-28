@@ -34,14 +34,15 @@ async def download_spreadsheet(
     workbook.save(workbook_bytes)
     zipfile_bytes = BytesIO()
     with ZipFile(zipfile_bytes, "w") as result_zip:
-        dirname = "amarcord-output-" + datetime.datetime.now(
-            datetime.timezone.utc,
-        ).strftime("%Y-%m-%d_%H-%M-%S")
+        dirname = (
+            f"amarcord-beamtime-{beamtimeId}-export-"
+            + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        )
         result_zip.writestr(f"{dirname}/tables.xlsx", workbook_bytes.getvalue())
         for file_ in workbook_output.files:
             result_zip.writestr(
                 f"{dirname}/files/{file_.id}" + Path(file_.file_name).suffix,
-                file_.contents,
+                await file_.awaitable_attrs.contents,
             )
     zipfile_bytes.seek(0)
 

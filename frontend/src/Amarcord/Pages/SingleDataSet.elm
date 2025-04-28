@@ -337,7 +337,11 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                                 ]
 
                             Just (MergeResultStateError { error }) ->
-                                [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
+                                [ td [ colspan remainingHeaders ]
+                                    [ p_ [ text <| "Error: " ++ error ]
+                                    , a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                    ]
+                                ]
 
                             Just (MergeResultStateDone { started, stopped, result }) ->
                                 let
@@ -1319,7 +1323,6 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
         [ div [ class "col-6" ]
             [ viewDataSetTable
                 attributi
-                model.hereAndNow.zone
                 chemicalIdsToName
                 (convertAttributoMapFromApi dataSet.attributi)
                 False

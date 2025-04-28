@@ -13,7 +13,7 @@ import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, i
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, monthToNumericString, scrollToTop)
+import Amarcord.Util exposing (monthToNumericString, scrollToTop)
 import Api.Data exposing (ChemicalType(..), JsonChemical, JsonChemicalWithId, JsonChemicalWithoutId, JsonCopyChemicalOutput, JsonCreateFileOutput, JsonDeleteChemicalInput, JsonDeleteChemicalOutput, JsonFileOutput, JsonReadAllChemicals, JsonReadChemicals, JsonReadRuns, JsonRun)
 import Api.Request.Chemicals exposing (copyChemicalApiCopyChemicalPost, createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readAllChemicalsApiAllChemicalsGet, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
 import Api.Request.Files exposing (createFileApiFilesPost)
@@ -34,7 +34,7 @@ import Result.Extra as ResultExtra
 import Set exposing (Set)
 import String
 import Task
-import Time exposing (Zone, millisToPosix, toMonth, toYear)
+import Time exposing (millisToPosix, toMonth, toYear, utc)
 
 
 type alias ChemicalsAndAttributi =
@@ -72,7 +72,6 @@ type alias Model =
     , fileUploadRequest : RemoteData HttpError ()
     , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput)
     , modifyRequest : RemoteData HttpError ()
-    , myTimeZone : Zone
     , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
     , responsiblePersonFilter : Maybe String
@@ -122,8 +121,8 @@ type Msg
     | ChangeTypeFilter (Maybe ChemicalType)
 
 
-init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
-init { zone } beamtimeId =
+init : BeamtimeId -> ( Model, Cmd Msg )
+init beamtimeId =
     ( { chemicals = Loading
       , priorChemicals = NotAsked
       , chemicalsUsedInRuns = Set.empty
@@ -132,7 +131,6 @@ init { zone } beamtimeId =
       , modifyRequest = NotAsked
       , fileUploadRequest = NotAsked
       , editChemical = Nothing
-      , myTimeZone = zone
       , submitErrors = []
       , newFileUpload = { file = Nothing, description = "" }
       , responsiblePersonFilter = Nothing
@@ -401,8 +399,8 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                ]
 
 
-viewChemicalRow : Zone -> List (Attributo AttributoType) -> Set ChemicalId -> Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput -> List (Html Msg)
-viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
+viewChemicalRow : List (Attributo AttributoType) -> Set ChemicalId -> Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput -> List (Html Msg)
+viewChemicalRow attributi chemicalIsUsedInRun chemical =
     let
         viewFile { id, type__, fileName, description } =
             li [ class "list-group-item" ] <|
@@ -455,7 +453,6 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                             , withUnit = True
                             , withTolerance = False
                             }
-                            zone
                             Dict.empty
                             chemical.attributi
                             attributo
@@ -531,13 +528,12 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
 
 viewChemicalTable :
     Set ChemicalId
-    -> Zone
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> List (Attributo AttributoType)
     -> Maybe String
     -> Maybe ChemicalType
     -> Html Msg
-viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilter typeFilter =
+viewChemicalTable usedChemicalIds chemicals attributi responsiblePersonFilter typeFilter =
     if isEmpty chemicals then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No chemicals entered yet." ] ]
 
@@ -608,7 +604,7 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
                 :: viewTypeFilter
                 :: viewResponsiblePersonFilter
                 :: hr_
-                :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) filteredChemicals
+                :: List.concatMap (viewChemicalRow attributi usedChemicalIds) filteredChemicals
             )
 
 
@@ -622,8 +618,8 @@ viewChemicalTypeIcon ct =
             icon { name = "droplet-fill" }
 
 
-viewPriorChemicals : Model -> List (Attributo AttributoType) -> CopyPriorChemicalData -> Html Msg
-viewPriorChemicals model attributi { priorChemicals, selectedChemicalId } =
+viewPriorChemicals : List (Attributo AttributoType) -> CopyPriorChemicalData -> Html Msg
+viewPriorChemicals attributi { priorChemicals, selectedChemicalId } =
     let
         viewPriorChemical { id, name, beamtimeId } =
             let
@@ -632,17 +628,17 @@ viewPriorChemicals model attributi { priorChemicals, selectedChemicalId } =
                         Nothing ->
                             name
 
-                        Just { start } ->
+                        Just { startLocal } ->
                             let
                                 startAsPosix =
-                                    millisToPosix start
+                                    millisToPosix startLocal
                             in
                             name
                                 ++ " / "
                                 ++ String.fromInt
-                                    (toYear model.myTimeZone startAsPosix)
+                                    (toYear utc startAsPosix)
                                 ++ "-"
-                                ++ monthToNumericString (toMonth model.myTimeZone startAsPosix)
+                                ++ monthToNumericString (toMonth utc startAsPosix)
             in
             option
                 [ value (String.fromInt id)
@@ -754,7 +750,7 @@ viewInner model =
                 prefix =
                     case model.priorChemicals of
                         Success chems ->
-                            viewPriorChemicals model attributi chems
+                            viewPriorChemicals attributi chems
 
                         _ ->
                             case model.editChemical of
@@ -807,7 +803,6 @@ viewInner model =
             , deleteRequestResult
             , viewChemicalTable
                 model.chemicalsUsedInRuns
-                model.myTimeZone
                 (List.sortBy .id chemicals)
                 attributi
                 model.responsiblePersonFilter
@@ -815,9 +810,9 @@ viewInner model =
             ]
 
 
-editChemicalFromAttributiAndValues : Zone -> List (Attributo AttributoType) -> Chemical (Maybe Int) (AttributoMap AttributoValue) a -> Chemical (Maybe Int) EditableAttributiAndOriginal a
-editChemicalFromAttributiAndValues zone attributi =
-    chemicalMapAttributi (createEditableAttributi zone attributi)
+editChemicalFromAttributiAndValues : List (Attributo AttributoType) -> Chemical (Maybe Int) (AttributoMap AttributoValue) a -> Chemical (Maybe Int) EditableAttributiAndOriginal a
+editChemicalFromAttributiAndValues attributi =
+    chemicalMapAttributi (createEditableAttributi attributi)
 
 
 emptyChemical : ChemicalType -> Chemical (Maybe Int) (AttributoMap a) b
@@ -1002,7 +997,7 @@ update msg model =
                     ( { model
                         | modifyRequest = NotAsked
                         , chemicalDeleteRequest = NotAsked
-                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (emptyChemical type_))
+                        , editChemical = Just (editChemicalFromAttributiAndValues attributi (emptyChemical type_))
                       }
                     , Cmd.none
                     )
@@ -1043,7 +1038,7 @@ update msg model =
                                 ( { model | submitErrors = [ errorMessage ] }, Cmd.none )
 
                             Ok _ ->
-                                case convertEditValues model.myTimeZone editChemical.attributi of
+                                case convertEditValues editChemical.attributi of
                                     Err errorList ->
                                         let
                                             attributoIdToName : ChemicalNameDict
@@ -1153,7 +1148,7 @@ update msg model =
                     ( { model
                         | modifyRequest = NotAsked
                         , chemicalDeleteRequest = NotAsked
-                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId Just chemical))
+                        , editChemical = Just (editChemicalFromAttributiAndValues attributi (chemicalMapId Just chemical))
                       }
                     , scrollToTop (always Nop)
                     )
@@ -1177,7 +1172,7 @@ update msg model =
                         -- changed. So we have to dive deep into this
                         -- structure and change the edit status.
                         editChemicalOriginal =
-                            editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId (always Nothing) chemical)
+                            editChemicalFromAttributiAndValues attributi (chemicalMapId (always Nothing) chemical)
 
                         mapEditableAttributo : EditableAttributo -> EditableAttributo
                         mapEditableAttributo =

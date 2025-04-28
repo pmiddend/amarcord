@@ -350,7 +350,17 @@ filtersParser strings =
                     Maybe.map ValueChemical (String.toInt valueStr)
 
                 "dt" ->
-                    Maybe.map (ValueDateTime << millisToPosix) (String.toInt valueStr)
+                    -- For a filter, we set the utc and the local
+                    -- timestamp equal, and later on we just compare
+                    -- the UTC timestamps and ignore the local one
+                    Maybe.map
+                        (\posixTimestamp ->
+                            ValueDateTime
+                                { datetimeUtc = millisToPosix posixTimestamp
+                                , datetimeLocal = millisToPosix posixTimestamp
+                                }
+                        )
+                        (String.toInt valueStr)
 
                 "s" ->
                     Just (ValueString valueStr)
@@ -396,8 +406,8 @@ filtersSerializer filters =
                 ValueChemical n ->
                     String.join "," [ String.fromInt id, "c", String.fromInt n ]
 
-                ValueDateTime posix ->
-                    String.join "," [ String.fromInt id, "dt", String.fromInt (posixToMillis posix) ]
+                ValueDateTime { datetimeUtc } ->
+                    String.join "," [ String.fromInt id, "dt", String.fromInt (posixToMillis datetimeUtc) ]
 
                 ValueString s ->
                     String.join "," [ String.fromInt id, "s", s ]

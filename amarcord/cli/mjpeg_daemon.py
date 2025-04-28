@@ -6,7 +6,7 @@ import structlog
 from tap import Tap
 
 from amarcord.amici.p11.grab_mjpeg_frame import mjpeg_stream_loop
-from amarcord.db.attributi import datetime_from_attributo_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.web.json_models import JsonReadBeamtime
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -38,9 +38,9 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
                     current_beamtime = None
                     for beamtime in beamtimes.beamtimes:
                         if (
-                            datetime_from_attributo_int(beamtime.start)
+                            utc_int_to_utc_datetime(beamtime.start)
                             < now
-                            < datetime_from_attributo_int(beamtime.end)
+                            < utc_int_to_utc_datetime(beamtime.end)
                         ):
                             current_beamtime = beamtime
 

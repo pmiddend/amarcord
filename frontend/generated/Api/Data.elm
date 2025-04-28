@@ -32,11 +32,11 @@ module Api.Data exposing
     , JsonAttributoOutput
     , JsonAttributoValue
     , JsonAttributoWithName
-    , JsonBeamtime
+    , JsonBeamtimeInput
     , JsonBeamtimeOutput
-    , JsonBeamtimeSchedule
     , JsonBeamtimeScheduleOutput
-    , JsonBeamtimeScheduleRow
+    , JsonBeamtimeScheduleRowInput
+    , JsonBeamtimeScheduleRowOutput
     , JsonChangeRunExperimentType
     , JsonChangeRunExperimentTypeOutput
     , JsonCheckStandardUnitInput
@@ -193,11 +193,11 @@ module Api.Data exposing
     , encodeJsonAttributoOutput
     , encodeJsonAttributoValue
     , encodeJsonAttributoWithName
-    , encodeJsonBeamtime
+    , encodeJsonBeamtimeInput
     , encodeJsonBeamtimeOutput
-    , encodeJsonBeamtimeSchedule
     , encodeJsonBeamtimeScheduleOutput
-    , encodeJsonBeamtimeScheduleRow
+    , encodeJsonBeamtimeScheduleRowInput
+    , encodeJsonBeamtimeScheduleRowOutput
     , encodeJsonChangeRunExperimentType
     , encodeJsonChangeRunExperimentTypeOutput
     , encodeJsonCheckStandardUnitInput
@@ -362,11 +362,11 @@ module Api.Data exposing
     , jsonAttributoOutputDecoder
     , jsonAttributoValueDecoder
     , jsonAttributoWithNameDecoder
-    , jsonBeamtimeDecoder
+    , jsonBeamtimeInputDecoder
     , jsonBeamtimeOutputDecoder
-    , jsonBeamtimeScheduleDecoder
     , jsonBeamtimeScheduleOutputDecoder
-    , jsonBeamtimeScheduleRowDecoder
+    , jsonBeamtimeScheduleRowInputDecoder
+    , jsonBeamtimeScheduleRowOutputDecoder
     , jsonChangeRunExperimentTypeDecoder
     , jsonChangeRunExperimentTypeOutputDecoder
     , jsonCheckStandardUnitInputDecoder
@@ -686,6 +686,7 @@ type alias JsonAttributoValue =
     , attributoValueInt : Maybe Int
     , attributoValueChemical : Maybe Int
     , attributoValueDatetime : Maybe Int
+    , attributoValueDatetimeLocal : Maybe Int
     , attributoValueFloat : Maybe Float
     , attributoValueBool : Maybe Bool
     , attributoValueListStr : Maybe ( List String )
@@ -700,7 +701,20 @@ type alias JsonAttributoWithName =
     }
 
 
-type alias JsonBeamtime =
+type alias JsonBeamtimeInput =
+    { id : Int
+    , externalId : String
+    , proposal : String
+    , beamline : String
+    , title : String
+    , comment : String
+    , startLocal : Int
+    , endLocal : Int
+    , analysisOutputPath : String
+    }
+
+
+type alias JsonBeamtimeOutput =
     { id : Int
     , externalId : String
     , proposal : String
@@ -708,36 +722,40 @@ type alias JsonBeamtime =
     , title : String
     , comment : String
     , start : Int
+    , startLocal : Int
     , end : Int
+    , endLocal : Int
     , chemicalNames : List String
     , analysisOutputPath : String
     }
 
 
-type alias JsonBeamtimeOutput =
-    { id : Int
-    }
-
-
-type alias JsonBeamtimeSchedule =
-    { schedule : List JsonBeamtimeScheduleRow
-    }
-
-
 type alias JsonBeamtimeScheduleOutput =
-    { schedule : List JsonBeamtimeScheduleRow
+    { schedule : List JsonBeamtimeScheduleRowOutput
     }
 
 
-type alias JsonBeamtimeScheduleRow =
+type alias JsonBeamtimeScheduleRowInput =
     { users : String
     , date : String
     , shift : String
     , comment : String
     , tdSupport : String
     , chemicals : List Int
-    , startPosix : Int
-    , stopPosix : Int
+    }
+
+
+type alias JsonBeamtimeScheduleRowOutput =
+    { users : String
+    , date : String
+    , shift : String
+    , comment : String
+    , tdSupport : String
+    , chemicals : List Int
+    , start : Int
+    , startLocal : Int
+    , stop : Int
+    , stopLocal : Int
     }
 
 
@@ -944,6 +962,7 @@ type alias JsonCreateOrUpdateRun =
     , files : Maybe ( List JsonRunFile )
     , started : Maybe Int
     , stopped : Maybe Int
+    , isUtc : Maybe Bool
     , createDataSet : Maybe Bool
     }
 
@@ -1059,7 +1078,9 @@ type alias JsonDeleteRunOutput =
 type alias JsonDetectorShift =
     { runExternalId : Int
     , runStart : Int
+    , runStartLocal : Int
     , runEnd : Maybe Int
+    , runEndLocal : Maybe Int
     , shiftXMm : Float
     , shiftYMm : Float
     , geometryHash : String
@@ -1071,6 +1092,7 @@ type alias JsonEvent =
     , source : String
     , text : String
     , created : Int
+    , createdLocal : Int
     , level : String
     , files : List JsonFileOutput
     }
@@ -1112,7 +1134,7 @@ type alias JsonExperimentTypeAndRuns =
 
 type alias JsonExperimentTypeWithBeamtimeInformation =
     { experimentType : JsonExperimentType
-    , beamtime : JsonBeamtime
+    , beamtime : JsonBeamtimeOutput
     }
 
 
@@ -1165,7 +1187,9 @@ type alias JsonIndexingJob =
     , jobId : Maybe Int
     , jobStatus : DBJobStatus
     , started : Maybe Int
+    , startedLocal : Maybe Int
     , stopped : Maybe Int
+    , stoppedLocal : Maybe Int
     , isOnline : Bool
     , streamFile : Maybe String
     , source : String
@@ -1175,7 +1199,7 @@ type alias JsonIndexingJob =
     , commandLine : String
     , runInternalId : Int
     , runExternalId : Int
-    , beamtime : JsonBeamtime
+    , beamtime : JsonBeamtimeOutput
     , inputFileGlobs : List String
     }
 
@@ -1204,8 +1228,11 @@ type alias JsonIndexingParametersWithResults =
 type alias JsonIndexingResult =
     { id : Int
     , created : Int
+    , createdLocal : Int
     , started : Maybe Int
+    , startedLocal : Maybe Int
     , stopped : Maybe Int
+    , stoppedLocal : Maybe Int
     , parameters : JsonIndexingParameters
     , streamFile : String
     , programVersion : String
@@ -1279,6 +1306,7 @@ type alias JsonIndexingStatistic =
 type alias JsonLiveStream =
     { fileId : Int
     , modified : Int
+    , modifiedLocal : Int
     }
 
 
@@ -1314,6 +1342,7 @@ type alias JsonMergeJobStartedInput =
 
 type alias JsonMergeJobStartedOutput =
     { time : Int
+    , timeLocal : Int
     }
 
 
@@ -1348,6 +1377,7 @@ type alias JsonMergeParameters =
 type alias JsonMergeResult =
     { id : Int
     , created : Int
+    , createdLocal : Int
     , runs : List String
     , indexingResultIds : List Int
     , stateQueued : Maybe JsonMergeResultStateQueued
@@ -1438,14 +1468,18 @@ type alias JsonMergeResultShell =
 
 type alias JsonMergeResultStateDone =
     { started : Int
+    , startedLocal : Int
     , stopped : Int
+    , stoppedLocal : Int
     , result : JsonMergeResultInternalOutput
     }
 
 
 type alias JsonMergeResultStateError =
     { started : Int
+    , startedLocal : Int
     , stopped : Int
+    , stoppedLocal : Int
     , error : String
     , latestLog : String
     }
@@ -1458,6 +1492,7 @@ type alias JsonMergeResultStateQueued =
 
 type alias JsonMergeResultStateRunning =
     { started : Int
+    , startedLocal : Int
     , jobId : Int
     , latestLog : String
     }
@@ -1498,7 +1533,7 @@ type alias JsonQueueMergeJobOutput =
 
 type alias JsonReadAllChemicals =
     { chemicals : List JsonChemical
-    , beamtimes : List JsonBeamtime
+    , beamtimes : List JsonBeamtimeOutput
     , attributiNames : List JsonAttributoWithName
     }
 
@@ -1509,7 +1544,7 @@ type alias JsonReadAttributi =
 
 
 type alias JsonReadBeamtime =
-    { beamtimes : List JsonBeamtime
+    { beamtimes : List JsonBeamtimeOutput
     }
 
 
@@ -1671,7 +1706,9 @@ type alias JsonRun =
     , externalId : Int
     , attributi : List JsonAttributoValue
     , started : Int
+    , startedLocal : Int
     , stopped : Maybe Int
+    , stoppedLocal : Maybe Int
     , files : List JsonRunFile
     , summary : JsonIndexingFom
     , experimentTypeId : Int
@@ -1757,15 +1794,15 @@ type alias JsonUpdateBeamtimeInput =
     , proposal : String
     , title : String
     , comment : String
-    , start : Int
-    , end : Int
+    , startLocal : Int
+    , endLocal : Int
     , analysisOutputPath : String
     }
 
 
 type alias JsonUpdateBeamtimeScheduleInput =
     { beamtimeId : Int
-    , schedule : List JsonBeamtimeScheduleRow
+    , schedule : List JsonBeamtimeScheduleRowInput
     }
 
 
@@ -2256,6 +2293,7 @@ encodeJsonAttributoValuePairs model =
             , maybeEncodeNullable "attributo_value_int" Json.Encode.int model.attributoValueInt
             , maybeEncodeNullable "attributo_value_chemical" Json.Encode.int model.attributoValueChemical
             , maybeEncodeNullable "attributo_value_datetime" Json.Encode.int model.attributoValueDatetime
+            , maybeEncodeNullable "attributo_value_datetime_local" Json.Encode.int model.attributoValueDatetimeLocal
             , maybeEncodeNullable "attributo_value_float" Json.Encode.float model.attributoValueFloat
             , maybeEncodeNullable "attributo_value_bool" Json.Encode.bool model.attributoValueBool
             , maybeEncodeNullable "attributo_value_list_str" (Json.Encode.list Json.Encode.string) model.attributoValueListStr
@@ -2287,18 +2325,18 @@ encodeJsonAttributoWithNamePairs model =
     pairs
 
 
-encodeJsonBeamtime : JsonBeamtime -> Json.Encode.Value
-encodeJsonBeamtime =
-    encodeObject << encodeJsonBeamtimePairs
+encodeJsonBeamtimeInput : JsonBeamtimeInput -> Json.Encode.Value
+encodeJsonBeamtimeInput =
+    encodeObject << encodeJsonBeamtimeInputPairs
 
 
-encodeJsonBeamtimeWithTag : ( String, String ) -> JsonBeamtime -> Json.Encode.Value
-encodeJsonBeamtimeWithTag (tagField, tag) model =
-    encodeObject (encodeJsonBeamtimePairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonBeamtimeInputWithTag : ( String, String ) -> JsonBeamtimeInput -> Json.Encode.Value
+encodeJsonBeamtimeInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonBeamtimeInputPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonBeamtimePairs : JsonBeamtime -> List EncodedField
-encodeJsonBeamtimePairs model =
+encodeJsonBeamtimeInputPairs : JsonBeamtimeInput -> List EncodedField
+encodeJsonBeamtimeInputPairs model =
     let
         pairs =
             [ encode "id" Json.Encode.int model.id
@@ -2307,9 +2345,8 @@ encodeJsonBeamtimePairs model =
             , encode "beamline" Json.Encode.string model.beamline
             , encode "title" Json.Encode.string model.title
             , encode "comment" Json.Encode.string model.comment
-            , encode "start" Json.Encode.int model.start
-            , encode "end" Json.Encode.int model.end
-            , encode "chemical_names" (Json.Encode.list Json.Encode.string) model.chemicalNames
+            , encode "start_local" Json.Encode.int model.startLocal
+            , encode "end_local" Json.Encode.int model.endLocal
             , encode "analysis_output_path" Json.Encode.string model.analysisOutputPath
             ]
     in
@@ -2331,26 +2368,17 @@ encodeJsonBeamtimeOutputPairs model =
     let
         pairs =
             [ encode "id" Json.Encode.int model.id
-            ]
-    in
-    pairs
-
-
-encodeJsonBeamtimeSchedule : JsonBeamtimeSchedule -> Json.Encode.Value
-encodeJsonBeamtimeSchedule =
-    encodeObject << encodeJsonBeamtimeSchedulePairs
-
-
-encodeJsonBeamtimeScheduleWithTag : ( String, String ) -> JsonBeamtimeSchedule -> Json.Encode.Value
-encodeJsonBeamtimeScheduleWithTag (tagField, tag) model =
-    encodeObject (encodeJsonBeamtimeSchedulePairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonBeamtimeSchedulePairs : JsonBeamtimeSchedule -> List EncodedField
-encodeJsonBeamtimeSchedulePairs model =
-    let
-        pairs =
-            [ encode "schedule" (Json.Encode.list encodeJsonBeamtimeScheduleRow) model.schedule
+            , encode "external_id" Json.Encode.string model.externalId
+            , encode "proposal" Json.Encode.string model.proposal
+            , encode "beamline" Json.Encode.string model.beamline
+            , encode "title" Json.Encode.string model.title
+            , encode "comment" Json.Encode.string model.comment
+            , encode "start" Json.Encode.int model.start
+            , encode "start_local" Json.Encode.int model.startLocal
+            , encode "end" Json.Encode.int model.end
+            , encode "end_local" Json.Encode.int model.endLocal
+            , encode "chemical_names" (Json.Encode.list Json.Encode.string) model.chemicalNames
+            , encode "analysis_output_path" Json.Encode.string model.analysisOutputPath
             ]
     in
     pairs
@@ -2370,24 +2398,24 @@ encodeJsonBeamtimeScheduleOutputPairs : JsonBeamtimeScheduleOutput -> List Encod
 encodeJsonBeamtimeScheduleOutputPairs model =
     let
         pairs =
-            [ encode "schedule" (Json.Encode.list encodeJsonBeamtimeScheduleRow) model.schedule
+            [ encode "schedule" (Json.Encode.list encodeJsonBeamtimeScheduleRowOutput) model.schedule
             ]
     in
     pairs
 
 
-encodeJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow -> Json.Encode.Value
-encodeJsonBeamtimeScheduleRow =
-    encodeObject << encodeJsonBeamtimeScheduleRowPairs
+encodeJsonBeamtimeScheduleRowInput : JsonBeamtimeScheduleRowInput -> Json.Encode.Value
+encodeJsonBeamtimeScheduleRowInput =
+    encodeObject << encodeJsonBeamtimeScheduleRowInputPairs
 
 
-encodeJsonBeamtimeScheduleRowWithTag : ( String, String ) -> JsonBeamtimeScheduleRow -> Json.Encode.Value
-encodeJsonBeamtimeScheduleRowWithTag (tagField, tag) model =
-    encodeObject (encodeJsonBeamtimeScheduleRowPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonBeamtimeScheduleRowInputWithTag : ( String, String ) -> JsonBeamtimeScheduleRowInput -> Json.Encode.Value
+encodeJsonBeamtimeScheduleRowInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonBeamtimeScheduleRowInputPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonBeamtimeScheduleRowPairs : JsonBeamtimeScheduleRow -> List EncodedField
-encodeJsonBeamtimeScheduleRowPairs model =
+encodeJsonBeamtimeScheduleRowInputPairs : JsonBeamtimeScheduleRowInput -> List EncodedField
+encodeJsonBeamtimeScheduleRowInputPairs model =
     let
         pairs =
             [ encode "users" Json.Encode.string model.users
@@ -2396,8 +2424,35 @@ encodeJsonBeamtimeScheduleRowPairs model =
             , encode "comment" Json.Encode.string model.comment
             , encode "td_support" Json.Encode.string model.tdSupport
             , encode "chemicals" (Json.Encode.list Json.Encode.int) model.chemicals
-            , encode "start_posix" Json.Encode.int model.startPosix
-            , encode "stop_posix" Json.Encode.int model.stopPosix
+            ]
+    in
+    pairs
+
+
+encodeJsonBeamtimeScheduleRowOutput : JsonBeamtimeScheduleRowOutput -> Json.Encode.Value
+encodeJsonBeamtimeScheduleRowOutput =
+    encodeObject << encodeJsonBeamtimeScheduleRowOutputPairs
+
+
+encodeJsonBeamtimeScheduleRowOutputWithTag : ( String, String ) -> JsonBeamtimeScheduleRowOutput -> Json.Encode.Value
+encodeJsonBeamtimeScheduleRowOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonBeamtimeScheduleRowOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonBeamtimeScheduleRowOutputPairs : JsonBeamtimeScheduleRowOutput -> List EncodedField
+encodeJsonBeamtimeScheduleRowOutputPairs model =
+    let
+        pairs =
+            [ encode "users" Json.Encode.string model.users
+            , encode "date" Json.Encode.string model.date
+            , encode "shift" Json.Encode.string model.shift
+            , encode "comment" Json.Encode.string model.comment
+            , encode "td_support" Json.Encode.string model.tdSupport
+            , encode "chemicals" (Json.Encode.list Json.Encode.int) model.chemicals
+            , encode "start" Json.Encode.int model.start
+            , encode "start_local" Json.Encode.int model.startLocal
+            , encode "stop" Json.Encode.int model.stop
+            , encode "stop_local" Json.Encode.int model.stopLocal
             ]
     in
     pairs
@@ -3039,6 +3094,7 @@ encodeJsonCreateOrUpdateRunPairs model =
             , maybeEncodeNullable "files" (Json.Encode.list encodeJsonRunFile) model.files
             , maybeEncodeNullable "started" Json.Encode.int model.started
             , maybeEncodeNullable "stopped" Json.Encode.int model.stopped
+            , maybeEncode "is_utc" Json.Encode.bool model.isUtc
             , maybeEncode "create_data_set" Json.Encode.bool model.createDataSet
             ]
     in
@@ -3439,7 +3495,9 @@ encodeJsonDetectorShiftPairs model =
         pairs =
             [ encode "run_external_id" Json.Encode.int model.runExternalId
             , encode "run_start" Json.Encode.int model.runStart
+            , encode "run_start_local" Json.Encode.int model.runStartLocal
             , maybeEncodeNullable "run_end" Json.Encode.int model.runEnd
+            , maybeEncodeNullable "run_end_local" Json.Encode.int model.runEndLocal
             , encode "shift_x_mm" Json.Encode.float model.shiftXMm
             , encode "shift_y_mm" Json.Encode.float model.shiftYMm
             , encode "geometry_hash" Json.Encode.string model.geometryHash
@@ -3466,6 +3524,7 @@ encodeJsonEventPairs model =
             , encode "source" Json.Encode.string model.source
             , encode "text" Json.Encode.string model.text
             , encode "created" Json.Encode.int model.created
+            , encode "created_local" Json.Encode.int model.createdLocal
             , encode "level" Json.Encode.string model.level
             , encode "files" (Json.Encode.list encodeJsonFileOutput) model.files
             ]
@@ -3597,7 +3656,7 @@ encodeJsonExperimentTypeWithBeamtimeInformationPairs model =
     let
         pairs =
             [ encode "experiment_type" encodeJsonExperimentType model.experimentType
-            , encode "beamtime" encodeJsonBeamtime model.beamtime
+            , encode "beamtime" encodeJsonBeamtimeOutput model.beamtime
             ]
     in
     pairs
@@ -3725,7 +3784,9 @@ encodeJsonIndexingJobPairs model =
             , maybeEncodeNullable "job_id" Json.Encode.int model.jobId
             , encode "job_status" encodeDBJobStatus model.jobStatus
             , maybeEncodeNullable "started" Json.Encode.int model.started
+            , maybeEncodeNullable "started_local" Json.Encode.int model.startedLocal
             , maybeEncodeNullable "stopped" Json.Encode.int model.stopped
+            , maybeEncodeNullable "stopped_local" Json.Encode.int model.stoppedLocal
             , encode "is_online" Json.Encode.bool model.isOnline
             , maybeEncodeNullable "stream_file" Json.Encode.string model.streamFile
             , encode "source" Json.Encode.string model.source
@@ -3735,7 +3796,7 @@ encodeJsonIndexingJobPairs model =
             , encode "command_line" Json.Encode.string model.commandLine
             , encode "run_internal_id" Json.Encode.int model.runInternalId
             , encode "run_external_id" Json.Encode.int model.runExternalId
-            , encode "beamtime" encodeJsonBeamtime model.beamtime
+            , encode "beamtime" encodeJsonBeamtimeOutput model.beamtime
             , encode "input_file_globs" (Json.Encode.list Json.Encode.string) model.inputFileGlobs
             ]
     in
@@ -3824,8 +3885,11 @@ encodeJsonIndexingResultPairs model =
         pairs =
             [ encode "id" Json.Encode.int model.id
             , encode "created" Json.Encode.int model.created
+            , encode "created_local" Json.Encode.int model.createdLocal
             , maybeEncodeNullable "started" Json.Encode.int model.started
+            , maybeEncodeNullable "started_local" Json.Encode.int model.startedLocal
             , maybeEncodeNullable "stopped" Json.Encode.int model.stopped
+            , maybeEncodeNullable "stopped_local" Json.Encode.int model.stoppedLocal
             , encode "parameters" encodeJsonIndexingParameters model.parameters
             , encode "stream_file" Json.Encode.string model.streamFile
             , encode "program_version" Json.Encode.string model.programVersion
@@ -3974,6 +4038,7 @@ encodeJsonLiveStreamPairs model =
         pairs =
             [ encode "file_id" Json.Encode.int model.fileId
             , encode "modified" Json.Encode.int model.modified
+            , encode "modified_local" Json.Encode.int model.modifiedLocal
             ]
     in
     pairs
@@ -4084,6 +4149,7 @@ encodeJsonMergeJobStartedOutputPairs model =
     let
         pairs =
             [ encode "time" Json.Encode.int model.time
+            , encode "time_local" Json.Encode.int model.timeLocal
             ]
     in
     pairs
@@ -4148,6 +4214,7 @@ encodeJsonMergeResultPairs model =
         pairs =
             [ encode "id" Json.Encode.int model.id
             , encode "created" Json.Encode.int model.created
+            , encode "created_local" Json.Encode.int model.createdLocal
             , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
             , encode "indexing_result_ids" (Json.Encode.list Json.Encode.int) model.indexingResultIds
             , maybeEncodeNullable "state_queued" encodeJsonMergeResultStateQueued model.stateQueued
@@ -4328,7 +4395,9 @@ encodeJsonMergeResultStateDonePairs model =
     let
         pairs =
             [ encode "started" Json.Encode.int model.started
+            , encode "started_local" Json.Encode.int model.startedLocal
             , encode "stopped" Json.Encode.int model.stopped
+            , encode "stopped_local" Json.Encode.int model.stoppedLocal
             , encode "result" encodeJsonMergeResultInternalOutput model.result
             ]
     in
@@ -4350,7 +4419,9 @@ encodeJsonMergeResultStateErrorPairs model =
     let
         pairs =
             [ encode "started" Json.Encode.int model.started
+            , encode "started_local" Json.Encode.int model.startedLocal
             , encode "stopped" Json.Encode.int model.stopped
+            , encode "stopped_local" Json.Encode.int model.stoppedLocal
             , encode "error" Json.Encode.string model.error
             , encode "latest_log" Json.Encode.string model.latestLog
             ]
@@ -4393,6 +4464,7 @@ encodeJsonMergeResultStateRunningPairs model =
     let
         pairs =
             [ encode "started" Json.Encode.int model.started
+            , encode "started_local" Json.Encode.int model.startedLocal
             , encode "job_id" Json.Encode.int model.jobId
             , encode "latest_log" Json.Encode.string model.latestLog
             ]
@@ -4497,7 +4569,7 @@ encodeJsonReadAllChemicalsPairs model =
     let
         pairs =
             [ encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
-            , encode "beamtimes" (Json.Encode.list encodeJsonBeamtime) model.beamtimes
+            , encode "beamtimes" (Json.Encode.list encodeJsonBeamtimeOutput) model.beamtimes
             , encode "attributi_names" (Json.Encode.list encodeJsonAttributoWithName) model.attributiNames
             ]
     in
@@ -4538,7 +4610,7 @@ encodeJsonReadBeamtimePairs : JsonReadBeamtime -> List EncodedField
 encodeJsonReadBeamtimePairs model =
     let
         pairs =
-            [ encode "beamtimes" (Json.Encode.list encodeJsonBeamtime) model.beamtimes
+            [ encode "beamtimes" (Json.Encode.list encodeJsonBeamtimeOutput) model.beamtimes
             ]
     in
     pairs
@@ -5000,7 +5072,9 @@ encodeJsonRunPairs model =
             , encode "external_id" Json.Encode.int model.externalId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             , encode "started" Json.Encode.int model.started
+            , encode "started_local" Json.Encode.int model.startedLocal
             , maybeEncodeNullable "stopped" Json.Encode.int model.stopped
+            , maybeEncodeNullable "stopped_local" Json.Encode.int model.stoppedLocal
             , encode "files" (Json.Encode.list encodeJsonRunFile) model.files
             , encode "summary" encodeJsonIndexingFom model.summary
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
@@ -5266,8 +5340,8 @@ encodeJsonUpdateBeamtimeInputPairs model =
             , encode "proposal" Json.Encode.string model.proposal
             , encode "title" Json.Encode.string model.title
             , encode "comment" Json.Encode.string model.comment
-            , encode "start" Json.Encode.int model.start
-            , encode "end" Json.Encode.int model.end
+            , encode "start_local" Json.Encode.int model.startLocal
+            , encode "end_local" Json.Encode.int model.endLocal
             , encode "analysis_output_path" Json.Encode.string model.analysisOutputPath
             ]
     in
@@ -5289,7 +5363,7 @@ encodeJsonUpdateBeamtimeScheduleInputPairs model =
     let
         pairs =
             [ encode "beamtime_id" Json.Encode.int model.beamtimeId
-            , encode "schedule" (Json.Encode.list encodeJsonBeamtimeScheduleRow) model.schedule
+            , encode "schedule" (Json.Encode.list encodeJsonBeamtimeScheduleRowInput) model.schedule
             ]
     in
     pairs
@@ -5798,6 +5872,7 @@ jsonAttributoValueDecoder =
         |> maybeDecodeNullable "attributo_value_int" Json.Decode.int Nothing
         |> maybeDecodeNullable "attributo_value_chemical" Json.Decode.int Nothing
         |> maybeDecodeNullable "attributo_value_datetime" Json.Decode.int Nothing
+        |> maybeDecodeNullable "attributo_value_datetime_local" Json.Decode.int Nothing
         |> maybeDecodeNullable "attributo_value_float" Json.Decode.float Nothing
         |> maybeDecodeNullable "attributo_value_bool" Json.Decode.bool Nothing
         |> maybeDecodeNullable "attributo_value_list_str" (Json.Decode.list Json.Decode.string) Nothing
@@ -5812,18 +5887,17 @@ jsonAttributoWithNameDecoder =
         |> decode "name" Json.Decode.string 
 
 
-jsonBeamtimeDecoder : Json.Decode.Decoder JsonBeamtime
-jsonBeamtimeDecoder =
-    Json.Decode.succeed JsonBeamtime
+jsonBeamtimeInputDecoder : Json.Decode.Decoder JsonBeamtimeInput
+jsonBeamtimeInputDecoder =
+    Json.Decode.succeed JsonBeamtimeInput
         |> decode "id" Json.Decode.int 
         |> decode "external_id" Json.Decode.string 
         |> decode "proposal" Json.Decode.string 
         |> decode "beamline" Json.Decode.string 
         |> decode "title" Json.Decode.string 
         |> decode "comment" Json.Decode.string 
-        |> decode "start" Json.Decode.int 
-        |> decode "end" Json.Decode.int 
-        |> decode "chemical_names" (Json.Decode.list Json.Decode.string) 
+        |> decode "start_local" Json.Decode.int 
+        |> decode "end_local" Json.Decode.int 
         |> decode "analysis_output_path" Json.Decode.string 
 
 
@@ -5831,31 +5905,49 @@ jsonBeamtimeOutputDecoder : Json.Decode.Decoder JsonBeamtimeOutput
 jsonBeamtimeOutputDecoder =
     Json.Decode.succeed JsonBeamtimeOutput
         |> decode "id" Json.Decode.int 
-
-
-jsonBeamtimeScheduleDecoder : Json.Decode.Decoder JsonBeamtimeSchedule
-jsonBeamtimeScheduleDecoder =
-    Json.Decode.succeed JsonBeamtimeSchedule
-        |> decode "schedule" (Json.Decode.list jsonBeamtimeScheduleRowDecoder) 
+        |> decode "external_id" Json.Decode.string 
+        |> decode "proposal" Json.Decode.string 
+        |> decode "beamline" Json.Decode.string 
+        |> decode "title" Json.Decode.string 
+        |> decode "comment" Json.Decode.string 
+        |> decode "start" Json.Decode.int 
+        |> decode "start_local" Json.Decode.int 
+        |> decode "end" Json.Decode.int 
+        |> decode "end_local" Json.Decode.int 
+        |> decode "chemical_names" (Json.Decode.list Json.Decode.string) 
+        |> decode "analysis_output_path" Json.Decode.string 
 
 
 jsonBeamtimeScheduleOutputDecoder : Json.Decode.Decoder JsonBeamtimeScheduleOutput
 jsonBeamtimeScheduleOutputDecoder =
     Json.Decode.succeed JsonBeamtimeScheduleOutput
-        |> decode "schedule" (Json.Decode.list jsonBeamtimeScheduleRowDecoder) 
+        |> decode "schedule" (Json.Decode.list jsonBeamtimeScheduleRowOutputDecoder) 
 
 
-jsonBeamtimeScheduleRowDecoder : Json.Decode.Decoder JsonBeamtimeScheduleRow
-jsonBeamtimeScheduleRowDecoder =
-    Json.Decode.succeed JsonBeamtimeScheduleRow
+jsonBeamtimeScheduleRowInputDecoder : Json.Decode.Decoder JsonBeamtimeScheduleRowInput
+jsonBeamtimeScheduleRowInputDecoder =
+    Json.Decode.succeed JsonBeamtimeScheduleRowInput
         |> decode "users" Json.Decode.string 
         |> decode "date" Json.Decode.string 
         |> decode "shift" Json.Decode.string 
         |> decode "comment" Json.Decode.string 
         |> decode "td_support" Json.Decode.string 
         |> decode "chemicals" (Json.Decode.list Json.Decode.int) 
-        |> decode "start_posix" Json.Decode.int 
-        |> decode "stop_posix" Json.Decode.int 
+
+
+jsonBeamtimeScheduleRowOutputDecoder : Json.Decode.Decoder JsonBeamtimeScheduleRowOutput
+jsonBeamtimeScheduleRowOutputDecoder =
+    Json.Decode.succeed JsonBeamtimeScheduleRowOutput
+        |> decode "users" Json.Decode.string 
+        |> decode "date" Json.Decode.string 
+        |> decode "shift" Json.Decode.string 
+        |> decode "comment" Json.Decode.string 
+        |> decode "td_support" Json.Decode.string 
+        |> decode "chemicals" (Json.Decode.list Json.Decode.int) 
+        |> decode "start" Json.Decode.int 
+        |> decode "start_local" Json.Decode.int 
+        |> decode "stop" Json.Decode.int 
+        |> decode "stop_local" Json.Decode.int 
 
 
 jsonChangeRunExperimentTypeDecoder : Json.Decode.Decoder JsonChangeRunExperimentType
@@ -6091,6 +6183,7 @@ jsonCreateOrUpdateRunDecoder =
         |> maybeDecodeNullable "files" (Json.Decode.list jsonRunFileDecoder) Nothing
         |> maybeDecodeNullable "started" Json.Decode.int Nothing
         |> maybeDecodeNullable "stopped" Json.Decode.int Nothing
+        |> maybeDecode "is_utc" Json.Decode.bool (Just True)
         |> maybeDecode "create_data_set" Json.Decode.bool (Just False)
 
 
@@ -6225,7 +6318,9 @@ jsonDetectorShiftDecoder =
     Json.Decode.succeed JsonDetectorShift
         |> decode "run_external_id" Json.Decode.int 
         |> decode "run_start" Json.Decode.int 
+        |> decode "run_start_local" Json.Decode.int 
         |> maybeDecodeNullable "run_end" Json.Decode.int Nothing
+        |> maybeDecodeNullable "run_end_local" Json.Decode.int Nothing
         |> decode "shift_x_mm" Json.Decode.float 
         |> decode "shift_y_mm" Json.Decode.float 
         |> decode "geometry_hash" Json.Decode.string 
@@ -6238,6 +6333,7 @@ jsonEventDecoder =
         |> decode "source" Json.Decode.string 
         |> decode "text" Json.Decode.string 
         |> decode "created" Json.Decode.int 
+        |> decode "created_local" Json.Decode.int 
         |> decode "level" Json.Decode.string 
         |> decode "files" (Json.Decode.list jsonFileOutputDecoder) 
 
@@ -6285,7 +6381,7 @@ jsonExperimentTypeWithBeamtimeInformationDecoder : Json.Decode.Decoder JsonExper
 jsonExperimentTypeWithBeamtimeInformationDecoder =
     Json.Decode.succeed JsonExperimentTypeWithBeamtimeInformation
         |> decode "experiment_type" jsonExperimentTypeDecoder 
-        |> decode "beamtime" jsonBeamtimeDecoder 
+        |> decode "beamtime" jsonBeamtimeOutputDecoder 
 
 
 jsonFileOutputDecoder : Json.Decode.Decoder JsonFileOutput
@@ -6343,7 +6439,9 @@ jsonIndexingJobDecoder =
         |> maybeDecodeNullable "job_id" Json.Decode.int Nothing
         |> decode "job_status" dBJobStatusDecoder 
         |> maybeDecodeNullable "started" Json.Decode.int Nothing
+        |> maybeDecodeNullable "started_local" Json.Decode.int Nothing
         |> maybeDecodeNullable "stopped" Json.Decode.int Nothing
+        |> maybeDecodeNullable "stopped_local" Json.Decode.int Nothing
         |> decode "is_online" Json.Decode.bool 
         |> maybeDecodeNullable "stream_file" Json.Decode.string Nothing
         |> decode "source" Json.Decode.string 
@@ -6353,7 +6451,7 @@ jsonIndexingJobDecoder =
         |> decode "command_line" Json.Decode.string 
         |> decode "run_internal_id" Json.Decode.int 
         |> decode "run_external_id" Json.Decode.int 
-        |> decode "beamtime" jsonBeamtimeDecoder 
+        |> decode "beamtime" jsonBeamtimeOutputDecoder 
         |> decode "input_file_globs" (Json.Decode.list Json.Decode.string) 
 
 
@@ -6386,8 +6484,11 @@ jsonIndexingResultDecoder =
     Json.Decode.succeed JsonIndexingResult
         |> decode "id" Json.Decode.int 
         |> decode "created" Json.Decode.int 
+        |> decode "created_local" Json.Decode.int 
         |> maybeDecodeNullable "started" Json.Decode.int Nothing
+        |> maybeDecodeNullable "started_local" Json.Decode.int Nothing
         |> maybeDecodeNullable "stopped" Json.Decode.int Nothing
+        |> maybeDecodeNullable "stopped_local" Json.Decode.int Nothing
         |> decode "parameters" jsonIndexingParametersDecoder 
         |> decode "stream_file" Json.Decode.string 
         |> decode "program_version" Json.Decode.string 
@@ -6466,6 +6567,7 @@ jsonLiveStreamDecoder =
     Json.Decode.succeed JsonLiveStream
         |> decode "file_id" Json.Decode.int 
         |> decode "modified" Json.Decode.int 
+        |> decode "modified_local" Json.Decode.int 
 
 
 jsonMergeJobDecoder : Json.Decode.Decoder JsonMergeJob
@@ -6506,6 +6608,7 @@ jsonMergeJobStartedOutputDecoder : Json.Decode.Decoder JsonMergeJobStartedOutput
 jsonMergeJobStartedOutputDecoder =
     Json.Decode.succeed JsonMergeJobStartedOutput
         |> decode "time" Json.Decode.int 
+        |> decode "time_local" Json.Decode.int 
 
 
 jsonMergeParametersDecoder : Json.Decode.Decoder JsonMergeParameters
@@ -6542,6 +6645,7 @@ jsonMergeResultDecoder =
     Json.Decode.succeed JsonMergeResult
         |> decode "id" Json.Decode.int 
         |> decode "created" Json.Decode.int 
+        |> decode "created_local" Json.Decode.int 
         |> decode "runs" (Json.Decode.list Json.Decode.string) 
         |> decode "indexing_result_ids" (Json.Decode.list Json.Decode.int) 
         |> maybeDecodeNullable "state_queued" jsonMergeResultStateQueuedDecoder Nothing
@@ -6638,7 +6742,9 @@ jsonMergeResultStateDoneDecoder : Json.Decode.Decoder JsonMergeResultStateDone
 jsonMergeResultStateDoneDecoder =
     Json.Decode.succeed JsonMergeResultStateDone
         |> decode "started" Json.Decode.int 
+        |> decode "started_local" Json.Decode.int 
         |> decode "stopped" Json.Decode.int 
+        |> decode "stopped_local" Json.Decode.int 
         |> decode "result" jsonMergeResultInternalOutputDecoder 
 
 
@@ -6646,7 +6752,9 @@ jsonMergeResultStateErrorDecoder : Json.Decode.Decoder JsonMergeResultStateError
 jsonMergeResultStateErrorDecoder =
     Json.Decode.succeed JsonMergeResultStateError
         |> decode "started" Json.Decode.int 
+        |> decode "started_local" Json.Decode.int 
         |> decode "stopped" Json.Decode.int 
+        |> decode "stopped_local" Json.Decode.int 
         |> decode "error" Json.Decode.string 
         |> decode "latest_log" Json.Decode.string 
 
@@ -6661,6 +6769,7 @@ jsonMergeResultStateRunningDecoder : Json.Decode.Decoder JsonMergeResultStateRun
 jsonMergeResultStateRunningDecoder =
     Json.Decode.succeed JsonMergeResultStateRunning
         |> decode "started" Json.Decode.int 
+        |> decode "started_local" Json.Decode.int 
         |> decode "job_id" Json.Decode.int 
         |> decode "latest_log" Json.Decode.string 
 
@@ -6711,7 +6820,7 @@ jsonReadAllChemicalsDecoder : Json.Decode.Decoder JsonReadAllChemicals
 jsonReadAllChemicalsDecoder =
     Json.Decode.succeed JsonReadAllChemicals
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
-        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeDecoder) 
+        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeOutputDecoder) 
         |> decode "attributi_names" (Json.Decode.list jsonAttributoWithNameDecoder) 
 
 
@@ -6724,7 +6833,7 @@ jsonReadAttributiDecoder =
 jsonReadBeamtimeDecoder : Json.Decode.Decoder JsonReadBeamtime
 jsonReadBeamtimeDecoder =
     Json.Decode.succeed JsonReadBeamtime
-        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeDecoder) 
+        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeOutputDecoder) 
 
 
 jsonReadBeamtimeGeometryDetailsDecoder : Json.Decode.Decoder JsonReadBeamtimeGeometryDetails
@@ -6906,7 +7015,9 @@ jsonRunDecoder =
         |> decode "external_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
         |> decode "started" Json.Decode.int 
+        |> decode "started_local" Json.Decode.int 
         |> maybeDecodeNullable "stopped" Json.Decode.int Nothing
+        |> maybeDecodeNullable "stopped_local" Json.Decode.int Nothing
         |> decode "files" (Json.Decode.list jsonRunFileDecoder) 
         |> decode "summary" jsonIndexingFomDecoder 
         |> decode "experiment_type_id" Json.Decode.int 
@@ -7004,8 +7115,8 @@ jsonUpdateBeamtimeInputDecoder =
         |> decode "proposal" Json.Decode.string 
         |> decode "title" Json.Decode.string 
         |> decode "comment" Json.Decode.string 
-        |> decode "start" Json.Decode.int 
-        |> decode "end" Json.Decode.int 
+        |> decode "start_local" Json.Decode.int 
+        |> decode "end_local" Json.Decode.int 
         |> decode "analysis_output_path" Json.Decode.string 
 
 
@@ -7013,7 +7124,7 @@ jsonUpdateBeamtimeScheduleInputDecoder : Json.Decode.Decoder JsonUpdateBeamtimeS
 jsonUpdateBeamtimeScheduleInputDecoder =
     Json.Decode.succeed JsonUpdateBeamtimeScheduleInput
         |> decode "beamtime_id" Json.Decode.int 
-        |> decode "schedule" (Json.Decode.list jsonBeamtimeScheduleRowDecoder) 
+        |> decode "schedule" (Json.Decode.list jsonBeamtimeScheduleRowInputDecoder) 
 
 
 jsonUpdateLiveStreamDecoder : Json.Decode.Decoder JsonUpdateLiveStream

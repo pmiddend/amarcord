@@ -11,7 +11,8 @@ from sqlalchemy.sql import select
 
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.db.orm_utils import validate_json_attributo_return_error
@@ -163,7 +164,12 @@ def _encode_chemical_attributo_value(
         attributo_value_str=d.string_value,
         attributo_value_int=d.integer_value,
         attributo_value_datetime=(
-            datetime_to_attributo_int(d.datetime_value)
+            utc_datetime_to_utc_int(d.datetime_value)
+            if d.datetime_value is not None
+            else None
+        ),
+        attributo_value_datetime_local=(
+            utc_datetime_to_local_int(d.datetime_value)
             if d.datetime_value is not None
             else None
         ),
@@ -247,7 +253,7 @@ async def read_all_chemicals(
             )
         ],
         beamtimes=[
-            encode_beamtime(a)
+            encode_beamtime(a, with_chemicals=False)
             for a in await session.scalars(
                 select(orm.Beamtime).options(selectinload(orm.Beamtime.chemicals)),
             )

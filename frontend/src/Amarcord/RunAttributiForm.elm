@@ -21,7 +21,7 @@ import List.Extra as ListExtra
 import Maybe
 import RemoteData exposing (RemoteData(..), isLoading, isSuccess)
 import String
-import Time exposing (Posix, Zone, millisToPosix)
+import Time exposing (Posix, millisToPosix)
 
 
 type alias ChemicalList =
@@ -51,7 +51,6 @@ type alias Model =
     , initiatedManually : Bool
     , showAllAttributi : Bool
     , filesEdit : Maybe RunFilesForm.Model
-    , zone : Zone
     , submitErrors : List String
     , runEditRequest : RemoteData HttpError JsonUpdateRunOutput
     }
@@ -69,15 +68,14 @@ type Msg
 
 
 type alias InitData =
-    { zone : Zone
-    , attributi : List JsonAttributoOutput
+    { attributi : List JsonAttributoOutput
     , chemicals : ChemicalList
     , experimentTypes : List JsonExperimentType
     }
 
 
 init : InitData -> ShowFileMode -> JsonRun -> ( Model, Cmd Msg )
-init { zone, attributi, chemicals, experimentTypes } showFileMode latestRunReal =
+init { attributi, chemicals, experimentTypes } showFileMode latestRunReal =
     ( { runId = RunInternalId latestRunReal.id
       , runExternalId = RunExternalId latestRunReal.externalId
       , started = millisToPosix latestRunReal.started
@@ -85,7 +83,6 @@ init { zone, attributi, chemicals, experimentTypes } showFileMode latestRunReal 
       , experimentTypeId = latestRunReal.experimentTypeId
       , editableAttributi =
             createEditableAttributi
-                zone
                 (List.map convertAttributoFromApi attributi)
                 (convertAttributoMapFromApi latestRunReal.attributi)
       , experimentTypes = experimentTypes
@@ -100,7 +97,6 @@ init { zone, attributi, chemicals, experimentTypes } showFileMode latestRunReal 
 
                 _ ->
                     Nothing
-      , zone = zone
       , submitErrors = []
       , runEditRequest = NotAsked
       }
@@ -272,7 +268,7 @@ update msg model =
                     ( { model | filesEdit = Just newFilesEdit }, Cmd.none )
 
         Submit ->
-            case convertEditValues model.zone model.editableAttributi of
+            case convertEditValues model.editableAttributi of
                 Err errorList ->
                     ( { model
                         | submitErrors =
@@ -351,7 +347,6 @@ update msg model =
                     , experimentTypeId = newRun.experimentTypeId
                     , editableAttributi =
                         createEditableAttributi
-                            model.zone
                             model.attributi
                             (convertAttributoMapFromApi newRun.attributi)
                   }

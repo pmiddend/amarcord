@@ -31,6 +31,7 @@ from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaString
 from amarcord.json_schema import JSONSchemaUnion
 from amarcord.numeric_range import NumericRange
+from amarcord.util import get_local_tz
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
@@ -125,7 +126,7 @@ def schema_to_attributo_type(
     return AttributoTypeString()
 
 
-def datetime_to_attributo_int(d: datetime.datetime) -> int:
+def utc_datetime_to_utc_int(d: datetime.datetime) -> int:
     return int(d.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
 
 
@@ -133,11 +134,45 @@ def datetime_from_float_in_seconds(d: float) -> datetime.datetime:
     return datetime.datetime.fromtimestamp(d, tz=datetime.timezone.utc)
 
 
-def datetime_from_attributo_int(d: int) -> datetime.datetime:
-    # see
-    # https://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
-    return datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc).replace(
-        microsecond=d % 1000 * 1000,
+def local_int_to_utc_datetime(d: int) -> datetime.datetime:
+    # fromtimestamp is extremely unhelpful for our use case. Say we
+    # give it a UTC timestamp. Say 1pm. Then it will check the local
+    # time zone and convert this, for example, into 3pm if we're using
+    # Europe/Berlin in summer. A total wtf...
+    #
+    # To combat that, we first pretend we gave it a UTC time stamp so
+    # it won't convert anything, then to a replace call to tell it
+    # "surprise, it was Europe/Berlin (or something) all along!", and
+    # then make it convert to UTC properly.
+    return (
+        datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc)
+        .replace(
+            microsecond=d % 1000 * 1000,
+        )
+        .replace(tzinfo=get_local_tz())
+        .astimezone(datetime.timezone.utc)
+    )
+
+
+def utc_datetime_to_local_int(d: datetime.datetime) -> int:
+    # See the comment for local_int_to_utc_datetime for more
+    # information, we're just inverting what's been done there.
+    return round(
+        d.replace(tzinfo=datetime.timezone.utc)
+        .astimezone(get_local_tz())
+        .replace(tzinfo=datetime.timezone.utc)
+        .timestamp()
+        * 1000
+    )
+
+
+def utc_int_to_utc_datetime(d: int) -> datetime.datetime:
+    return (
+        datetime.datetime.fromtimestamp(d // 1000)
+        .replace(
+            microsecond=d % 1000 * 1000,
+        )
+        .astimezone(datetime.timezone.utc)
     )
 
 
@@ -536,7 +571,7 @@ def _convert_string_to_datetime(
     assert isinstance(v, str)
 
     try:
-        return datetime_to_attributo_int(datetime_from_attributo_string(v))
+        return utc_datetime_to_local_int(datetime_from_attributo_string(v))
     except:
         raise Exception(f'cannot convert string "{v}" to datetime (not ISO format)')
 

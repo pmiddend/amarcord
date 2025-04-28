@@ -12,7 +12,7 @@ import Html exposing (Html, div, h1, label, table, tbody, td, text, th, thead, t
 import Html.Attributes exposing (checked, class, for, id, type_)
 import Html.Events exposing (onClick)
 import RemoteData exposing (RemoteData(..), fromResult)
-import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
+import Time exposing (Posix, millisToPosix, posixToMillis, utc)
 import Time.Extra exposing (partsToPosix)
 
 
@@ -51,18 +51,18 @@ init hereAndNow beamtimeId =
     )
 
 
-viewEventRow : Zone -> JsonEvent -> Html msg
-viewEventRow zone e =
+viewEventRow : JsonEvent -> Html msg
+viewEventRow e =
     tr []
-        [ td [] [ text (formatPosixHumanFriendly zone (millisToPosix e.created)) ]
+        [ td [] [ text (formatPosixHumanFriendly utc (millisToPosix e.createdLocal)) ]
         , td [] [ text e.level ]
         , td [] [ text e.source ]
         , td [] [ markupWithoutErrors e.text ]
         ]
 
 
-dateToStartEnd : Zone -> String -> Result String ( Posix, Posix )
-dateToStartEnd zone d =
+dateToStartEnd : String -> Result String ( Posix, Posix )
+dateToStartEnd d =
     case Date.fromIsoString d of
         Err e ->
             Err e
@@ -77,7 +77,7 @@ dateToStartEnd zone d =
                 partsEndOfDay =
                     { year = Date.year parsed, month = Date.month parsed, day = Date.day parsed, hour = 23, minute = 59, second = 59, millisecond = 999 }
             in
-            Ok ( partsToPosix zone partsStartOfDay, partsToPosix zone partsEndOfDay )
+            Ok ( partsToPosix utc partsStartOfDay, partsToPosix utc partsEndOfDay )
 
 
 viewDateRadioOption : Model -> String -> List (Html Msg)
@@ -127,7 +127,7 @@ view model =
             Success events ->
                 let
                     filteredEvents =
-                        case dateToStartEnd model.hereAndNow.zone model.dateFilter of
+                        case dateToStartEnd model.dateFilter of
                             Err _ ->
                                 events.events
 
@@ -146,7 +146,7 @@ view model =
                                 ]
                             ]
                         , tbody []
-                            (List.map (viewEventRow model.hereAndNow.zone) filteredEvents)
+                            (List.map viewEventRow filteredEvents)
                         ]
                     ]
 

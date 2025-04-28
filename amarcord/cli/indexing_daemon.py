@@ -26,7 +26,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 from amarcord.amici.workload_manager.workload_manager_factory import (
     parse_workload_manager_config,
 )
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingResultDone
@@ -403,7 +403,7 @@ async def _start_new_jobs(
                 detector_shift_y_mm=None,
                 geometry_file="",
                 geometry_hash="",
-                job_started=datetime_to_attributo_int(
+                job_started=utc_datetime_to_utc_int(
                     datetime.datetime.now(tz=datetime.timezone.utc),
                 ),
                 # Initialize log with the empty string (None would have indicated "no change")

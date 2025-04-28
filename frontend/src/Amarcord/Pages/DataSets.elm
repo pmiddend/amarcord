@@ -9,7 +9,7 @@ import Amarcord.Chemical exposing (Chemical, chemicalIdDict, chemicalTypeFromApi
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
-import Amarcord.Util exposing (HereAndNow, listContainsBy)
+import Amarcord.Util exposing (listContainsBy)
 import Api.Data exposing (JsonCreateDataSetOutput, JsonDataSet, JsonDeleteDataSetOutput, JsonExperimentType, JsonReadDataSets)
 import Api.Request.Datasets exposing (createDataSetApiDataSetsPost, deleteDataSetApiDataSetsDelete, readDataSetsApiDataSetsBeamtimeIdGet)
 import Dict
@@ -20,7 +20,6 @@ import List.Extra as ListExtra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
-import Time exposing (Zone)
 
 
 type Msg
@@ -62,7 +61,6 @@ type alias DataSetModel =
     , newDataSet : Maybe NewDataSet
     , dataSets : RemoteData HttpError JsonReadDataSets
     , submitErrors : List String
-    , zone : Zone
     , beamtimeId : BeamtimeId
     }
 
@@ -77,14 +75,13 @@ readDataSetsWrapper beamtimeId =
     send DataSetsReceived (readDataSetsApiDataSetsBeamtimeIdGet beamtimeId)
 
 
-initDataSet : HereAndNow -> BeamtimeId -> ( DataSetModel, Cmd Msg )
-initDataSet hereAndNow beamtimeId =
+initDataSet : BeamtimeId -> ( DataSetModel, Cmd Msg )
+initDataSet beamtimeId =
     ( { createRequest = NotAsked
       , deleteRequest = NotAsked
       , dataSets = Loading
       , submitErrors = []
       , newDataSet = Nothing
-      , zone = hereAndNow.zone
       , beamtimeId = beamtimeId
       }
     , readDataSetsWrapper beamtimeId
@@ -140,7 +137,7 @@ updateDataSet msg model =
                             ( model, Cmd.none )
 
                         Just experimentType ->
-                            case convertEditValues model.zone newDataSet.attributi of
+                            case convertEditValues newDataSet.attributi of
                                 Err errorList ->
                                     ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
@@ -186,7 +183,7 @@ updateDataSet msg model =
                         newDataSet =
                             Just
                                 { experimentType = matchingExperimentType
-                                , attributi = createEditableAttributi model.zone (List.filter attributoInExperimentType convertedAttributi) emptyAttributoMap
+                                , attributi = createEditableAttributi (List.filter attributoInExperimentType convertedAttributi) emptyAttributoMap
                                 }
                     in
                     ( { model | newDataSet = newDataSet }, Cmd.none )
@@ -254,7 +251,6 @@ viewDataSet model =
                         , td_
                             [ viewDataSetTable
                                 (List.map convertAttributoFromApi attributi)
-                                model.zone
                                 (chemicalIdDict (List.map convertChemicalFromApi chemicals))
                                 (convertAttributoMapFromApi ds.attributi)
                                 False

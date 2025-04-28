@@ -8,7 +8,7 @@ import Amarcord.Html exposing (input_, li_)
 import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Pages.Chemicals exposing (convertChemicalsResponse)
 import Amarcord.Util exposing (HereAndNow)
-import Api.Data exposing (JsonBeamtimeSchedule, JsonBeamtimeScheduleOutput, JsonBeamtimeScheduleRow, JsonFileOutput, JsonReadChemicals)
+import Api.Data exposing (JsonBeamtimeScheduleOutput, JsonBeamtimeScheduleRowInput, JsonBeamtimeScheduleRowOutput, JsonFileOutput, JsonReadChemicals)
 import Api.Request.Chemicals exposing (readChemicalsApiChemicalsBeamtimeIdGet)
 import Api.Request.Schedule exposing (getBeamtimeScheduleApiScheduleBeamtimeIdGet, updateBeamtimeScheduleApiSchedulePost)
 import Date
@@ -24,12 +24,12 @@ import Time exposing (Posix, posixToMillis)
 
 type ScheduleMsg
     = ScheduleUpdated (Result HttpError JsonBeamtimeScheduleOutput)
-    | ScheduleReceived (Result HttpError JsonBeamtimeSchedule)
+    | ScheduleReceived (Result HttpError JsonBeamtimeScheduleOutput)
     | SubmitShift
     | ModifyShift ShiftId
     | SubmitModifiedShift ShiftId
     | RemoveShift ShiftId
-    | SubmitDeleteShift JsonBeamtimeScheduleRow
+    | SubmitDeleteShift JsonBeamtimeScheduleRowInput
     | UpdateNewShiftByColumn TableColumn String
     | UpdateNewShiftChemical String
     | UpdateToModifyShiftByColumn TableColumn String
@@ -61,12 +61,12 @@ type alias ShiftId =
 
 
 type alias JsonBeamtimeScheduleRowToModify =
-    { scheduleEntry : JsonBeamtimeScheduleRow, id : Maybe ShiftId }
+    { scheduleEntry : JsonBeamtimeScheduleRowInput, id : Maybe ShiftId }
 
 
 type alias ScheduleModel =
-    { schedule : Dict ShiftId JsonBeamtimeScheduleRow
-    , newJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
+    { schedule : Dict ShiftId JsonBeamtimeScheduleRowOutput
+    , newJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowInput
     , editingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
     , deletingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
     , chemicals : RemoteData HttpError ChemicalsAndAttributi
@@ -80,9 +80,15 @@ pageTitle _ =
     "Schedule"
 
 
-emptyJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
+emptyJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowInput
 emptyJsonBeamtimeScheduleRow =
-    { users = "", date = "", shift = "", chemicals = [], comment = "", tdSupport = "", startPosix = 0, stopPosix = 0 }
+    { users = ""
+    , date = ""
+    , shift = ""
+    , chemicals = []
+    , comment = ""
+    , tdSupport = ""
+    }
 
 
 emptyJsonBeamtimeScheduleRowToModify : JsonBeamtimeScheduleRowToModify
@@ -153,7 +159,7 @@ view model =
                         [ th [ styleColumn Date ] [ text "Date" ]
                         , th [ styleColumn Shift ] [ text "Shift" ]
                         , th [ styleColumn Users ] [ text "Users" ]
-                        , th [ styleColumn TdSupport ] [ text "TD-Support" ]
+                        , th [ styleColumn TdSupport ] [ text "Beamline support" ]
                         , th [ styleColumn Chemical ] [ text "Chemical" ]
                         , th [ styleColumn Comment ] [ text "Comment" ]
                         , th [ styleColumn Actions ] [ text "Actions" ]
@@ -204,7 +210,7 @@ unscheduledChemicalsNames model =
         Just <| String.join ", " <| List.map .name not_scheduled_chemical
 
 
-scheduleEntryView : ScheduleModel -> ( ShiftId, JsonBeamtimeScheduleRow ) -> Html ScheduleMsg
+scheduleEntryView : ScheduleModel -> ( ShiftId, JsonBeamtimeScheduleRowOutput ) -> Html ScheduleMsg
 scheduleEntryView model shiftIdValue =
     let
         modifiedScheduleId =
@@ -266,7 +272,7 @@ scheduleEntryView model shiftIdValue =
                 readOnlyJsonBeamtimeScheduleRowView model entry shiftId
 
 
-editingJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRow -> ShiftId -> Html ScheduleMsg
+editingJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRowInput -> ShiftId -> Html ScheduleMsg
 editingJsonBeamtimeScheduleRowView model entryToModify idShiftToModify =
     tr []
         [ td [ styleColumn Date ]
@@ -339,7 +345,7 @@ editingJsonBeamtimeScheduleRowView model entryToModify idShiftToModify =
         ]
 
 
-deleteJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRow -> Html ScheduleMsg
+deleteJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRowInput -> Html ScheduleMsg
 deleteJsonBeamtimeScheduleRowView model entry =
     tr [] <|
         shiftSubview model entry
@@ -363,14 +369,14 @@ deleteJsonBeamtimeScheduleRowView model entry =
                ]
 
 
-readOnlyJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRow -> ShiftId -> Html ScheduleMsg
+readOnlyJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRowOutput -> ShiftId -> Html ScheduleMsg
 readOnlyJsonBeamtimeScheduleRowView model entry shiftId =
     let
         rowClass =
-            if entry.startPosix <= posixToMillis model.hereAndNow.now && entry.stopPosix >= posixToMillis model.hereAndNow.now then
+            if entry.start <= posixToMillis model.hereAndNow.now && entry.stop >= posixToMillis model.hereAndNow.now then
                 "table-info"
 
-            else if entry.startPosix > posixToMillis model.hereAndNow.now then
+            else if entry.startLocal > posixToMillis model.hereAndNow.now then
                 ""
 
             else
@@ -380,14 +386,24 @@ readOnlyJsonBeamtimeScheduleRowView model entry shiftId =
         shiftSubview model entry
             ++ [ td [ styleColumn Actions ]
                     [ div [ class "form-control-sm" ]
-                        [ button [ class "btn btn-sm btn-info me-1", type_ "button", onClick (ModifyShift shiftId) ] [ icon { name = "pencil-square" } ]
-                        , button [ class "btn btn-sm btn-danger", type_ "button", onClick (RemoveShift shiftId) ] [ icon { name = "trash" } ]
+                        [ button
+                            [ class "btn btn-sm btn-info me-1"
+                            , type_ "button"
+                            , onClick (ModifyShift shiftId)
+                            ]
+                            [ icon { name = "pencil-square" } ]
+                        , button
+                            [ class "btn btn-sm btn-danger"
+                            , type_ "button"
+                            , onClick (RemoveShift shiftId)
+                            ]
+                            [ icon { name = "trash" } ]
                         ]
                     ]
                ]
 
 
-shiftSubview : ScheduleModel -> JsonBeamtimeScheduleRow -> List (Html ScheduleMsg)
+shiftSubview : { a | chemicals : RemoteData e { b | chemicals : List { c | id : Int, name : String } } } -> { d | date : String, shift : String, users : String, tdSupport : String, chemicals : List Int, comment : String } -> List (Html msg)
 shiftSubview model entry =
     [ td [ styleColumn Date ] [ text <| dateEntry entry.date ]
     , td [ styleColumn Shift ] [ text entry.shift ]
@@ -471,7 +487,13 @@ newJsonBeamtimeScheduleRowView model =
             ]
         , td [ styleColumn Actions ]
             [ div [ class "form-control-sm" ]
-                [ button [ class "btn btn-sm btn-primary", type_ "button", onClick SubmitShift, disabled <| cannotAddSchedule model.newJsonBeamtimeScheduleRow ] [ icon { name = "calendar-plus" } ]
+                [ button
+                    [ class "btn btn-sm btn-primary"
+                    , type_ "button"
+                    , onClick SubmitShift
+                    , disabled <| cannotAddSchedule model.newJsonBeamtimeScheduleRow
+                    ]
+                    [ icon { name = "calendar-plus" } ]
                 ]
             ]
         ]
@@ -551,7 +573,7 @@ shiftFormatRegex =
         Regex.fromString "^(0\\d|1\\d|2[0-3]):[0-5]\\d\\s*-\\s*(0\\d|1\\d|2[0-3]):[0-5]\\d$"
 
 
-cannotAddSchedule : JsonBeamtimeScheduleRow -> Bool
+cannotAddSchedule : { a | users : String, shift : String, date : String } -> Bool
 cannotAddSchedule se =
     String.isEmpty (String.trim se.users)
         || String.isEmpty (String.trim se.shift)
@@ -560,7 +582,7 @@ cannotAddSchedule se =
         || not (Regex.contains shiftFormatRegex (String.trim se.shift))
 
 
-sortJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow -> JsonBeamtimeScheduleRow -> Order
+sortJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowOutput -> JsonBeamtimeScheduleRowOutput -> Order
 sortJsonBeamtimeScheduleRow a b =
     case compare a.date b.date of
         LT ->
@@ -581,11 +603,22 @@ sortJsonBeamtimeScheduleRow a b =
             GT
 
 
-scheduleDictFromScheduleList : List JsonBeamtimeScheduleRow -> Dict ShiftId JsonBeamtimeScheduleRow
+scheduleDictFromScheduleList : List JsonBeamtimeScheduleRowOutput -> Dict ShiftId JsonBeamtimeScheduleRowOutput
 scheduleDictFromScheduleList shifts =
     Dict.fromList <|
         List.indexedMap (\x y -> ( x, y )) <|
             List.sortWith sortJsonBeamtimeScheduleRow shifts
+
+
+convertShiftToInput : JsonBeamtimeScheduleRowOutput -> JsonBeamtimeScheduleRowInput
+convertShiftToInput row =
+    { users = row.users
+    , date = row.date
+    , shift = row.shift
+    , chemicals = row.chemicals
+    , comment = row.comment
+    , tdSupport = row.tdSupport
+    }
 
 
 updateSchedule : ScheduleMsg -> ScheduleModel -> ( ScheduleModel, Cmd ScheduleMsg )
@@ -616,7 +649,7 @@ updateSchedule msg model =
             , send ScheduleUpdated
                 (updateBeamtimeScheduleApiSchedulePost
                     { beamtimeId = model.beamtimeId
-                    , schedule = model.newJsonBeamtimeScheduleRow :: Dict.values model.schedule
+                    , schedule = model.newJsonBeamtimeScheduleRow :: List.map convertShiftToInput (Dict.values model.schedule)
                     }
                 )
             )
@@ -697,7 +730,7 @@ updateSchedule msg model =
         SubmitDeleteShift scheduleEntry ->
             let
                 newScheduleValues =
-                    List.Extra.remove scheduleEntry (Dict.values model.schedule)
+                    List.filter (\e -> e.date /= scheduleEntry.date || e.shift /= scheduleEntry.shift) (Dict.values model.schedule)
 
                 newScheduleDict =
                     scheduleDictFromScheduleList newScheduleValues
@@ -711,7 +744,7 @@ updateSchedule msg model =
             , send ScheduleUpdated
                 (updateBeamtimeScheduleApiSchedulePost
                     { beamtimeId = model.beamtimeId
-                    , schedule = newScheduleValues
+                    , schedule = List.map convertShiftToInput newScheduleValues
                     }
                 )
             )
@@ -721,7 +754,10 @@ updateSchedule msg model =
                 newEmptyJsonBeamtimeScheduleRow =
                     { emptyJsonBeamtimeScheduleRowToModify
                         | id = Just shiftId
-                        , scheduleEntry = Maybe.withDefault emptyJsonBeamtimeScheduleRow (Dict.get shiftId model.schedule)
+                        , scheduleEntry =
+                            Maybe.withDefault
+                                emptyJsonBeamtimeScheduleRow
+                                (Maybe.map convertShiftToInput <| Dict.get shiftId model.schedule)
                     }
             in
             ( { model
@@ -747,7 +783,10 @@ updateSchedule msg model =
                 newEmptyJsonBeamtimeScheduleRow =
                     { emptyJsonBeamtimeScheduleRowToModify
                         | id = Just shiftId
-                        , scheduleEntry = Maybe.withDefault emptyJsonBeamtimeScheduleRow (Dict.get shiftId model.schedule)
+                        , scheduleEntry =
+                            Maybe.withDefault
+                                emptyJsonBeamtimeScheduleRow
+                                (Maybe.map convertShiftToInput <| Dict.get shiftId model.schedule)
                     }
               in
               { model
@@ -770,7 +809,7 @@ updateSchedule msg model =
                     Dict.values newDict
 
                 allShifts =
-                    mse.scheduleEntry :: shifts
+                    mse.scheduleEntry :: List.map convertShiftToInput shifts
             in
             ( model
             , send ScheduleUpdated
@@ -792,11 +831,9 @@ updateSchedule msg model =
             )
 
 
-updateJsonBeamtimeScheduleRowByColumn : JsonBeamtimeScheduleRow -> TableColumn -> String -> JsonBeamtimeScheduleRow
+updateJsonBeamtimeScheduleRowByColumn : JsonBeamtimeScheduleRowInput -> TableColumn -> String -> JsonBeamtimeScheduleRowInput
 updateJsonBeamtimeScheduleRowByColumn se column data =
-    { startPosix = se.startPosix
-    , stopPosix = se.stopPosix
-    , date =
+    { date =
         case column of
             Date ->
                 data

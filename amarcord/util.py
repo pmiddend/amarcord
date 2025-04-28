@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import os
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -9,9 +10,7 @@ from typing import Generator
 from typing import Iterable
 from typing import Sequence
 from typing import TypeVar
-
-import pytz
-from dateutil import tz
+from zoneinfo import ZoneInfo
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -158,25 +157,6 @@ def read_file_to_string(p: Path) -> str:
         return f.read()
 
 
-# see https://stackoverflow.com/questions/79797/how-to-convert-local-time-string-to-utc
-def local_time_to_utc(
-    d: datetime.datetime,
-    current_time_zone: str | None = None,
-) -> datetime.datetime:
-    tzname = (
-        current_time_zone
-        if current_time_zone
-        else datetime.datetime.now().astimezone().tzname()
-    )
-    if tzname is None:
-        raise Exception(
-            "couldn't figure out the current system time zone, and none was given",
-        )
-
-    local = pytz.timezone(tzname)
-    return local.localize(d).astimezone(pytz.utc)
-
-
 def last_line_of_file(p: Path) -> str:
     with p.open("r") as f:
         # Be dumb for now, probably use this solution if the need arises:
@@ -239,9 +219,12 @@ def safe_variance(xs: list[float]) -> float | None:
     return variance(xs)
 
 
-def datetime_to_local(value: datetime.datetime) -> datetime.datetime:
+def utc_datetime_to_local(value: datetime.datetime) -> datetime.datetime:
+    current_tz = get_local_tz()
     return (
-        value.replace(tzinfo=tz.tzutc()).astimezone(tz.tzlocal()).replace(tzinfo=None)
+        value.replace(tzinfo=datetime.timezone.utc)
+        .astimezone(current_tz)
+        .replace(tzinfo=None)
     )
 
 
@@ -274,3 +257,7 @@ def check_consecutive(xs: Iterable[int]) -> None | tuple[int, int]:
             return (prev, x)
         prev = x
     return None
+
+
+def get_local_tz() -> ZoneInfo:
+    return ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))

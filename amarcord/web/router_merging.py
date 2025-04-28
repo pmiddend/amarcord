@@ -13,8 +13,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
@@ -59,12 +60,15 @@ async def merge_job_started(
             )
         ).one()
         merge_result.job_id = json_result.job_id
-        merge_result.started = datetime_from_attributo_int(json_result.time)
+        merge_result.started = utc_int_to_utc_datetime(json_result.time)
         merge_result.job_status = DBJobStatus.RUNNING
         job_logger.info(f"merge result now has job id {json_result.job_id}, is running")
         await session.commit()
     return JsonMergeJobStartedOutput(
-        time=datetime_to_attributo_int(datetime.datetime.now(datetime.timezone.utc)),
+        time=utc_datetime_to_utc_int(datetime.datetime.now(datetime.timezone.utc)),
+        time_local=utc_datetime_to_local_int(
+            datetime.datetime.now(datetime.timezone.utc)
+        ),
     )
 
 

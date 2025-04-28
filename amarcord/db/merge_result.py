@@ -88,3 +88,4 @@ class JsonMergeJobStartedInput(BaseModel):
 
 class JsonMergeJobStartedOutput(BaseModel):
     time: int
+    time_local: int

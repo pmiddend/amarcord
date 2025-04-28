@@ -12,8 +12,9 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -31,7 +32,7 @@ from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
 from amarcord.web.json_models import JsonAttributoValue
-from amarcord.web.json_models import JsonBeamtime
+from amarcord.web.json_models import JsonBeamtimeOutput
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
 
@@ -490,16 +491,18 @@ async def determine_run_indexing_metadata(
     )
 
 
-def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:  # noqa: FBT002
-    return JsonBeamtime(
+def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool) -> JsonBeamtimeOutput:
+    return JsonBeamtimeOutput(
         id=bt.id,
         external_id=bt.external_id,
         proposal=bt.proposal,
         beamline=bt.beamline,
         title=bt.title,
         comment=bt.comment,
-        start=datetime_to_attributo_int(bt.start),
-        end=datetime_to_attributo_int(bt.end),
+        start=utc_datetime_to_utc_int(bt.start),
+        start_local=utc_datetime_to_local_int(bt.start),
+        end=utc_datetime_to_utc_int(bt.end),
+        end_local=utc_datetime_to_local_int(bt.end),
         chemical_names=(
             [chemical.name for chemical in bt.chemicals] if with_chemicals else []
         ),

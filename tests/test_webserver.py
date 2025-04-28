@@ -62,11 +62,9 @@ from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonAttributoValue
-from amarcord.web.json_models import JsonBeamtime
 from amarcord.web.json_models import JsonBeamtimeOutput
-from amarcord.web.json_models import JsonBeamtimeSchedule
 from amarcord.web.json_models import JsonBeamtimeScheduleOutput
-from amarcord.web.json_models import JsonBeamtimeScheduleRow
+from amarcord.web.json_models import JsonBeamtimeScheduleRowInput
 from amarcord.web.json_models import JsonChangeRunExperimentType
 from amarcord.web.json_models import JsonChangeRunExperimentTypeOutput
 from amarcord.web.json_models import JsonCheckStandardUnitInput
@@ -220,8 +218,8 @@ def beamtime_id(client: TestClient) -> BeamtimeId:
             proposal="BAG",
             title="Test beamtime",
             comment="comment",
-            start=1,
-            end=1000,
+            start_local=1,
+            end_local=1000,
             analysis_output_path="/",
         ),
     )
@@ -238,8 +236,8 @@ def second_beamtime_id(client: TestClient) -> BeamtimeId:
             proposal="BAG2",
             title="Test beamtime2",
             comment="comment2",
-            start=1,
-            end=1000,
+            start_local=1,
+            end_local=1000,
             analysis_output_path="/",
         ),
     )
@@ -734,9 +732,9 @@ def run_without_files_data_set_id(
 
 
 def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
-    beamtime = JsonBeamtime(**client.get(f"/api/beamtimes/{beamtime_id}").json())
+    beamtime = JsonBeamtimeOutput(**client.get(f"/api/beamtimes/{beamtime_id}").json())
 
-    assert beamtime == JsonBeamtime(
+    assert beamtime == JsonBeamtimeOutput(
         id=beamtime_id,
         external_id="cool 1337",
         beamline="P12",
@@ -744,7 +742,9 @@ def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> No
         title="Test beamtime",
         comment="comment",
         start=1,
+        start_local=1,
         end=1000,
+        end_local=1000,
         chemical_names=[],
         analysis_output_path="/",
     )
@@ -757,7 +757,7 @@ def test_read_single_chemical_names_beamtime(
 ) -> None:
     beamtimes = JsonReadBeamtime(**client.get("/api/beamtimes").json()).beamtimes
 
-    assert beamtimes[0] == JsonBeamtime(
+    assert beamtimes[0] == JsonBeamtimeOutput(
         id=beamtime_id,
         external_id="cool 1337",
         beamline="P12",
@@ -765,7 +765,9 @@ def test_read_single_chemical_names_beamtime(
         title="Test beamtime",
         comment="comment",
         start=1,
+        start_local=1,
         end=1000,
+        end_local=1000,
         chemical_names=[TEST_CHEMICAL_NAME],
         analysis_output_path="/",
     )
@@ -782,8 +784,8 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
                 proposal="BAG2",
                 title="Test beamtime2",
                 comment="comment2",
-                start=2,
-                end=1002,
+                start_local=2,
+                end_local=1002,
                 analysis_output_path="/",
             ).model_dump(),
         ).json(),
@@ -792,7 +794,7 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
     beamtimes = JsonReadBeamtime(**client.get("/api/beamtimes").json()).beamtimes
     assert len(beamtimes) == 1
 
-    assert beamtimes[0] == JsonBeamtime(
+    assert beamtimes[0] == JsonBeamtimeOutput(
         id=beamtime_id,
         external_id="cool 13372",
         beamline="P122",
@@ -800,7 +802,9 @@ def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> 
         title="Test beamtime2",
         comment="comment2",
         start=2,
+        start_local=2,
         end=1002,
+        end_local=1002,
         chemical_names=[],
         analysis_output_path="/",
     )
@@ -813,7 +817,7 @@ def test_random_beamtime_creation_works(
     response = JsonReadBeamtime(**client.get("/api/beamtimes").json())
     assert len(response.beamtimes) == 1
     first_beamtime = response.beamtimes[0]
-    assert first_beamtime == JsonBeamtime(
+    assert first_beamtime == JsonBeamtimeOutput(
         id=beamtime_id,
         external_id="cool 1337",
         beamline="P12",
@@ -821,7 +825,9 @@ def test_random_beamtime_creation_works(
         title="Test beamtime",
         comment="comment",
         start=1,
+        start_local=1,
         end=1000,
+        end_local=1000,
         chemical_names=[],
         analysis_output_path="/",
     )
@@ -3277,25 +3283,21 @@ def test_update_beamtime_schedule(
     lyso_chemical_id: int,
 ) -> None:
     schedule_rows = [
-        JsonBeamtimeScheduleRow(
+        JsonBeamtimeScheduleRowInput(
             users="users",
-            date="date",
-            shift="shift",
+            date="2025-04-30",
+            shift="10:00-11:00",
             comment="comment",
             td_support="td_support",
             chemicals=[lyso_chemical_id],
-            start_posix=0,
-            stop_posix=0,
         ),
-        JsonBeamtimeScheduleRow(
+        JsonBeamtimeScheduleRowInput(
             users="users2",
-            date="date2",
-            shift="shift2",
+            date="2025-04-30",
+            shift="11:00-12:00",
             comment="comment2",
             td_support="td_support2",
             chemicals=[],
-            start_posix=0,
-            stop_posix=0,
         ),
     ]
     update_result = JsonBeamtimeScheduleOutput(
@@ -3308,12 +3310,22 @@ def test_update_beamtime_schedule(
         ).json(),
     )
 
-    assert update_result.schedule == schedule_rows
+    for original, result in zip(schedule_rows, update_result.schedule, strict=False):
+        assert original.date == result.date
+        assert original.users == result.users
+        assert original.shift == result.shift
+        assert result.start is not None
+        assert result.start_local is not None
+        assert result.stop is not None
+        assert result.stop_local is not None
 
-    get_response = JsonBeamtimeSchedule(
+    get_response = JsonBeamtimeScheduleOutput(
         **client.get(f"/api/schedule/{beamtime_id}").json(),
     )
-    assert get_response.schedule == schedule_rows
+    for original, result in zip(schedule_rows, get_response.schedule, strict=False):
+        assert original.date == result.date
+        assert original.users == result.users
+        assert original.shift == result.shift
 
 
 def test_create_live_stream_snapshot(

@@ -1,4 +1,3 @@
-import datetime
 from pathlib import Path
 
 import pytest
@@ -7,7 +6,6 @@ from amarcord.util import check_consecutive
 from amarcord.util import dict_union
 from amarcord.util import group_by
 from amarcord.util import last_line_of_file
-from amarcord.util import local_time_to_utc
 from amarcord.util import maybe_you_meant
 from amarcord.util import read_file_to_string
 from amarcord.util import remove_duplicates_stable
@@ -56,18 +54,6 @@ def test_sha256_file() -> None:
             ],
         )
         == "32ac0b1fc6f1b04aa5d8e1486afc3f3777c10784471f60143ef7616848e15db1"
-    )
-
-
-def test_local_time_to_utc() -> None:
-    # We just check if the hour has changed, not by how much.
-    hour_before = 5
-    assert (
-        local_time_to_utc(
-            datetime.datetime(2022, 2, 1, hour_before, 0, 0, 0),
-            current_time_zone="Europe/Berlin",
-        ).hour
-        != hour_before
     )
 
 

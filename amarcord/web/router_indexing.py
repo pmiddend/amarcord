@@ -13,8 +13,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
@@ -22,7 +23,7 @@ from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
-from amarcord.web.json_models import JsonBeamtime
+from amarcord.web.json_models import JsonBeamtimeOutput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetInput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetOutput
 from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
@@ -61,15 +62,17 @@ async def json_indexing_job_from_orm(
         geometry_file_output=ij.geometry_file if ij.geometry_file is not None else "",
         run_external_id=ij.run.external_id,
         run_internal_id=ij.run.id,
-        beamtime=JsonBeamtime(
+        beamtime=JsonBeamtimeOutput(
             id=bt.id,
             external_id=bt.external_id,
             proposal=bt.proposal,
             beamline=bt.beamline,
             title=bt.title,
             comment=bt.comment,
-            start=datetime_to_attributo_int(bt.start),
-            end=datetime_to_attributo_int(bt.end),
+            start=utc_datetime_to_utc_int(bt.start),
+            start_local=utc_datetime_to_local_int(bt.start),
+            end=utc_datetime_to_utc_int(bt.end),
+            end_local=utc_datetime_to_local_int(bt.end),
             chemical_names=[],
             analysis_output_path=bt.analysis_output_path,
         ),
@@ -84,12 +87,22 @@ async def json_indexing_job_from_orm(
         ),
         command_line=ij.indexing_parameters.command_line,
         started=(
-            datetime_to_attributo_int(ij.job_started)
+            utc_datetime_to_utc_int(ij.job_started)
+            if ij.job_started is not None
+            else None
+        ),
+        started_local=(
+            utc_datetime_to_local_int(ij.job_started)
             if ij.job_started is not None
             else None
         ),
         stopped=(
-            datetime_to_attributo_int(ij.job_stopped)
+            utc_datetime_to_utc_int(ij.job_stopped)
+            if ij.job_stopped is not None
+            else None
+        ),
+        stopped_local=(
+            utc_datetime_to_local_int(ij.job_stopped)
             if ij.job_stopped is not None
             else None
         ),
@@ -455,7 +468,7 @@ async def indexing_job_still_running(
         current_indexing_result.indexed_frames = jr.indexed_frames
         # job started can be missing, in case we don't have that information
         if jr.job_started is not None:
-            current_indexing_result.job_started = datetime_from_attributo_int(
+            current_indexing_result.job_started = utc_int_to_utc_datetime(
                 jr.job_started,
             )
         current_indexing_result.detector_shift_x_mm = jr.detector_shift_x_mm

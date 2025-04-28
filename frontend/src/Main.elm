@@ -28,7 +28,7 @@ import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (amarcordClientVersion)
-import Api.Data exposing (JsonBeamtime)
+import Api.Data exposing (JsonBeamtimeOutput)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
@@ -100,7 +100,7 @@ type Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
     | HereAndNowReceived HereAndNow
-    | BeamtimeReceived (Result HttpError JsonBeamtime)
+    | BeamtimeReceived (Result HttpError JsonBeamtimeOutput)
 
 
 type Page
@@ -132,7 +132,7 @@ type alias Model =
 
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
-    , beamtimeRequest : RemoteData HttpError JsonBeamtime
+    , beamtimeRequest : RemoteData HttpError JsonBeamtimeOutput
     , localStorage : Maybe LocalStorage
     }
 
@@ -710,7 +710,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Chemicals beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Chemicals.init hereAndNow beamtimeId
+                            Chemicals.init beamtimeId
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
@@ -759,14 +759,14 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.RunAnalysis beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunAnalysis.init hereAndNow beamtimeId
+                            RunAnalysis.init beamtimeId
                     in
                     ( RunAnalysisPage pageModel, Cmd.map RunAnalysisPageMsg pageCmds )
 
                 Route.DataSets beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            DataSets.initDataSet hereAndNow beamtimeId
+                            DataSets.initDataSet beamtimeId
                     in
                     ( DataSetsPage pageModel, Cmd.map DataSetsMsg pageCmds )
 

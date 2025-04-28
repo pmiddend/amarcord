@@ -8,7 +8,7 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (div_, h1_, h5_, input_, p_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
-import Amarcord.Util exposing (HereAndNow, foldPairs)
+import Amarcord.Util exposing (foldPairs)
 import Api.Data exposing (JsonAnalysisRun, JsonDetectorShift, JsonFileOutput, JsonIndexingStatistic, JsonReadBeamtimeGeometryDetails, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult, JsonRunFile)
 import Api.Request.Analysis exposing (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet, readRunAnalysisApiRunAnalysisBeamtimeIdGet)
 import Axis
@@ -29,7 +29,6 @@ import Segment
 import Shape
 import Statistics
 import SubPath
-import Time exposing (Zone)
 import Tuple
 import TypedSvg exposing (g, line, svg, text_)
 import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
@@ -52,8 +51,7 @@ type Msg
 
 
 type alias Model =
-    { hereAndNow : HereAndNow
-    , runIdInput : String
+    { runIdInput : String
     , runAnalysisRequest : RemoteData HttpError JsonReadRunAnalysis
     , geometryDetailsRequest : RemoteData HttpError JsonReadBeamtimeGeometryDetails
     , beamtimeId : BeamtimeId
@@ -66,10 +64,9 @@ pageTitle _ =
     "Run Analysis"
 
 
-init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
-init hereAndNow beamtimeId =
-    ( { hereAndNow = hereAndNow
-      , runIdInput = ""
+init : BeamtimeId -> ( Model, Cmd Msg )
+init beamtimeId =
+    ( { runIdInput = ""
       , geometryDetailsRequest = Loading
       , runAnalysisRequest = Loading
       , beamtimeId = beamtimeId
@@ -557,9 +554,9 @@ viewDetectorShiftsByAbsoluteTime r =
         ]
 
 
-viewRunStatistics : Zone -> List JsonIndexingStatistic -> Html msg
-viewRunStatistics zone originalStats =
-    viewHitRateAndIndexingGraphs zone originalStats
+viewRunStatistics : List JsonIndexingStatistic -> Html msg
+viewRunStatistics originalStats =
+    viewHitRateAndIndexingGraphs originalStats
 
 
 viewRunFiles : List JsonRunFile -> Html msg
@@ -579,19 +576,17 @@ viewRunFiles files =
 
 
 viewRunTableRow :
-    HereAndNow
-    -> List (Attributo AttributoType)
+    List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> JsonAnalysisRun
     -> JsonRunAnalysisIndexingResult
     -> Html msg
-viewRunTableRow hereAndNow attributi chemicals run rar =
+viewRunTableRow attributi chemicals run rar =
     let
         viewRun r =
             div_
                 [ viewDataSetTable
                     attributi
-                    hereAndNow.zone
                     (chemicalIdDict chemicals)
                     (convertAttributoMapFromApi r.attributi)
                     False
@@ -607,20 +602,19 @@ viewRunTableRow hereAndNow attributi chemicals run rar =
             , viewRun run
             ]
         , td []
-            [ viewRunStatistics hereAndNow.zone rar.indexingStatistics
+            [ viewRunStatistics rar.indexingStatistics
             ]
         ]
 
 
 viewRunGraphs :
-    HereAndNow
-    -> String
+    String
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> Maybe JsonAnalysisRun
     -> List JsonRunAnalysisIndexingResult
     -> Html Msg
-viewRunGraphs hereAndNow runIdInput attributi chemicals run rars =
+viewRunGraphs runIdInput attributi chemicals run rars =
     div_
         [ div [ class "hstack gap-3" ]
             [ button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r - 1)) ] [ icon { name = "arrow-left" } ]
@@ -646,13 +640,13 @@ viewRunGraphs hereAndNow runIdInput attributi chemicals run rars =
                             , th [ style "width" "100%" ] [ text "Statistics" ]
                             ]
                         ]
-                    , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runReal) rars)
+                    , tbody [] (List.map (viewRunTableRow attributi chemicals runReal) rars)
                     ]
         ]
 
 
-viewInner : HereAndNow -> JsonReadBeamtimeGeometryDetails -> Model -> List (Html Msg)
-viewInner hereAndNow { detectorShifts } model =
+viewInner : JsonReadBeamtimeGeometryDetails -> Model -> List (Html Msg)
+viewInner { detectorShifts } model =
     [ h1_ [ text "Detector Shifts" ]
     , div [ class "mb-3" ]
         [ div [ class "form-check form-check-inline" ]
@@ -698,7 +692,6 @@ viewInner hereAndNow { detectorShifts } model =
 
         Success { attributi, chemicals, run, indexingResults } ->
             viewRunGraphs
-                hereAndNow
                 model.runIdInput
                 (List.map convertAttributoFromApi attributi)
                 (List.map convertChemicalFromApi chemicals)
@@ -721,7 +714,7 @@ view model =
                 List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showError e ]
 
             Success r ->
-                viewInner model.hereAndNow r model
+                viewInner r model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

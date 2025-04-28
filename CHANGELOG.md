@@ -18,10 +18,12 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 - Run Overview: The browser tab title now changes even if the tab is in the background ([\#460](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/460))
 - Merging: Error output from partialator was omitted from job log ([\#461](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/461))
+- Export: Fixed error message if there were chemicals with files in it.
 
 ## Development changes
 
 - Upgraded the pydantic serialization/deserialization framework to version 2 now, resulting in increased performance ([\#463](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/463))
+- Remove `python-dateutil` and `pytz`, both superseded by Python 3.9's [ZoneInfo](https://docs.python.org/3.9/library/zoneinfo.html) (and `python-dateutil` had a Python 3.12 [deprecation warning](https://github.com/dateutil/dateutil/issues/1284)). In the light of that, rework all of the frontend and backend to have a consistent time zone usage. This doesn't affect the user and is documented in the official documentation. ([\#465](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/465))
 
 
 # v1.2 - Q1 2025

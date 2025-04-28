@@ -16,9 +16,10 @@ from sqlalchemy.sql import select
 
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
@@ -99,9 +100,15 @@ async def read_beamtime_geometry_details(
                 detector_shifts.append(
                     JsonDetectorShift(
                         run_external_id=run.external_id,
-                        run_start=datetime_to_attributo_int(run.started),
+                        run_start=utc_datetime_to_utc_int(run.started),
+                        run_start_local=utc_datetime_to_local_int(run.started),
                         run_end=(
-                            datetime_to_attributo_int(run.stopped)
+                            utc_datetime_to_utc_int(run.stopped)
+                            if run.stopped is not None
+                            else None
+                        ),
+                        run_end_local=(
+                            utc_datetime_to_local_int(run.stopped)
                             if run.stopped is not None
                             else None
                         ),
@@ -195,7 +202,10 @@ async def read_run_analysis(
                 in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
                 indexing_statistics=[
                     JsonIndexingStatistic(
-                        time=datetime_to_attributo_int(stat.time),
+                        # Strange if condition for the unlikely case that the run doesn't exist
+                        time=(
+                            stat.time - (run.started if run is not None else stat.time)
+                        ).seconds,
                         frames=stat.frames,
                         hits=stat.hits,
                         indexed=stat.indexed_frames,
@@ -890,7 +900,16 @@ async def read_analysis_results(
                 attributo_value_str=a.string_value,
                 attributo_value_int=a.integer_value,
                 attributo_value_chemical=a.chemical_value,
-                attributo_value_datetime=a.datetime_value,
+                attributo_value_datetime=(
+                    utc_datetime_to_utc_int(a.datetime_value)
+                    if a.datetime_value is not None
+                    else None
+                ),
+                attributo_value_datetime_local=(
+                    utc_datetime_to_local_int(a.datetime_value)
+                    if a.datetime_value is not None
+                    else None
+                ),
                 attributo_value_float=a.float_value,
                 attributo_value_bool=a.bool_value,
                 # At some point: grab into attributo list and check
