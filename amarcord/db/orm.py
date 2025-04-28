@@ -210,6 +210,7 @@ class File(Base):
     type: Mapped[str] = mapped_column(sa.String(length=255))
     file_name: Mapped[str] = mapped_column(sa.String(length=255))
     size_in_bytes: Mapped[int] = mapped_column()
+    size_in_bytes_compressed: Mapped[None | int] = mapped_column()
     original_path: Mapped[None | str] = mapped_column(sa.Text)
     sha256: Mapped[str] = mapped_column(sa.String(length=64))
     modified: Mapped[datetime] = mapped_column()

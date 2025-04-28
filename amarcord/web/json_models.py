@@ -79,6 +79,7 @@ class JsonFileOutput(BaseModel):
     original_path: None | str = None
     file_name: str
     size_in_bytes: int
+    size_in_bytes_compressed: None | int = None
 
 
 class JsonEvent(BaseModel):
@@ -725,6 +726,7 @@ class JsonCreateFileOutput(BaseModel):
     description: str
     type_: str
     size_in_bytes: int
+    size_in_bytes_compressed: None | int
     original_path: None | str = None
 
 

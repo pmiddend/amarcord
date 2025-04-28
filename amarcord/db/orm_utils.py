@@ -1,5 +1,7 @@
 import datetime
+import zlib
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -106,15 +108,35 @@ async def retrieve_latest_run(
     ).first()
 
 
-def update_file_with_contents(f: orm.File, temp_file: Any) -> None:
+class CompressionMode(Enum):
+    COMPRESS_AUTO = "auto"
+    COMPRESS_ON = "on"
+    COMPRESS_OFF = "off"
+
+
+def update_file_with_contents(
+    f: orm.File, temp_file: Any, compress: CompressionMode
+) -> None:
     file_path = Path(temp_file.name)
     f.sha256 = sha256_file(file_path)
 
     mime = magic.from_file(str(file_path), mime=True)  # type: ignore
     assert isinstance(mime, str), f"mime type is not a string: {mime}"
     f.type = mime
-    f.size_in_bytes = file_path.stat().st_size
-    f.contents = temp_file.read()  # type: ignore
+
+    file_size = file_path.stat().st_size
+    f.size_in_bytes = file_size
+
+    do_compress = (
+        compress == CompressionMode.COMPRESS_AUTO and file_size >= 1000
+    ) or CompressionMode.COMPRESS_ON
+
+    if do_compress:
+        new_contents = zlib.compress(temp_file.read())
+        f.contents = new_contents
+        f.size_in_bytes_compressed = len(new_contents)
+    else:
+        f.contents = temp_file.read()
     f.modified = datetime.datetime.now(datetime.timezone.utc)
 
 
@@ -123,10 +145,12 @@ def create_file_in_db(
     temp_file: Any,
     external_file_name: str,
     description: str,
+    compression_mode: CompressionMode,
 ) -> orm.File:
     result = orm.File(
         type="placeholder",
         size_in_bytes=0,
+        size_in_bytes_compressed=None,
         modified=datetime.datetime.now(datetime.timezone.utc),
         file_name=external_file_name,
         original_path=None,
@@ -134,7 +158,7 @@ def create_file_in_db(
         sha256="",
         contents=b"",
     )
-    update_file_with_contents(result, temp_file)
+    update_file_with_contents(result, temp_file, compression_mode)
     return result
 
 
@@ -156,6 +180,7 @@ async def duplicate_file(f: orm.File, new_file_name: str) -> orm.File:
         type=f.type,
         file_name=new_file_name,
         size_in_bytes=f.size_in_bytes,
+        size_in_bytes_compressed=f.size_in_bytes_compressed,
         original_path=f.original_path,
         sha256=f.sha256,
         modified=datetime.datetime.now(datetime.timezone.utc),

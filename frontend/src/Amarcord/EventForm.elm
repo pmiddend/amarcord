@@ -282,7 +282,7 @@ update msg model =
                     )
 
         NewFile newFile ->
-            ( { model | fileUploadRequest = Loading }, send FileUploadFinished (createFileApiFilesPost newFile (ElmFile.name newFile) "False") )
+            ( { model | fileUploadRequest = Loading }, send FileUploadFinished (createFileApiFilesPost newFile (ElmFile.name newFile) "False" Nothing) )
 
         OpenSelector mimes ->
             ( model, File.Select.file mimes NewFile )
@@ -302,6 +302,7 @@ update msg model =
                             , originalPath = file.originalPath
                             , fileName = file.fileName
                             , sizeInBytes = file.sizeInBytes
+                            , sizeInBytesCompressed = file.sizeInBytesCompressed
                             }
                                 :: model.files
                       }

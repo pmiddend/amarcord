@@ -1220,7 +1220,7 @@ update msg model =
 
                 Just fileToUpload ->
                     ( { model | fileUploadRequest = Loading }
-                    , send EditFileUploadFinished (createFileApiFilesPost fileToUpload.fileMetadata model.newFileUpload.description "False")
+                    , send EditFileUploadFinished (createFileApiFilesPost fileToUpload.fileMetadata model.newFileUpload.description "False" Nothing)
                     )
 
         EditFileUploadFinished result ->
@@ -1242,6 +1242,7 @@ update msg model =
                                             , fileName = file.fileName
                                             , originalPath = file.originalPath
                                             , sizeInBytes = file.sizeInBytes
+                                            , sizeInBytesCompressed = file.sizeInBytesCompressed
                                             }
                                     in
                                     { editChemical | files = newEditChemicalFile :: editChemical.files }

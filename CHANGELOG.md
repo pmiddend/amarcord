@@ -13,6 +13,7 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 - Indexing: now, also an error in `list_events` will be reported properly
 - SLURM REST interface: you now need to explicitly specify an `api-version` parameter (since the version changes frequently and it shouldn't be hard-coded) ([\#467](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/455))
 - Indexing results: failed results are now hidden, and can be shown with a check-box ([\#468](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/468))
+- Files are now compressed if they are too big. There is a parameter in the API to force this on or off, too ([\#429](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/429)). Nothing changes for the normal user.
 
 ## Fixes
 

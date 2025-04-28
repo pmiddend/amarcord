@@ -76,6 +76,7 @@ async def create_event(
                     description=existing_live_stream.description,
                     sha256=existing_live_stream.sha256,
                     size_in_bytes=existing_live_stream.size_in_bytes,
+                    size_in_bytes_compressed=existing_live_stream.size_in_bytes_compressed,
                 )
                 new_event.files.append(copied_live_stream)
         session.add(new_event)

@@ -924,6 +924,7 @@ type alias JsonCreateFileOutput =
     , description : String
     , type__ : String
     , sizeInBytes : Int
+    , sizeInBytesCompressed : Maybe Int
     , originalPath : Maybe String
     }
 
@@ -1145,6 +1146,7 @@ type alias JsonFileOutput =
     , originalPath : Maybe String
     , fileName : String
     , sizeInBytes : Int
+    , sizeInBytesCompressed : Maybe Int
     }
 
 
@@ -2996,6 +2998,7 @@ encodeJsonCreateFileOutputPairs model =
             , encode "description" Json.Encode.string model.description
             , encode "type_" Json.Encode.string model.type__
             , encode "size_in_bytes" Json.Encode.int model.sizeInBytes
+            , encodeNullable "size_in_bytes_compressed" Json.Encode.int model.sizeInBytesCompressed
             , maybeEncodeNullable "original_path" Json.Encode.string model.originalPath
             ]
     in
@@ -3682,6 +3685,7 @@ encodeJsonFileOutputPairs model =
             , maybeEncodeNullable "original_path" Json.Encode.string model.originalPath
             , encode "file_name" Json.Encode.string model.fileName
             , encode "size_in_bytes" Json.Encode.int model.sizeInBytes
+            , maybeEncodeNullable "size_in_bytes_compressed" Json.Encode.int model.sizeInBytesCompressed
             ]
     in
     pairs
@@ -6141,6 +6145,7 @@ jsonCreateFileOutputDecoder =
         |> decode "description" Json.Decode.string 
         |> decode "type_" Json.Decode.string 
         |> decode "size_in_bytes" Json.Decode.int 
+        |> decodeNullable "size_in_bytes_compressed" Json.Decode.int 
         |> maybeDecodeNullable "original_path" Json.Decode.string Nothing
 
 
@@ -6393,6 +6398,7 @@ jsonFileOutputDecoder =
         |> maybeDecodeNullable "original_path" Json.Decode.string Nothing
         |> decode "file_name" Json.Decode.string 
         |> decode "size_in_bytes" Json.Decode.int 
+        |> maybeDecodeNullable "size_in_bytes_compressed" Json.Decode.int Nothing
 
 
 jsonImportFinishedIndexingJobInputDecoder : Json.Decode.Decoder JsonImportFinishedIndexingJobInput

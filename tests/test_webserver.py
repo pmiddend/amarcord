@@ -52,6 +52,7 @@ from amarcord.db.merge_result import JsonMergeResultOuterShell
 from amarcord.db.merge_result import JsonMergeResultShell
 from amarcord.db.merge_result import JsonRefinementResultInternal
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import CompressionMode
 from amarcord.db.orm_utils import live_stream_image_name
 from amarcord.db.orm_utils import migrate
 from amarcord.db.run_internal_id import RunInternalId
@@ -163,6 +164,10 @@ TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
 TEST_CHEMICAL_NAME = "chemicalname"
 TEST_CHEMICAL_RESPONSIBLE_PERSON = "Rosalind Franklin"
+
+# Some of the tests compare ".local" time fields, which then depends
+# on the time zone you're using to run the test, which is suboptimal
+os.environ["AMARCORD_TZ"] = "UTC"
 
 
 async def init_db(url: str) -> None:
@@ -1139,6 +1144,34 @@ def test_upload_and_retrieve_file(client: TestClient) -> None:
         assert output.description == "test description"
         assert output.type_ == "text/plain"
         assert output.size_in_bytes == 17
+
+    # Retrieve the contents (not the metadata)
+    with test_file.open("rb") as upload_file:
+        assert client.get(f"/api/files/{output.id}").content == upload_file.read()
+
+
+def test_upload_and_retrieve_file_with_compression(client: TestClient) -> None:
+    test_file = Path(__file__).parent / "big-test-file.txt"
+
+    # Upload the file
+    with test_file.open("rb") as upload_file:
+        raw_output = client.post(
+            "/api/files",
+            data={
+                "description": "test description",
+                "deduplicate": str(False),
+                # Explicitly enable compression (default is auto,
+                # which uses the file size as a condition)
+                "compress": "on",
+            },
+            files={"file": upload_file},
+        )
+        print(raw_output)
+        output = JsonCreateFileOutput(**raw_output.json())
+
+        assert output.type_ == "text/plain"
+        assert output.size_in_bytes == 3198
+        assert output.size_in_bytes_compressed == 53
 
     # Retrieve the contents (not the metadata)
     with test_file.open("rb") as upload_file:
@@ -3742,6 +3775,7 @@ async def create_file_wrapper(tmp_path: Path, request: web.Request) -> web.Respo
             file=UploadFile(filename=file.filename, file=file.file),
             description=description,
             deduplicate=deduplicate,
+            compress=CompressionMode.COMPRESS_AUTO.value,
             session=web_async_session,
         )
         return web.json_response(result.model_dump())

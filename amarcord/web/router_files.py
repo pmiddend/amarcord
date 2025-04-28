@@ -1,6 +1,7 @@
 import hashlib
 import os
 import uuid
+import zlib
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -20,6 +21,7 @@ from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
+from amarcord.db.orm_utils import CompressionMode
 from amarcord.db.orm_utils import create_file_in_db
 from amarcord.db.orm_utils import duplicate_file
 from amarcord.db.orm_utils import live_stream_image_name
@@ -44,6 +46,7 @@ def encode_file_output(f: orm.File) -> JsonFileOutput:
         type_=f.type,
         file_name=f.file_name,
         size_in_bytes=f.size_in_bytes,
+        size_in_bytes_compressed=f.size_in_bytes_compressed,
         original_path=f.original_path,
     )
 
@@ -54,6 +57,7 @@ async def create_file(
     description: Annotated[str, Form()],
     deduplicate: Annotated[str, Form()],
     session: Annotated[AsyncSession, Depends(get_orm_db)],
+    compress: Annotated[str, Form()] = CompressionMode.COMPRESS_AUTO.value,
 ) -> JsonCreateFileOutput:
     async with session.begin():
         file_name = file.filename if file.filename is not None else "nofilename"
@@ -79,6 +83,7 @@ async def create_file(
                         description=existing_file.description,
                         type_=existing_file.type,
                         size_in_bytes=existing_file.size_in_bytes,
+                        size_in_bytes_compressed=existing_file.size_in_bytes_compressed,
                         original_path=existing_file.original_path,
                     )
             temp_file.write(contents)
@@ -89,6 +94,7 @@ async def create_file(
                 temp_file,
                 external_file_name=file_name,
                 description=description,
+                compression_mode=CompressionMode(compress),
             )
 
             session.add(new_file)
@@ -100,6 +106,7 @@ async def create_file(
                 description=description,
                 type_=new_file.type,
                 size_in_bytes=new_file.size_in_bytes,
+                size_in_bytes_compressed=new_file.size_in_bytes_compressed,
                 original_path=None,
             )
 
@@ -132,6 +139,7 @@ async def create_file_simple(
                 temp_file,
                 external_file_name=file_name,
                 description="",
+                compression_mode=CompressionMode.COMPRESS_AUTO,
             )
             session.add(new_file)
             await session.commit()
@@ -142,6 +150,7 @@ async def create_file_simple(
                 description="",
                 type_=new_file.type,
                 size_in_bytes=new_file.size_in_bytes,
+                size_in_bytes_compressed=new_file.size_in_bytes_compressed,
                 # Doesn't really make sense here
                 original_path=None,
             )
@@ -205,13 +214,18 @@ async def update_live_stream(
 
             db_file: orm.File
             if existing_live_stream is not None:
-                update_file_with_contents(existing_live_stream, temp_file)
+                update_file_with_contents(
+                    existing_live_stream,
+                    temp_file,
+                    compress=CompressionMode.COMPRESS_AUTO,
+                )
                 db_file = existing_live_stream
             else:
                 db_file = create_file_in_db(
                     temp_file,
                     image_file_name,
-                    "Live stream image",
+                    description="Live stream image",
+                    compression_mode=CompressionMode.COMPRESS_AUTO,
                 )
                 session.add(db_file)
             await session.commit()
@@ -256,7 +270,10 @@ async def read_file(
     contents_in_memory = await file_.awaitable_attrs.contents
 
     def async_generator() -> Any:
-        yield from BytesIO(contents_in_memory)
+        if file_.size_in_bytes_compressed is not None:
+            yield from BytesIO(zlib.decompress(contents_in_memory))
+        else:
+            yield from BytesIO(contents_in_memory)
 
     # Content-Disposition makes it so the browser opens a "Save file as" dialog. For images, PDFs, ..., we can just
     # display them in the browser instead.
