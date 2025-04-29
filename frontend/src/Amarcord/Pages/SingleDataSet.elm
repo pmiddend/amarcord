@@ -192,7 +192,7 @@ scaleIntensitiesToString x =
 
 
 viewMergeParameters : String -> JsonMergeParameters -> Html msg
-viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine } =
+viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine, cutoffLowres, cutoffHighres } =
     let
         boolDtDl header b =
             [ tr_
@@ -271,6 +271,8 @@ viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iter
             ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
             ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
             ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
+            ++ maybeDtDl "Low resolution cutoff" (Maybe.map (text << String.fromFloat) cutoffLowres)
+            ++ maybeDtDl "High resolution cutoff" (Maybe.map (text << String.join ", " << List.map String.fromFloat) cutoffHighres)
 
 
 viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)

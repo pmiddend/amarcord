@@ -382,6 +382,10 @@ def orm_encode_json_merge_parameters_to_json(
         min_res=mr.input_min_res,
         push_res=mr.input_push_res,
         w=mr.input_w,
+        cutoff_lowres=mr.cutoff_lowres,
+        cutoff_highres=[float(x.strip()) for x in mr.cutoff_highres.split(",")]
+        if mr.cutoff_highres
+        else None,
     )
 
 

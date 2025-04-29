@@ -780,6 +780,8 @@ class MergeResult(Base):
     ambigator_fg_graph_file_id: Mapped[None | int] = mapped_column(
         ForeignKey("File.id", ondelete="cascade"),
     )
+    cutoff_lowres: Mapped[None | float] = mapped_column()
+    cutoff_highres: Mapped[None | str] = mapped_column()
 
     # Relationships
     mtz_file: Mapped[None | File] = relationship(init=False, foreign_keys=[mtz_file_id])

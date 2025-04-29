@@ -235,6 +235,23 @@ async def start_merge_job(
                     cell_file_id
                 ),
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_POINT_GROUP: merge_result.point_group,
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_GET_HKL_ADDITIONAL: " ".join(
+                    (
+                        [f"--lowres={merge_result.parameters.cutoff_lowres}"]
+                        if merge_result.parameters.cutoff_lowres is not None
+                        else []
+                    )
+                    + (
+                        [
+                            "--cutoff-angstroms="
+                            + ",".join(
+                                str(s) for s in merge_result.parameters.cutoff_highres
+                            )
+                        ]
+                        if merge_result.parameters.cutoff_highres is not None
+                        else []
+                    )
+                ),
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_PARTIALATOR_ADDITIONAL: shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),

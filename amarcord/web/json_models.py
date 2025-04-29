@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Annotated
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -272,6 +273,10 @@ class JsonMergeParameters(BaseModel):
     push_res: None | float = None
     w: None | str = None
     ambigator_command_line: str
+    cutoff_lowres: None | float = None
+    cutoff_highres: Annotated[None | list[float], Field(min_length=1, max_length=3)] = (
+        None
+    )
 
 
 class JsonMergeResult(BaseModel):

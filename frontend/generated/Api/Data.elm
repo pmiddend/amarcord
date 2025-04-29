@@ -1373,6 +1373,8 @@ type alias JsonMergeParameters =
     , pushRes : Maybe Float
     , w : Maybe String
     , ambigatorCommandLine : String
+    , cutoffLowres : Maybe Float
+    , cutoffHighres : Maybe ( List Float )
     }
 
 
@@ -4197,6 +4199,8 @@ encodeJsonMergeParametersPairs model =
             , maybeEncodeNullable "push_res" Json.Encode.float model.pushRes
             , maybeEncodeNullable "w" Json.Encode.string model.w
             , encode "ambigator_command_line" Json.Encode.string model.ambigatorCommandLine
+            , maybeEncodeNullable "cutoff_lowres" Json.Encode.float model.cutoffLowres
+            , maybeEncodeNullable "cutoff_highres" (Json.Encode.list Json.Encode.float) model.cutoffHighres
             ]
     in
     pairs
@@ -6644,6 +6648,8 @@ jsonMergeParametersDecoder =
         |> maybeDecodeNullable "push_res" Json.Decode.float Nothing
         |> maybeDecodeNullable "w" Json.Decode.string Nothing
         |> decode "ambigator_command_line" Json.Decode.string 
+        |> maybeDecodeNullable "cutoff_lowres" Json.Decode.float Nothing
+        |> maybeDecodeNullable "cutoff_highres" (Json.Decode.list Json.Decode.float) Nothing
 
 
 jsonMergeResultDecoder : Json.Decode.Decoder JsonMergeResult

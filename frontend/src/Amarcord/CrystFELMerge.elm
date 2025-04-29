@@ -1,7 +1,7 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
-import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
+import Amarcord.Html exposing (code_, div_, enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, form, h2, label, small, span, text)
@@ -236,11 +236,13 @@ type alias Model =
     , pointGroup : String
     , spaceGroup : String
     , ambigatorCommandLine : Maybe String
+    , cutoffLowres : String
+    , cutoffHighres : String
     }
 
 
 modelToMergeParameters : Model -> JsonQueueMergeJobInput
-modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup, ambigatorCommandLine } =
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup, ambigatorCommandLine, cutoffLowres, cutoffHighres } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -298,6 +300,17 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
         , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
         , negativeHandling = Just MergeNegativeHandlingIgnore
         , ambigatorCommandLine = Maybe.withDefault "" ambigatorCommandLine
+        , cutoffLowres = String.toFloat cutoffLowres
+        , cutoffHighres =
+            case List.map String.trim (String.split "," cutoffHighres) of
+                [ a, b, c ] ->
+                    Maybe.map3 (\af bf cf -> [ af, bf, cf ]) (String.toFloat a) (String.toFloat b) (String.toFloat c)
+
+                [ a ] ->
+                    Maybe.map (\af -> [ af ]) (String.toFloat a)
+
+                _ ->
+                    Nothing
         }
     }
 
@@ -644,6 +657,50 @@ view model =
                     ]
                 ]
 
+        cutoffs =
+            div_
+                [ div [ class "mb-3" ]
+                    [ label [ for "merge-cutoff-lowres" ]
+                        [ text "Low resolution cutoff ("
+                        , code_ [ text "get_hkl" ]
+                        , text ": "
+                        , code_ [ text "--lowres" ]
+                        , text ")"
+                        ]
+                    , div [ class "input-group" ]
+                        [ input_
+                            [ id "merge-cutoff-lowres"
+                            , type_ "text"
+                            , class "form-control"
+                            , value model.cutoffLowres
+                            , onInput (\f -> ModelChangeFn (\m -> { m | cutoffLowres = f }))
+                            ]
+                        , span [ class "input-group-text" ] [ text "Å" ]
+                        ]
+                    , div [ class "form-text" ] [ text "After merging, remove reflections with resolution lower than the number." ]
+                    ]
+                , div [ class "mb-3" ]
+                    [ label [ for "merge-cutoff-highres" ]
+                        [ text "High resolution cutoff("
+                        , code_ [ text "get_hkl" ]
+                        , text ": "
+                        , code_ [ text "--cutoff-angstroms" ]
+                        , text ")"
+                        ]
+                    , div [ class "input-group" ]
+                        [ input_
+                            [ id "merge-cutoff-highres"
+                            , type_ "text"
+                            , class "form-control"
+                            , value model.cutoffHighres
+                            , onInput (\f -> ModelChangeFn (\m -> { m | cutoffHighres = f }))
+                            ]
+                        , span [ class "input-group-text" ] [ text "Å" ]
+                        ]
+                    , div [ class "form-text" ] [ text "After merging, remove reflections with resolution higher than the number. Entering three numbers, separated by comma, will apply an anisotropic cutoff." ]
+                    ]
+                ]
+
         cellDescriptionInput =
             div [ class "mb-3" ]
                 [ label [] [ text "Cell description" ]
@@ -710,6 +767,7 @@ view model =
         , startStopRow
         , forceRow
         , wRow
+        , cutoffs
         ]
 
 
@@ -741,6 +799,8 @@ init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     , pointGroup = pointGroup
     , spaceGroup = spaceGroup
     , ambigatorCommandLine = Nothing
+    , cutoffLowres = ""
+    , cutoffHighres = ""
     }
 
 
@@ -778,6 +838,8 @@ quickMergeParameters dataSetId indexingParametersId =
         , w = Nothing
         , negativeHandling = Just MergeNegativeHandlingIgnore
         , ambigatorCommandLine = ""
+        , cutoffLowres = Nothing
+        , cutoffHighres = Nothing
         }
     }
 

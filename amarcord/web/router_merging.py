@@ -524,6 +524,10 @@ async def queue_merge_job(
             mtz_file_id=None,
             ambigator_fg_graph_file_id=None,
             ambigator_command_line=merge_params.ambigator_command_line.strip(),
+            cutoff_lowres=merge_params.cutoff_lowres,
+            cutoff_highres=",".join(str(s) for s in merge_params.cutoff_highres)
+            if merge_params.cutoff_highres is not None
+            else None,
             input_merge_model=orm.MergeModel(merge_params.merge_model),
             input_scale_intensities=ScaleIntensities(merge_params.scale_intensities),
             input_post_refinement=merge_params.post_refinement,

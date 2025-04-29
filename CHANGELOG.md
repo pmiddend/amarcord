@@ -6,6 +6,14 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 ## Features
 
+### Merging: Cutoffs ([\#469](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/469))
+
+When merging, instead of just calling CrystFEL's `get_hkl` without any user input, you can now specify resolution cutoffs which are passed down to `get_hkl` in the end. For the high resolution cutoff, you can even specify three different cutoffs in order to do anisotropic cuts:
+<figure>
+![Last step in the import](changelog-assets/469-cutoffs.png){width=825 height=238px}
+<figcaption>At the very end of the merge options, you can now set the cutoffs used.</figcaption>
+</figure>
+
 ### Miscellaneous features
 
 - Indexing: jobs now give more meaningful error messages in case there are files missing for runs. Instead of just `input file list empty - maybe the run has the wrong files entered?`, you now also get `I've searched the following patterns for files:  ...` ([\#462](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/462))
