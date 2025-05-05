@@ -83,7 +83,8 @@ tests:
 pages:
   script:
     - pushd docs
-    - nix develop --command make linkcheck
+    # We had to disable linkcheck for now, since more and more sites were returning a "403 forbidden" error  and you cannot configure linkcheck to ignore that result (i.e. treat it as "link is fine")
+    # - nix develop --command make linkcheck
     - nix develop --command sphinx-build -b spelling source/ build/
     - nix develop --command make html
     - popd
