@@ -68,6 +68,7 @@ It starts with the manager type, which is one of `local`, `petra3-slurm-remote`,
   - `reservation` (string, optional) the Slurm reservation to use
   - `explicit-node` (string, optional) the Slurm node to use
   - `token` (string, optional) the token to use
+  - `api-version` (string) API-Version of the Slurm API server; this is important because there *are* version differences with the REST API requests, and we also need to explicitly specify the version in each request. The format here is `vx.y.zz`, so for example: `v0.0.40`.
 
 (BackendCode)=
 (CrystFEL)=
