@@ -14,7 +14,8 @@
 
 
 module Api.Data exposing
-    ( AssociatedTable(..), associatedTableVariants
+    ( AlignDetectorGroup
+    , AssociatedTable(..), associatedTableVariants
     , AttributoType(..)
     , ChemicalType(..), chemicalTypeVariants
     , DBJobStatus(..), dBJobStatusVariants
@@ -25,6 +26,7 @@ module Api.Data exposing
     , JSONSchemaInteger, JSONSchemaIntegerFormat(..), jSONSchemaIntegerFormatVariants
     , JSONSchemaNumber
     , JSONSchemaString
+    , JsonAlignDetectorGroup
     , JsonAnalysisRun
     , JsonAttributiIdAndRole
     , JsonAttributoBulkValue
@@ -175,6 +177,7 @@ module Api.Data exposing
     , MergeNegativeHandling(..), mergeNegativeHandlingVariants
     , ScaleIntensities(..), scaleIntensitiesVariants
     , ValidationError
+    , encodeAlignDetectorGroup
     , encodeAssociatedTable
     , encodeAttributoType
     , encodeChemicalType
@@ -186,6 +189,7 @@ module Api.Data exposing
     , encodeJSONSchemaInteger
     , encodeJSONSchemaNumber
     , encodeJSONSchemaString
+    , encodeJsonAlignDetectorGroup
     , encodeJsonAnalysisRun
     , encodeJsonAttributiIdAndRole
     , encodeJsonAttributoBulkValue
@@ -344,6 +348,7 @@ module Api.Data exposing
     , stringFromMergeModel
     , stringFromMergeNegativeHandling
     , stringFromScaleIntensities
+    , alignDetectorGroupDecoder
     , associatedTableDecoder
     , attributoTypeDecoder
     , chemicalTypeDecoder
@@ -355,6 +360,7 @@ module Api.Data exposing
     , jSONSchemaIntegerDecoder
     , jSONSchemaNumberDecoder
     , jSONSchemaStringDecoder
+    , jsonAlignDetectorGroupDecoder
     , jsonAnalysisRunDecoder
     , jsonAttributiIdAndRoleDecoder
     , jsonAttributoBulkValueDecoder
@@ -516,6 +522,16 @@ import Json.Encode
 -- MODEL
 
 
+type alias AlignDetectorGroup =
+    { group : String
+    , xTranslationMm : Float
+    , yTranslationMm : Float
+    , zTranslationMm : Maybe Float
+    , xRotationDeg : Maybe Float
+    , yRotationDeg : Maybe Float
+    }
+
+
 type AssociatedTable
     = AssociatedTableRun
     | AssociatedTableChemical
@@ -632,9 +648,20 @@ type alias JSONSchemaString =
     }
 
 
+type alias JsonAlignDetectorGroup =
+    { group : String
+    , xTranslationMm : Float
+    , yTranslationMm : Float
+    , zTranslationMm : Maybe Float
+    , xRotationDeg : Maybe Float
+    , yRotationDeg : Maybe Float
+    }
+
+
 type alias JsonAnalysisRun =
     { id : Int
     , externalId : Int
+    , dataSetId : Maybe Int
     , attributi : List JsonAttributoValue
     , filePaths : List JsonRunFile
     }
@@ -1082,8 +1109,7 @@ type alias JsonDetectorShift =
     , runStartLocal : Int
     , runEnd : Maybe Int
     , runEndLocal : Maybe Int
-    , shiftXMm : Float
-    , shiftYMm : Float
+    , alignDetectorGroups : List JsonAlignDetectorGroup
     , geometryHash : String
     }
 
@@ -1161,8 +1187,7 @@ type alias JsonImportFinishedIndexingJobInput =
     , frames : Int
     , hits : Int
     , indexedFrames : Int
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
+    , alignDetectorGroups : List AlignDetectorGroup
     , geometryFile : String
     , geometryHash : String
     , generatedGeometryFile : Maybe String
@@ -1179,8 +1204,7 @@ type alias JsonIndexingFom =
     { hitRate : Float
     , indexingRate : Float
     , indexedFrames : Int
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
+    , alignDetectorGroups : List JsonAlignDetectorGroup
     }
 
 
@@ -1245,8 +1269,7 @@ type alias JsonIndexingResult =
     , indexedFrames : Int
     , indexedCrystals : Int
     , status : DBJobStatus
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
+    , alignDetectorGroups : List JsonAlignDetectorGroup
     , geometryFile : String
     , geometryHash : String
     , generatedGeometryFile : String
@@ -1263,8 +1286,7 @@ type alias JsonIndexingResultFinishSuccessfully =
     , hits : Int
     , indexedFrames : Int
     , indexedCrystals : Int
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
+    , alignDetectorGroups : List JsonAlignDetectorGroup
     , geometryFile : String
     , geometryHash : String
     , generatedGeometryFile : String
@@ -1720,7 +1742,8 @@ type alias JsonRun =
 
 
 type alias JsonRunAnalysisIndexingResult =
-    { runId : Int
+    { indexingResultId : Int
+    , runId : Int
     , foms : JsonIndexingFom
     , indexingStatistics : List JsonIndexingStatistic
     , running : Bool
@@ -1918,6 +1941,31 @@ type alias ValidationError =
 
 
 -- ENCODER
+
+
+encodeAlignDetectorGroup : AlignDetectorGroup -> Json.Encode.Value
+encodeAlignDetectorGroup =
+    encodeObject << encodeAlignDetectorGroupPairs
+
+
+encodeAlignDetectorGroupWithTag : ( String, String ) -> AlignDetectorGroup -> Json.Encode.Value
+encodeAlignDetectorGroupWithTag (tagField, tag) model =
+    encodeObject (encodeAlignDetectorGroupPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeAlignDetectorGroupPairs : AlignDetectorGroup -> List EncodedField
+encodeAlignDetectorGroupPairs model =
+    let
+        pairs =
+            [ encode "group" Json.Encode.string model.group
+            , encode "x_translation_mm" Json.Encode.float model.xTranslationMm
+            , encode "y_translation_mm" Json.Encode.float model.yTranslationMm
+            , encodeNullable "z_translation_mm" Json.Encode.float model.zTranslationMm
+            , encodeNullable "x_rotation_deg" Json.Encode.float model.xRotationDeg
+            , encodeNullable "y_rotation_deg" Json.Encode.float model.yRotationDeg
+            ]
+    in
+    pairs
 
 
 stringFromAssociatedTable : AssociatedTable -> String
@@ -2155,6 +2203,31 @@ encodeJSONSchemaStringPairs model =
     pairs
 
 
+encodeJsonAlignDetectorGroup : JsonAlignDetectorGroup -> Json.Encode.Value
+encodeJsonAlignDetectorGroup =
+    encodeObject << encodeJsonAlignDetectorGroupPairs
+
+
+encodeJsonAlignDetectorGroupWithTag : ( String, String ) -> JsonAlignDetectorGroup -> Json.Encode.Value
+encodeJsonAlignDetectorGroupWithTag (tagField, tag) model =
+    encodeObject (encodeJsonAlignDetectorGroupPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonAlignDetectorGroupPairs : JsonAlignDetectorGroup -> List EncodedField
+encodeJsonAlignDetectorGroupPairs model =
+    let
+        pairs =
+            [ encode "group" Json.Encode.string model.group
+            , encode "x_translation_mm" Json.Encode.float model.xTranslationMm
+            , encode "y_translation_mm" Json.Encode.float model.yTranslationMm
+            , maybeEncodeNullable "z_translation_mm" Json.Encode.float model.zTranslationMm
+            , maybeEncodeNullable "x_rotation_deg" Json.Encode.float model.xRotationDeg
+            , maybeEncodeNullable "y_rotation_deg" Json.Encode.float model.yRotationDeg
+            ]
+    in
+    pairs
+
+
 encodeJsonAnalysisRun : JsonAnalysisRun -> Json.Encode.Value
 encodeJsonAnalysisRun =
     encodeObject << encodeJsonAnalysisRunPairs
@@ -2171,6 +2244,7 @@ encodeJsonAnalysisRunPairs model =
         pairs =
             [ encode "id" Json.Encode.int model.id
             , encode "external_id" Json.Encode.int model.externalId
+            , encodeNullable "data_set_id" Json.Encode.int model.dataSetId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             , encode "file_paths" (Json.Encode.list encodeJsonRunFile) model.filePaths
             ]
@@ -3503,8 +3577,7 @@ encodeJsonDetectorShiftPairs model =
             , encode "run_start_local" Json.Encode.int model.runStartLocal
             , maybeEncodeNullable "run_end" Json.Encode.int model.runEnd
             , maybeEncodeNullable "run_end_local" Json.Encode.int model.runEndLocal
-            , encode "shift_x_mm" Json.Encode.float model.shiftXMm
-            , encode "shift_y_mm" Json.Encode.float model.shiftYMm
+            , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
             , encode "geometry_hash" Json.Encode.string model.geometryHash
             ]
     in
@@ -3717,8 +3790,7 @@ encodeJsonImportFinishedIndexingJobInputPairs model =
             , encode "frames" Json.Encode.int model.frames
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
-            , maybeEncodeNullable "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
-            , maybeEncodeNullable "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "align_detector_groups" (Json.Encode.list encodeAlignDetectorGroup) model.alignDetectorGroups
             , encode "geometry_file" Json.Encode.string model.geometryFile
             , encode "geometry_hash" Json.Encode.string model.geometryHash
             , maybeEncodeNullable "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
@@ -3765,8 +3837,7 @@ encodeJsonIndexingFomPairs model =
             [ encode "hit_rate" Json.Encode.float model.hitRate
             , encode "indexing_rate" Json.Encode.float model.indexingRate
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
-            , maybeEncodeNullable "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
-            , maybeEncodeNullable "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
             ]
     in
     pairs
@@ -3906,8 +3977,7 @@ encodeJsonIndexingResultPairs model =
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
             , encode "status" encodeDBJobStatus model.status
-            , maybeEncodeNullable "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
-            , maybeEncodeNullable "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
             , encode "geometry_file" Json.Encode.string model.geometryFile
             , encode "geometry_hash" Json.Encode.string model.geometryHash
             , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
@@ -3939,8 +4009,7 @@ encodeJsonIndexingResultFinishSuccessfullyPairs model =
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
-            , maybeEncodeNullable "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
-            , maybeEncodeNullable "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
             , encode "geometry_file" Json.Encode.string model.geometryFile
             , encode "geometry_hash" Json.Encode.string model.geometryHash
             , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
@@ -5105,7 +5174,8 @@ encodeJsonRunAnalysisIndexingResultPairs : JsonRunAnalysisIndexingResult -> List
 encodeJsonRunAnalysisIndexingResultPairs model =
     let
         pairs =
-            [ encode "run_id" Json.Encode.int model.runId
+            [ encode "indexing_result_id" Json.Encode.int model.indexingResultId
+            , encode "run_id" Json.Encode.int model.runId
             , encode "foms" encodeJsonIndexingFom model.foms
             , encode "indexing_statistics" (Json.Encode.list encodeJsonIndexingStatistic) model.indexingStatistics
             , encode "running" Json.Encode.bool model.running
@@ -5649,6 +5719,17 @@ encodeValidationErrorPairs model =
 -- DECODER
 
 
+alignDetectorGroupDecoder : Json.Decode.Decoder AlignDetectorGroup
+alignDetectorGroupDecoder =
+    Json.Decode.succeed AlignDetectorGroup
+        |> decode "group" Json.Decode.string 
+        |> decode "x_translation_mm" Json.Decode.float 
+        |> decode "y_translation_mm" Json.Decode.float 
+        |> decodeNullable "z_translation_mm" Json.Decode.float 
+        |> decodeNullable "x_rotation_deg" Json.Decode.float 
+        |> decodeNullable "y_rotation_deg" Json.Decode.float 
+
+
 associatedTableDecoder : Json.Decode.Decoder AssociatedTable
 associatedTableDecoder =
     Json.Decode.string
@@ -5819,11 +5900,23 @@ jSONSchemaStringDecoder =
         |> maybeDecodeNullable "enum" (Json.Decode.list Json.Decode.string) Nothing
 
 
+jsonAlignDetectorGroupDecoder : Json.Decode.Decoder JsonAlignDetectorGroup
+jsonAlignDetectorGroupDecoder =
+    Json.Decode.succeed JsonAlignDetectorGroup
+        |> decode "group" Json.Decode.string 
+        |> decode "x_translation_mm" Json.Decode.float 
+        |> decode "y_translation_mm" Json.Decode.float 
+        |> maybeDecodeNullable "z_translation_mm" Json.Decode.float Nothing
+        |> maybeDecodeNullable "x_rotation_deg" Json.Decode.float Nothing
+        |> maybeDecodeNullable "y_rotation_deg" Json.Decode.float Nothing
+
+
 jsonAnalysisRunDecoder : Json.Decode.Decoder JsonAnalysisRun
 jsonAnalysisRunDecoder =
     Json.Decode.succeed JsonAnalysisRun
         |> decode "id" Json.Decode.int 
         |> decode "external_id" Json.Decode.int 
+        |> decodeNullable "data_set_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
         |> decode "file_paths" (Json.Decode.list jsonRunFileDecoder) 
 
@@ -6330,8 +6423,7 @@ jsonDetectorShiftDecoder =
         |> decode "run_start_local" Json.Decode.int 
         |> maybeDecodeNullable "run_end" Json.Decode.int Nothing
         |> maybeDecodeNullable "run_end_local" Json.Decode.int Nothing
-        |> decode "shift_x_mm" Json.Decode.float 
-        |> decode "shift_y_mm" Json.Decode.float 
+        |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
         |> decode "geometry_hash" Json.Decode.string 
 
 
@@ -6418,8 +6510,7 @@ jsonImportFinishedIndexingJobInputDecoder =
         |> decode "frames" Json.Decode.int 
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
-        |> maybeDecodeNullable "detector_shift_x_mm" Json.Decode.float Nothing
-        |> maybeDecodeNullable "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "align_detector_groups" (Json.Decode.list alignDetectorGroupDecoder) 
         |> decode "geometry_file" Json.Decode.string 
         |> decode "geometry_hash" Json.Decode.string 
         |> maybeDecodeNullable "generated_geometry_file" Json.Decode.string Nothing
@@ -6438,8 +6529,7 @@ jsonIndexingFomDecoder =
         |> decode "hit_rate" Json.Decode.float 
         |> decode "indexing_rate" Json.Decode.float 
         |> decode "indexed_frames" Json.Decode.int 
-        |> maybeDecodeNullable "detector_shift_x_mm" Json.Decode.float Nothing
-        |> maybeDecodeNullable "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
 
 
 jsonIndexingJobDecoder : Json.Decode.Decoder JsonIndexingJob
@@ -6509,8 +6599,7 @@ jsonIndexingResultDecoder =
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
         |> decode "status" dBJobStatusDecoder 
-        |> maybeDecodeNullable "detector_shift_x_mm" Json.Decode.float Nothing
-        |> maybeDecodeNullable "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
         |> decode "geometry_file" Json.Decode.string 
         |> decode "geometry_hash" Json.Decode.string 
         |> decode "generated_geometry_file" Json.Decode.string 
@@ -6528,8 +6617,7 @@ jsonIndexingResultFinishSuccessfullyDecoder =
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
-        |> maybeDecodeNullable "detector_shift_x_mm" Json.Decode.float Nothing
-        |> maybeDecodeNullable "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
         |> decode "geometry_file" Json.Decode.string 
         |> decode "geometry_hash" Json.Decode.string 
         |> decode "generated_geometry_file" Json.Decode.string 
@@ -7038,6 +7126,7 @@ jsonRunDecoder =
 jsonRunAnalysisIndexingResultDecoder : Json.Decode.Decoder JsonRunAnalysisIndexingResult
 jsonRunAnalysisIndexingResultDecoder =
     Json.Decode.succeed JsonRunAnalysisIndexingResult
+        |> decode "indexing_result_id" Json.Decode.int 
         |> decode "run_id" Json.Decode.int 
         |> decode "foms" jsonIndexingFomDecoder 
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 

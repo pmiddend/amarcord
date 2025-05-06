@@ -41,9 +41,17 @@ from urllib import request
 
 _X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
 _Y_TRANSLATION_REGEX_INPUT = r"y-translation ([+-]?[0-9.]+) mm"
+_Z_TRANSLATION_REGEX_INPUT = r"z-translation ([+-]?[0-9.]+) mm"
+_X_ROTATION_REGEX_INPUT = r"x-rotation ([+-]?[0-9.]+) deg"
+_Y_ROTATION_REGEX_INPUT = r"y-rotation ([+-]?[0-9.]+) deg"
+_MILLE_GROUP_REGEX_INPUT = r"Group ([^:]+):"
 _MILLEPEDE_SUCCEDED_INPUT = "Millepede succeeded"
 _X_TRANSLATION_REGEX = re.compile(_X_TRANSLATION_REGEX_INPUT)
 _Y_TRANSLATION_REGEX = re.compile(_Y_TRANSLATION_REGEX_INPUT)
+_Z_TRANSLATION_REGEX = re.compile(_Z_TRANSLATION_REGEX_INPUT)
+_X_ROTATION_REGEX = re.compile(_X_ROTATION_REGEX_INPUT)
+_Y_ROTATION_REGEX = re.compile(_Y_ROTATION_REGEX_INPUT)
+_MILLE_GROUP_REGEX = re.compile(_MILLE_GROUP_REGEX_INPUT)
 _MILLE_BIN_GLOB = "mille-data*.bin"
 _POLL_SLEEP_S = 5.0
 _SLURM_JOB_STATUS_RUNNING = (
@@ -370,13 +378,22 @@ def write_error_json(args: PrimaryArgs | OnlineArgs, error: str) -> None:
 
 
 @dataclass(frozen=True)
+class PanelOutput:
+    group: str
+    x_translation_mm: float
+    y_translation_mm: float
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
+
+
+@dataclass(frozen=True)
 class IndexingFom:
     frames: int
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: dict[str, PanelOutput]
     # This is the "file id" in the AMARCORD DB for the unit cell file,
     # which we upload from this script and then transfer the ID in the
     # final result
@@ -389,6 +406,7 @@ def add_indexing_fom(line: IndexingFom, r: IndexingFom) -> IndexingFom:
         hits=line.hits + r.hits,
         indexed_frames=line.indexed_frames + r.indexed_frames,
         indexed_crystals=line.indexed_crystals + r.indexed_crystals,
+        align_detector_groups=line.align_detector_groups | r.align_detector_groups,
     )
 
 
@@ -406,15 +424,26 @@ def write_status_still_running(
         return
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
-    status_dict: dict[str, str | int | float | None] = {
+    status_dict: dict[
+        str, str | int | float | None | list[dict[str, None | float | str]]
+    ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
         "frames": line.frames,
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "detector_shift_x_mm": line.detector_shift_x_mm,
-        "detector_shift_y_mm": line.detector_shift_y_mm,
+        "align_detector_groups": [
+            {
+                "group": align_group.group,
+                "x_translation_mm": align_group.x_translation_mm,
+                "y_translation_mm": align_group.y_translation_mm,
+                "z_translation_mm": align_group.z_translation_mm,
+                "x_rotation_deg": align_group.x_rotation_deg,
+                "y_rotation_deg": align_group.y_rotation_deg,
+            }
+            for align_group in line.align_detector_groups.values()
+        ],
         "geometry_file": str(args.geometry_file) if args.geometry_file else None,
         "geometry_hash": geometry_hash,
         "latest_log": "\n".join(log_list),
@@ -453,7 +482,9 @@ def write_status_success(
     request_url = f"{args.amarcord_api_url}/api/indexing/{args.amarcord_indexing_result_id}/success"
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
-    status_dict: dict[str, str | int | float | None] = {
+    status_dict: dict[
+        str, str | int | float | None | list[dict[str, None | float | str]]
+    ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
         "program_version": program_version,
@@ -461,8 +492,17 @@ def write_status_success(
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "detector_shift_x_mm": line.detector_shift_x_mm,
-        "detector_shift_y_mm": line.detector_shift_y_mm,
+        "align_detector_groups": [
+            {
+                "group": align_group.group,
+                "x_translation_mm": align_group.x_translation_mm,
+                "y_translation_mm": align_group.y_translation_mm,
+                "z_translation_mm": align_group.z_translation_mm,
+                "x_rotation_deg": align_group.x_rotation_deg,
+                "y_rotation_deg": align_group.y_rotation_deg,
+            }
+            for align_group in line.align_detector_groups.values()
+        ],
         "geometry_file": str(args.geometry_file) if args.geometry_file else None,
         "generated_geometry_file": generated_geometry_file,
         "geometry_hash": geometry_hash,
@@ -502,20 +542,22 @@ def db_execute_timed(
     return result
 
 
-def clean_intermediate_files(job_id: int) -> None:
+def clean_intermediate_files() -> None:
     for fn in Path("./").glob("job-*-*-stdout.txt"):
         fn.unlink()
     for fn in Path("./").glob("job-*-*-stderr.txt"):
         fn.unlink()
     for fn in Path("./").glob("job-*.lst"):
         fn.unlink()
-    try:
-        for millepede_files_dir in Path(f"{job_id}-millepede-files").iterdir():
-            for bin_file in millepede_files_dir.glob("*.bin"):
-                bin_file.unlink()
-            millepede_files_dir.rmdir()
-    except:  # noqa: S110
-        pass
+    # In principle, these are intermediate files and not necessary, but it _is_ nice to
+    # re-run the millepede analysis after the fact and see the full output
+    # try:
+    #     for millepede_files_dir in Path(f"{job_id}-millepede-files").iterdir():
+    #         for bin_file in millepede_files_dir.glob("*.bin"):
+    #             bin_file.unlink()
+    #         millepede_files_dir.rmdir()
+    # except:
+    #     pass
 
 
 # See
@@ -651,8 +693,7 @@ def initialize_db(
                             hits=0,
                             indexed_frames=0,
                             indexed_crystals=0,
-                            detector_shift_x_mm=None,
-                            detector_shift_y_mm=None,
+                            align_detector_groups={},
                         ),
                     )
                     images_total = 0
@@ -877,8 +918,7 @@ def run_job_array(
             hits=hits,
             indexed_frames=indexed_frames,
             indexed_crystals=indexed_crystals,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
+            align_detector_groups={},
         )
 
     while True:
@@ -991,8 +1031,7 @@ def run_job_array(
                     hits=hits,
                     indexed_frames=indexed_frames,
                     indexed_crystals=indexed_crystals,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
         else:
@@ -1007,8 +1046,7 @@ def run_job_array(
                     hits=0,
                     indexed_frames=0,
                     indexed_crystals=0,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
 
@@ -1039,24 +1077,72 @@ def parse_secondary_args() -> SecondaryArgs:
     )
 
 
-def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
-    logger.info("parsing millepede output")
+def parse_millepede_output(stdout: str) -> str | dict[str, PanelOutput]:
+    logger.info("parsing align_detector output")
     success = False
     x_translation_mm: None | float = None
     y_translation_mm: None | float = None
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
 
+    current_group: None | str = None
+    groups: dict[str, PanelOutput] = {}
     for line in stdout.split("\n"):
         if not success:
             if _MILLEPEDE_SUCCEDED_INPUT in line:
                 success = True
             continue
 
+        group_match = _MILLE_GROUP_REGEX.search(line)
+        if group_match is not None:
+            if current_group is not None:
+                if x_translation_mm is None or y_translation_mm is None:
+                    logger.warning(
+                        f'alignment group "{current_group}" invalid: x or y translation missing: {x_translation_mm}, {y_translation_mm}'
+                    )
+                else:
+                    groups[current_group] = PanelOutput(
+                        group=current_group,
+                        x_translation_mm=x_translation_mm,
+                        y_translation_mm=y_translation_mm,
+                        z_translation_mm=z_translation_mm,
+                        x_rotation_deg=x_rotation_deg,
+                        y_rotation_deg=y_rotation_deg,
+                    )
+            current_group = group_match.group(1)
+
+        if current_group is None:
+            continue
         x_match = _X_TRANSLATION_REGEX.search(line)
         if x_match is not None:
             x_translation_mm = float(x_match.group(1))
         y_match = _Y_TRANSLATION_REGEX.search(line)
         if y_match is not None:
             y_translation_mm = float(y_match.group(1))
+        z_match = _Z_TRANSLATION_REGEX.search(line)
+        if z_match is not None:
+            z_translation_mm = float(z_match.group(1))
+        x_rotation_match = _X_ROTATION_REGEX.search(line)
+        if x_rotation_match is not None:
+            x_rotation_deg = float(x_rotation_match.group(1))
+        y_rotation_match = _Y_ROTATION_REGEX.search(line)
+        if y_rotation_match is not None:
+            y_rotation_deg = float(y_rotation_match.group(1))
+    if current_group is not None:
+        if x_translation_mm is None or y_translation_mm is None:
+            logger.warning(
+                f'alignment group "{current_group}" invalid: x or y translation missing: {x_translation_mm}, {y_translation_mm}'
+            )
+        else:
+            groups[current_group] = PanelOutput(
+                group=current_group,
+                x_translation_mm=x_translation_mm,
+                y_translation_mm=y_translation_mm,
+                z_translation_mm=z_translation_mm,
+                x_rotation_deg=x_rotation_deg,
+                y_rotation_deg=y_rotation_deg,
+            )
 
     if not success:
         error_message = "no line matching " + _MILLEPEDE_SUCCEDED_INPUT
@@ -1071,7 +1157,7 @@ def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
         error_message = "no line matching " + _Y_TRANSLATION_REGEX_INPUT
         logger.warning(f"parsing millepede output failed: {error_message}:\n{stdout}")
         return error_message
-    return x_translation_mm, y_translation_mm
+    return groups
 
 
 def determine_beamtime_json(args: OnlineArgs, p: Path) -> tuple[Path, dict[str, Any]]:
@@ -1100,7 +1186,7 @@ def run_align_detector(
     args: PrimaryArgs | OnlineArgs,
     mille_files_dir: Path,
     geometry_file_destination: Path,
-) -> None | tuple[float, float]:
+) -> None | dict[str, PanelOutput]:
     with TemporaryDirectory() as tempdir, set_directory(tempdir):
         align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
         if not Path(align_detector_binary).is_file():
@@ -1142,6 +1228,9 @@ def run_align_detector(
             "-o",
             str(geometry_file_destination),
             "--level=0",
+            "--camera-length",
+            "--out-of-plane-tilts",
+            "--out-of-plane",
         ]
         align_detector_args: list[str] = align_detector_args_prefix + [
             str(f) for f in mille_bin_files
@@ -1175,7 +1264,7 @@ def run_align_detector(
                 return None
 
             logger.info(
-                f"parsing millepede output succeeded, detector shift: {detector_shift}",
+                f"parsing millepede output succeeded, detector shifts: {detector_shift}",
             )
 
             return detector_shift
@@ -1372,8 +1461,7 @@ def run_online(args: OnlineArgs) -> None:
                 hits=0,
                 indexed_frames=0,
                 indexed_crystals=0,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
+                align_detector_groups={},
             ),
         )
         images = 0
@@ -1439,8 +1527,7 @@ def run_online(args: OnlineArgs) -> None:
                     hits=hits,
                     indexed_frames=indexable,
                     indexed_crystals=crystals,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
 
@@ -1456,27 +1543,22 @@ def run_online(args: OnlineArgs) -> None:
             hits=hits,
             indexed_frames=indexable,
             indexed_crystals=crystals,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
+            align_detector_groups={},
         )
     logger.info("process completed")
 
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
-        detector_shifts = run_align_detector(
+        align_detector_groups = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
-        if detector_shifts is not None:
-            logger.info(f"detector shift: {detector_shifts[0]}, {detector_shifts[1]}")
-        else:
-            detector_shifts = [None, None]
     else:
-        detector_shifts = [None, None]
+        align_detector_groups = {}
         geometry_file_destination = ""
 
     if final_fom.indexed_frames > 100:
@@ -1491,11 +1573,7 @@ def run_online(args: OnlineArgs) -> None:
             logger.exception("could not generate graphs")
             graphs_output = None
 
-        final_fom = replace(
-            final_fom,
-            detector_shift_x_mm=detector_shifts[0],
-            detector_shift_y_mm=detector_shifts[1],
-        )
+        final_fom = replace(final_fom, align_detector_groups=align_detector_groups)
     else:
         logger.info(
             f"not generating histograms, not enough indexed frames: {final_fom.indexed_frames}",
@@ -2047,19 +2125,19 @@ def run_primary(args: PrimaryArgs) -> None:
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
-        detector_shifts = run_align_detector(
+        align_detector_groups_or_none = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
-        if detector_shifts is not None:
-            logger.info(f"detector shift: {detector_shifts[0]}, {detector_shifts[1]}")
+        if align_detector_groups_or_none is None:
+            align_detector_groups = {}
         else:
-            detector_shifts = [None, None]
+            align_detector_groups = align_detector_groups_or_none
     else:
-        detector_shifts = [None, None]
+        align_detector_groups = {}
         geometry_file_destination = ""
 
     logger.info("generating histograms")
@@ -2075,8 +2153,7 @@ def run_primary(args: PrimaryArgs) -> None:
 
     final_fom = replace(
         reduce(add_indexing_fom, job_array_results),
-        detector_shift_x_mm=detector_shifts[0],
-        detector_shift_y_mm=detector_shifts[1],
+        align_detector_groups=align_detector_groups,
     )
 
     if graphs_output is not None:
@@ -2097,7 +2174,7 @@ def run_primary(args: PrimaryArgs) -> None:
         line=final_fom,
     )
 
-    clean_intermediate_files(args.amarcord_indexing_result_id)
+    clean_intermediate_files()
 
     logger.info(f"done, finished in {time() - start_time}s")
 

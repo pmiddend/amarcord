@@ -70,7 +70,6 @@ It starts with the manager type, which is one of `local`, `petra3-slurm-remote`,
   - `token` (string, optional) the token to use
   - `api-version` (string) API-Version of the Slurm API server; this is important because there *are* version differences with the REST API requests, and we also need to explicitly specify the version in each request. The format here is `vx.y.zz`, so for example: `v0.0.40`.
 
-(BackendCode)=
 (CrystFEL)=
 ## CrystFEL interaction
 ### Jobs on Slurm
@@ -167,6 +166,40 @@ This can result in a large number of jobs to start. To make this easy on the Slu
 
 When an offline indexing job is created, using the HTTP API, AMARCORD looks at files associated with a run (i.e. the `RunHasFiles` table), and treats that as a glob pattern to search for input files for offline indexing.
 
+### Geometry refinement
+
+As of 0.11.0, CrystFEL uses millepede to provide automated geometry. This is a two-step process: `indexamajig`, when passed `--mille`, will create special millepede files, which get used by a separate tool, `align_detector`, to produce statistics and create an updated `.geom` file.
+
+When instructed to do so, AMARCORD will both pass `--mille` as well as call `align_detector`. The path to the updated geometry will be stored in the database, in the **IndexingResult** table. So we have two geometries in the database: one in the **IndexingParameter** table, which is the input geometry, and a second, optional one in the results table (see the next section for a description of all tables involved).
+
+The output of `align_detector` will be parsed by the `crystfel_index.py` script, sent to AMARCORD via the HTTP API and then stored in the database. The shifts and rotations for online indexing are then plotted in the UI under "Analysis → Geometry". The numerical results are also displayed in the data set view.
+
+### Database tables related to indexing
+
+There are a few tables centered around indexing:
+
+- **Run** is the base table for everything: without runs, we have no indexing results. Runs also have the accompanying **RunHasFiles** table that specifies, for each run, a list of files as a glob (field `glob`) as well as a `source`. This is used to specify that a run has multiple different types of files. For example, you could have a `raw` source with a `run-1-raw-*.h5` glob, and a `only-hits` source with `run-1-only-hits*.h5` glob (which might make indexing faster, but more unreliable).
+- **IndexingResult** is attached to a single run (but a run can have more than one indexing result, with different parameters). The table name is a misnomer, it is not necessarily a _result_. It's an indexing _job_. It contains the geometry file used, the figures of merit (number of indexed frames, number of frames total, job status on the workload manager).
+- **IndexingParameters** is attached to at least one *IndexingResult*. As the name says, it contains the parameters used for indexing: is it online indexing or offline, what's the unit cell description, `indexamajig` command-line, and also the `source` used (see *Run*).
+- **AlignDetectorGroup** is attached to a single *IndexingResult* and contains the detector shifts and rotations calculated via *millepede* together with `align_detector`. An *IndexingResult* can have more than one of these because it's per geometry group (think multiple panels).
+
+```{mermaid}
+erDiagram
+    Run ||--o{ IndexingResult: has
+    IndexingParameters ||--o{ IndexingResult : has
+    RunHasFiles o{--|| Run: has
+    RunHasFiles {
+        string source
+        string glob
+    }
+    IndexingResult o{--|| AlignDetectorGroup: has
+    AlignDetectorGroup {
+        string group
+        float xTranslation
+    }
+```
+
+(BackendCode)=
 ## Code
 
 (DatabaseCode)=

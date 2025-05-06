@@ -43,7 +43,7 @@ from amarcord.db.excel_import import SpreadsheetValidationErrors
 from amarcord.db.excel_import import create_data_set_for_runs
 from amarcord.db.excel_import import create_runs_from_spreadsheet
 from amarcord.db.excel_import import parse_run_spreadsheet_workbook
-from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.orm_utils import data_sets_are_equal
@@ -126,7 +126,7 @@ def extract_runs_and_event_dates(
 def indexing_fom_for_run(
     indexing_results_for_runs: Mapping[RunInternalId, list[orm.IndexingResult]],
     run: orm.Run,
-) -> DBIndexingFOM:
+) -> IndexingResultSummary:
     indexing_results_for_run = sorted(
         [
             (ir.id, fom_for_indexing_result(ir))
@@ -482,8 +482,6 @@ async def create_or_update_run(
                 frames=0,
                 hits=0,
                 indexed_frames=0,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
                 # autodetect geometry file for online indexing
                 geometry_file=None,
                 geometry_hash="",
@@ -809,7 +807,7 @@ async def _find_schedule_entry(
 
 def encode_data_set_with_fom(
     ds: orm.DataSet,
-    fom: None | DBIndexingFOM,
+    fom: None | IndexingResultSummary,
     beamtime_id: BeamtimeId,
 ) -> JsonDataSetWithFom:
     return JsonDataSetWithFom(
@@ -1084,7 +1082,7 @@ async def read_runs_overview(
             )
         ]
 
-        foms_in_this_ds: list[DBIndexingFOM] = []
+        foms_in_this_ds: list[IndexingResultSummary] = []
         for r in other_runs_in_ds:
             try:
                 max_ir = max(r.indexing_results, key=lambda ir: ir.indexed_frames)
@@ -1118,6 +1116,7 @@ async def read_runs_overview(
             target_frames_count_attributi[0] if target_frames_count_attributi else None
         )
         latest_indexing_result = JsonRunAnalysisIndexingResult(
+            indexing_result_id=latest_indexing_result_orm.id,
             run_id=latest_run.id,
             foms=encode_indexing_fom_to_json(
                 fom_for_indexing_result(latest_indexing_result_orm),

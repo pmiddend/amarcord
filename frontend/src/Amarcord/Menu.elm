@@ -67,7 +67,8 @@ menu bt =
     , Dropdown "Analysis"
         "bar-chart-steps"
         [ { route = Route.AnalysisOverview bt [] False Both, description = "By Experiment Type", iconName = "clipboard-check" }
-        , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
+        , { route = Route.RunAnalysis bt, description = "By Run", iconName = "zoom-in" }
+        , { route = Route.Geometry bt, description = "Geometry", iconName = "border" }
         ]
     , Dropdown "Admin"
         "gear-fill"

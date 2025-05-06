@@ -39,6 +39,7 @@ from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import create_intervals
 from amarcord.web.constants import DATE_FORMAT
+from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonIndexingParameters
 from amarcord.web.json_models import JsonIndexingResult
@@ -615,8 +616,17 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
         indexed_frames=ir.indexed_frames,
         indexed_crystals=ir.indexed_frames,
         has_error=bool(ir.job_error),
-        detector_shift_x_mm=ir.detector_shift_x_mm,
-        detector_shift_y_mm=ir.detector_shift_y_mm,
+        align_detector_groups=[
+            JsonAlignDetectorGroup(
+                group=g.group,
+                x_translation_mm=g.x_translation_mm,
+                y_translation_mm=g.y_translation_mm,
+                z_translation_mm=g.z_translation_mm,
+                x_rotation_deg=g.x_rotation_deg,
+                y_rotation_deg=g.y_rotation_deg,
+            )
+            for g in ir.align_detector_groups
+        ],
         geometry_file=ir.geometry_file if ir.geometry_file is not None else "",
         geometry_hash=ir.geometry_hash if ir.geometry_hash is not None else "",
         generated_geometry_file=(

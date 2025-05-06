@@ -477,7 +477,7 @@ viewIndexingResults now showErroneous results =
                 )
 
         viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometryFile } =
             if showErroneous || not hasError then
                 [ tr
                     [ class
@@ -542,16 +542,38 @@ viewIndexingResults now showErroneous results =
                                     text ""
                                 ]
                             ]
-                        , Maybe.withDefault (text "") <|
-                            Maybe.map2
-                                (\x y ->
+                        , div_ <|
+                            List.map
+                                (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
                                     div_
                                         [ strongText "Detector shift: "
-                                        , text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm")
+                                        , text
+                                            (formatFloatHumanFriendly xTranslationMm
+                                                ++ "mm, "
+                                                ++ formatFloatHumanFriendly yTranslationMm
+                                                ++ "mm"
+                                                ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
+                                            )
                                         ]
                                 )
-                                detectorShiftXMm
-                                detectorShiftYMm
+                                alignDetectorGroups
+                        , case
+                            List.head
+                                (List.filterMap
+                                    (\{ xRotationDeg, yRotationDeg } ->
+                                        Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg
+                                    )
+                                    alignDetectorGroups
+                                )
+                          of
+                            Nothing ->
+                                text ""
+
+                            Just ( x, y ) ->
+                                div_
+                                    [ strongText "Detector rotation: "
+                                    , text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°")
+                                    ]
                         , if String.isEmpty programVersion then
                             text ""
 

@@ -97,6 +97,7 @@ type Route
     | ExperimentTypes BeamtimeId
     | Runs BeamtimeId (List RunRange)
     | RunOverview BeamtimeId
+    | Geometry BeamtimeId
     | Import BeamtimeId ImportStep
     | Attributi BeamtimeId (Maybe AssociatedTable)
     | AdvancedControls BeamtimeId
@@ -132,6 +133,9 @@ beamtimeIdInRoute x =
             Just btid
 
         Runs btid _ ->
+            Just btid
+
+        Geometry btid ->
             Just btid
 
         RunOverview btid ->
@@ -248,6 +252,9 @@ makeLink x =
 
         RunOverview beamtimeId ->
             routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
+
+        Geometry beamtimeId ->
+            routePrefix ++ "/geometry/" ++ beamtimeIdToString beamtimeId
 
         Import beamtimeId step ->
             routePrefix ++ "/import/" ++ beamtimeIdToString beamtimeId ++ "/" ++ importStepToString step
@@ -459,6 +466,7 @@ matchRoute =
         , map Attributi (s "attributi" </> int <?> Query.custom "tab" tabFromString)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
+        , map Geometry (s "geometry" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)
         , map Runs (s "runs" </> int <?> Query.custom "runs" runRangesFromString)
         , map Schedule (s "schedule" </> int)

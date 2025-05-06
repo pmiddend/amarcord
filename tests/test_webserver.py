@@ -60,6 +60,7 @@ from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaString
 from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
+from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonAttributoValue
@@ -707,8 +708,24 @@ def simple_indexing_result_id(
             # Indexing rate 20%
             indexed_frames=20,
             indexed_crystals=25,
-            detector_shift_x_mm=0.5,
-            detector_shift_y_mm=-0.5,
+            align_detector_groups=[
+                JsonAlignDetectorGroup(
+                    group="all",
+                    x_translation_mm=0.5,
+                    y_translation_mm=-0.5,
+                    z_translation_mm=-0.8,
+                    x_rotation_deg=1,
+                    y_rotation_deg=2,
+                ),
+                JsonAlignDetectorGroup(
+                    group="panel0",
+                    x_translation_mm=0,
+                    y_translation_mm=0,
+                    z_translation_mm=0,
+                    x_rotation_deg=0,
+                    y_rotation_deg=0,
+                ),
+            ],
             generated_geometry_file="",
             unit_cell_histograms_id=None,
             latest_log="",
@@ -1621,8 +1638,7 @@ def test_create_run_and_import_external_indexing_result(
                 frames=10,
                 hits=2,
                 indexed_frames=3,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
+                align_detector_groups=[],
                 geometry_file="/tmp/geom",  # noqa: S108
                 geometry_hash="00000000000000000000000000",
                 generated_geometry_file=None,
@@ -1897,8 +1913,24 @@ def test_update_indexing_job(
                 # Indexing rate 20%
                 indexed_frames=20,
                 indexed_crystals=25,
-                detector_shift_x_mm=0.5,
-                detector_shift_y_mm=-0.5,
+                align_detector_groups=[
+                    JsonAlignDetectorGroup(
+                        group="all",
+                        x_translation_mm=0.5,
+                        y_translation_mm=-0.5,
+                        z_translation_mm=-0.8,
+                        x_rotation_deg=1,
+                        y_rotation_deg=2,
+                    ),
+                    JsonAlignDetectorGroup(
+                        group="panel0",
+                        x_translation_mm=0,
+                        y_translation_mm=0,
+                        z_translation_mm=0,
+                        x_rotation_deg=0,
+                        y_rotation_deg=0,
+                    ),
+                ],
                 generated_geometry_file="",
                 unit_cell_histograms_id=None,
                 latest_log="",
@@ -1940,8 +1972,6 @@ def test_update_indexing_job(
     assert summary is not None
     assert summary.hit_rate == pytest.approx(50, 0.01)
     assert summary.indexing_rate == pytest.approx(20, 0.01)
-    assert summary.detector_shift_x_mm == pytest.approx(0.5, 0.01)
-    assert summary.detector_shift_y_mm == pytest.approx(-0.5, 0.01)
 
     # Another place is the analysis view
     analysis_response = JsonReadNewAnalysisOutput(
@@ -2059,8 +2089,16 @@ def test_indexing_result_with_two_equal_parameter(
             # Indexing rate 20%
             indexed_frames=20,
             indexed_crystals=25,
-            detector_shift_x_mm=0.5,
-            detector_shift_y_mm=-0.5,
+            align_detector_groups=[
+                JsonAlignDetectorGroup(
+                    group="all",
+                    x_translation_mm=0.5,
+                    y_translation_mm=-0.5,
+                    z_translation_mm=-0.8,
+                    x_rotation_deg=1,
+                    y_rotation_deg=2,
+                ),
+            ],
             generated_geometry_file="",
             unit_cell_histograms_id=None,
             latest_log="",
@@ -2359,8 +2397,24 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                 # Indexing rate 20%
                 indexed_frames=20,
                 indexed_crystals=25,
-                detector_shift_x_mm=0.5,
-                detector_shift_y_mm=-0.5,
+                align_detector_groups=[
+                    JsonAlignDetectorGroup(
+                        group="all",
+                        x_translation_mm=0.5,
+                        y_translation_mm=-0.5,
+                        z_translation_mm=-0.8,
+                        x_rotation_deg=1,
+                        y_rotation_deg=2,
+                    ),
+                    JsonAlignDetectorGroup(
+                        group="panel0",
+                        x_translation_mm=0,
+                        y_translation_mm=0,
+                        z_translation_mm=0,
+                        x_rotation_deg=0,
+                        y_rotation_deg=0,
+                    ),
+                ],
                 unit_cell_histograms_id=None,
                 generated_geometry_file="",
                 latest_log="",
@@ -2493,8 +2547,24 @@ def test_queue_then_start_then_finish_merge_job(
                 # Indexing rate 20%
                 indexed_frames=20,
                 indexed_crystals=25,
-                detector_shift_x_mm=0.5,
-                detector_shift_y_mm=-0.5,
+                align_detector_groups=[
+                    JsonAlignDetectorGroup(
+                        group="all",
+                        x_translation_mm=0.5,
+                        y_translation_mm=-0.5,
+                        z_translation_mm=-0.8,
+                        x_rotation_deg=1,
+                        y_rotation_deg=2,
+                    ),
+                    JsonAlignDetectorGroup(
+                        group="panel0",
+                        x_translation_mm=0,
+                        y_translation_mm=0,
+                        z_translation_mm=0,
+                        x_rotation_deg=0,
+                        y_rotation_deg=0,
+                    ),
+                ],
                 unit_cell_histograms_id=None,
                 generated_geometry_file="",
                 latest_log="",

@@ -12,6 +12,7 @@ from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.merge_result import JsonMergeResultInternal
+from amarcord.db.orm import AlignDetectorGroup
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.json_schema import JSONSchemaArray
@@ -350,6 +351,15 @@ class JsonUpdateOnlineIndexingParametersOutput(BaseModel):
     success: bool
 
 
+class JsonAlignDetectorGroup(BaseModel):
+    group: str
+    x_translation_mm: float
+    y_translation_mm: float
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
+
+
 class JsonIndexingResult(BaseModel):
     id: int
     created: int
@@ -368,8 +378,7 @@ class JsonIndexingResult(BaseModel):
     indexed_frames: int
     indexed_crystals: int
     status: DBJobStatus
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
     generated_geometry_file: str
@@ -399,8 +408,7 @@ class JsonImportFinishedIndexingJobInput(BaseModel):
     frames: int
     hits: int
     indexed_frames: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: list[AlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
     generated_geometry_file: None | str = None
@@ -442,8 +450,7 @@ class JsonIndexingResultFinishSuccessfully(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
     generated_geometry_file: str
@@ -567,6 +574,7 @@ class JsonUpdateRunsBulkOutput(BaseModel):
 class JsonAnalysisRun(BaseModel):
     id: int
     external_id: int
+    data_set_id: None | int
     attributi: list[JsonAttributoValue]
     file_paths: list[JsonRunFile]
 
@@ -575,8 +583,7 @@ class JsonIndexingFom(BaseModel):
     hit_rate: float
     indexing_rate: float
     indexed_frames: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: list[JsonAlignDetectorGroup]
 
 
 class JsonIndexingResultStillRunning(BaseModel):
@@ -605,6 +612,7 @@ class JsonIndexingStatistic(BaseModel):
 
 
 class JsonRunAnalysisIndexingResult(BaseModel):
+    indexing_result_id: int
     run_id: int
     foms: JsonIndexingFom
     indexing_statistics: list[JsonIndexingStatistic]
@@ -619,8 +627,7 @@ class JsonDetectorShift(BaseModel):
     run_start_local: int
     run_end: None | int = None
     run_end_local: None | int = None
-    shift_x_mm: float
-    shift_y_mm: float
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_hash: str
 
 

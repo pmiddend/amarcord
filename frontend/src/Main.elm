@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Geometry as Geometry
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.Import as Import
 import Amarcord.Pages.MergeResult as MergeResult
@@ -86,6 +87,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | GeometryPageMsg Geometry.Msg
     | ImportPageMsg Import.Msg
     | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
@@ -109,6 +111,7 @@ type Page
     | ChemicalsPage Chemicals.Model
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
+    | GeometryPage Geometry.Model
     | RunsPage Runs.Model
     | ImportPage Import.Model
     | AdvancedControlsPage AdvancedControls.Model
@@ -195,6 +198,9 @@ buildTitleForPage page =
 
         RunOverviewPage model ->
             RunOverview.pageTitle model
+
+        GeometryPage model ->
+            Geometry.pageTitle model
 
         ImportPage model ->
             Import.pageTitle model
@@ -386,6 +392,12 @@ currentView model =
             div []
                 [ RunAnalysis.view pageModel
                     |> Html.map RunAnalysisPageMsg
+                ]
+
+        GeometryPage pageModel ->
+            div []
+                [ Geometry.view pageModel
+                    |> Html.map GeometryPageMsg
                 ]
 
         DataSetsPage dataSetModel ->
@@ -605,6 +617,15 @@ updateInner hereAndNow msg model =
             , Cmd.map RunAnalysisPageMsg updatedCmd
             )
 
+        ( GeometryPageMsg subMsg, GeometryPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Geometry.update subMsg pageModel
+            in
+            ( { model | page = GeometryPage updatedPageModel }
+            , Cmd.map GeometryPageMsg updatedCmd
+            )
+
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
                 Browser.Internal url ->
@@ -734,6 +755,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             RunOverview.init hereAndNow localStorage beamtimeId
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
+
+                Route.Geometry beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Geometry.init beamtimeId
+                    in
+                    ( GeometryPage pageModel, Cmd.map GeometryPageMsg pageCmds )
 
                 Route.Import beamtimeId step ->
                     let

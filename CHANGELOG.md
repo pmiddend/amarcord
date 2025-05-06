@@ -6,6 +6,17 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 ## Features
 
+### Indexing: New geometry refinement parameters ([\#472](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/472))
+
+Since 0.12.0, CrystFEL supports refining the Z shift (i.e. the camera length), and also panel rotations and tilts. AMARCORD will call `align_detector` with the accompanying parameters and parse its output, storing the result in the database.
+
+<figure>
+![Geometry page](changelog-assets/472-shifts.png){width=465 height=510px}
+<figcaption>The adapted "Geometry" page showing a beamtime's worth of runs and detector shifts and rotations. There were no geometry changes in this beam time.</figcaption>
+</figure>
+
+Note that the page "Analysis → By Run" has been split into "Analysis → Geometry" and "Analysis → By Run".
+
 ### Merging: Cutoffs ([\#469](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/469))
 
 When merging, instead of just calling CrystFEL's `get_hkl` without any user input, you can now specify resolution cutoffs which are passed down to `get_hkl` in the end. For the high resolution cutoff, you can even specify three different cutoffs in order to do anisotropic cuts:

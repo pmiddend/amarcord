@@ -625,6 +625,27 @@ class UserConfiguration(Base):
     )
 
 
+class AlignDetectorGroup(Base):
+    __tablename__ = "AlignDetectorGroup"
+
+    # Real attributes
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    indexing_result_id: Mapped[int] = mapped_column(
+        ForeignKey("IndexingResult.id", ondelete="cascade"), init=False
+    )
+    group: Mapped[str] = mapped_column()
+    x_translation_mm: Mapped[float] = mapped_column()
+    y_translation_mm: Mapped[float] = mapped_column()
+    z_translation_mm: Mapped[None | float] = mapped_column()
+    x_rotation_deg: Mapped[None | float] = mapped_column()
+    y_rotation_deg: Mapped[None | float] = mapped_column()
+
+    # Relationships
+    indexing_result: Mapped["IndexingResult"] = relationship(
+        back_populates="align_detector_groups", init=False
+    )
+
+
 class IndexingResult(Base):
     __tablename__ = "IndexingResult"
 
@@ -639,8 +660,6 @@ class IndexingResult(Base):
     frames: Mapped[None | int] = mapped_column()
     hits: Mapped[None | int] = mapped_column()
     indexed_frames: Mapped[int] = mapped_column()
-    detector_shift_x_mm: Mapped[None | float] = mapped_column()
-    detector_shift_y_mm: Mapped[None | float] = mapped_column()
     geometry_file: Mapped[None | str] = mapped_column()
     geometry_hash: Mapped[None | str] = mapped_column()
     generated_geometry_file: Mapped[None | str] = mapped_column()
@@ -662,6 +681,12 @@ class IndexingResult(Base):
     )
 
     # Relationships
+    align_detector_groups: Mapped[list["AlignDetectorGroup"]] = relationship(
+        back_populates="indexing_result",
+        lazy="selectin",
+        cascade="all, delete",
+        default_factory=list,
+    )
     merge_results: Mapped[list["MergeResult"]] = relationship(
         back_populates="indexing_results",
         secondary=merge_result_has_indexing_result,
