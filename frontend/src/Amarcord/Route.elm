@@ -1,7 +1,7 @@
 module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingResultId(..), MergeResultId, beamtimeIdToString)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
 import Dict
@@ -329,8 +329,8 @@ makeFilesLink id suggestedNameMaybe =
             "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
 
 
-makeIndexingIdLogLink : Int -> String
-makeIndexingIdLogLink id =
+makeIndexingIdLogLink : IndexingResultId -> String
+makeIndexingIdLogLink (IndexingResultId id) =
     "api/indexing/" ++ String.fromInt id ++ "/log"
 
 
@@ -339,8 +339,8 @@ makeMergeIdLogLink id =
     "api/merging/" ++ String.fromInt id ++ "/log"
 
 
-makeIndexingIdErrorLogLink : Int -> String
-makeIndexingIdErrorLogLink id =
+makeIndexingIdErrorLogLink : IndexingResultId -> String
+makeIndexingIdErrorLogLink (IndexingResultId id) =
     "api/indexing/" ++ String.fromInt id ++ "/errorlog"
 
 

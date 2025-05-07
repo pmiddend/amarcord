@@ -1,5 +1,6 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
+import Amarcord.API.Requests exposing (IndexingParametersId, indexingParametersIdToInt)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.Html exposing (code_, div_, enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
@@ -211,7 +212,7 @@ polarisationPresetToDescription x =
 
 type alias Model =
     { dataSetId : Int
-    , indexingParametersId : Int
+    , indexingParametersId : IndexingParametersId
     , mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
     , postRefinement : Bool
@@ -268,7 +269,7 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
                     Just polarisation
     in
     { strictMode = False
-    , indexingParametersId = indexingParametersId
+    , indexingParametersId = indexingParametersIdToInt indexingParametersId
     , dataSetId = dataSetId
     , mergeParameters =
         { mergeModel = mergeModel
@@ -771,7 +772,7 @@ view model =
         ]
 
 
-init : String -> String -> String -> Int -> Int -> Model
+init : String -> String -> String -> Int -> IndexingParametersId -> Model
 init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     { dataSetId = dataSetId
     , indexingParametersId = indexingParametersId
@@ -804,10 +805,10 @@ init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     }
 
 
-quickMergeParameters : Int -> Int -> JsonQueueMergeJobInput
+quickMergeParameters : Int -> IndexingParametersId -> JsonQueueMergeJobInput
 quickMergeParameters dataSetId indexingParametersId =
     { dataSetId = dataSetId
-    , indexingParametersId = indexingParametersId
+    , indexingParametersId = indexingParametersIdToInt indexingParametersId
     , strictMode = False
     , mergeParameters =
         { mergeModel = MergeModelUnity

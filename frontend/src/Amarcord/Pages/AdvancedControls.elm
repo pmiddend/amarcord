@@ -14,6 +14,7 @@ import Amarcord.API.Requests
         )
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
+import Amarcord.GeometryEdit as GeometryEdit
 import Amarcord.Html exposing (div_, input_, onIntInput, p_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
@@ -178,7 +179,7 @@ update msg model =
                             , send UpdateOnlineIndexingParametersDone
                                 (updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch model.beamtimeId
                                     { commandLine = coparseCommandLine commandLine
-                                    , geometryFile = onlineIndexingParameters.geometryFile
+                                    , geometryFile = GeometryEdit.extractContent onlineIndexingParameters.geometryFile
                                     , source = onlineIndexingParameters.source
                                     }
                                 )

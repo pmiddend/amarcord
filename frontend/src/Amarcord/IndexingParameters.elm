@@ -3,6 +3,8 @@ module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineT
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
+import Amarcord.GeometryEdit as GeometryEdit
+import Amarcord.GeometryViewer as GeometryViewer
 import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
@@ -96,7 +98,7 @@ type alias Model =
 
     -- Specials
     , source : String
-    , geometryFile : String
+    , geometryFile : GeometryEdit.Model
     , cellDescription : CellDescriptionEdit.Model
     , peakDetector : Maybe String
     , indexingMethods : Maybe (Dict String IndexingMethod)
@@ -133,6 +135,7 @@ type Msg
     | CancelCommandLineEdit
     | FinishCommandLineEdit String
     | CellDescriptionChange CellDescriptionEdit.Msg
+    | GeometryChange GeometryEdit.Msg
 
 
 indexingMethodsToCommandLine : List IndexingMethod -> Result String (List CommandLineOption)
@@ -258,7 +261,10 @@ toCommandLine ip =
 
 makeEmptyModel : Model -> Model
 makeEmptyModel m =
-    init m.sources (CellDescriptionEdit.modelAsText m.cellDescription) m.geometryFile m.mutableCellDescription
+    init m.sources
+        (CellDescriptionEdit.modelAsText m.cellDescription)
+        (GeometryEdit.extractContent m.geometryFile)
+        m.mutableCellDescription
 
 
 convertCommandLineToModel : Model -> String -> Result String Model
@@ -479,7 +485,7 @@ init sources cellDescription geometryFile mutableCellDescription =
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
-    , geometryFile = geometryFile
+    , geometryFile = GeometryEdit.init "ip-geom" geometryFile
     , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
     , indexingMethods = Nothing
@@ -987,26 +993,12 @@ viewCellDescription model =
 
 viewGeometry : Model -> Html Msg
 viewGeometry model =
-    div [ class "form-floating mb-3" ]
-        [ input_
-            [ type_ "text"
-            , class "form-control"
-            , id "pp-geometry-file"
-            , value model.geometryFile
-            , onInput
-                (\newGeometryFile ->
-                    Change
-                        (\ip ->
-                            { ip | geometryFile = newGeometryFile }
-                        )
-                )
-            ]
-        , label [ for "pp-geometry-file" ] [ text "Geometry file" ]
+    div [ class "mb-3" ]
+        [ Html.map GeometryChange (GeometryEdit.view model.geometryFile)
         , div
             [ class "form-text"
             ]
-            [ text "Leave blank to autodetect the geometry file by going up the directory hierarchy of the beamtime."
-            ]
+            [ text "Either enter a path on the file system, or set to “Full” and enter the geometry file directly. Leave blank to autodetect the geometry file by going up the directory hierarchy of the beamtime." ]
         ]
 
 
@@ -1105,6 +1097,9 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GeometryChange subMsg ->
+            ( { model | geometryFile = GeometryEdit.update subMsg model.geometryFile }, Cmd.none )
+
         CellDescriptionChange subMsg ->
             ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
 
