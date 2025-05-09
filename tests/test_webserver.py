@@ -68,6 +68,7 @@ from amarcord.web.json_models import (
     JsonGeometryWithoutContent,
     JsonReadGeometriesForAllBeamtimes,
     JsonReadGeometriesForSingleBeamtime,
+    JsonReadSingleGeometryOutput,
 )
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonAttributo
@@ -776,9 +777,13 @@ def run_without_files_data_set_id(
 
 
 def test_read_single_geometry(client: TestClient, geometry_id: int) -> None:
-    result = client.get(f"/api/geometries/{geometry_id}").text
+    result_raw = client.get(f"/api/geometries/{geometry_id}/raw").text
 
-    assert result == "hehe"
+    assert result_raw == "hehe"
+
+    result_json = JsonReadSingleGeometryOutput(**client.get(f"/api/geometries/{geometry_id}").json())
+
+    assert result_json.content == "hehe"
 
 
 def test_update_single_geometry(client: TestClient, geometry_id: int) -> None:
@@ -791,7 +796,7 @@ def test_update_single_geometry(client: TestClient, geometry_id: int) -> None:
 
     assert result.name == "newname"
 
-    single_result = client.get(f"/api/geometries/{geometry_id}").text
+    single_result = client.get(f"/api/geometries/{geometry_id}/raw").text
 
     assert single_result == "newcontent"
 

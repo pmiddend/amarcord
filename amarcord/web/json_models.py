@@ -51,6 +51,8 @@ class JsonGeometryCreate(BaseModel):
     content: str
     name: str
 
+class JsonReadSingleGeometryOutput(BaseModel):
+    content: str
 
 class JsonReadGeometriesForSingleBeamtime(BaseModel):
     geometries: list["JsonGeometryWithoutContent"]

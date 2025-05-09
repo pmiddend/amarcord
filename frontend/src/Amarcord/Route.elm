@@ -92,6 +92,7 @@ type Route
     = BeamtimeSelection
     | Root BeamtimeId
     | Chemicals BeamtimeId
+    | Geometries BeamtimeId
     | DataSets BeamtimeId
     | Schedule BeamtimeId
     | ExperimentTypes BeamtimeId
@@ -121,6 +122,9 @@ beamtimeIdInRoute x =
             Just btid
 
         Chemicals btid ->
+            Just btid
+
+        Geometries btid ->
             Just btid
 
         DataSets btid ->
@@ -265,6 +269,11 @@ makeLink x =
         Chemicals beamtimeId ->
             routePrefix
                 ++ "/chemicals/"
+                ++ beamtimeIdToString beamtimeId
+
+        Geometries beamtimeId ->
+            routePrefix
+                ++ "/geometries/"
                 ++ beamtimeIdToString beamtimeId
 
         AnalysisOverview beamtimeId filters acrossBeamtimes mergeFilter ->
@@ -465,6 +474,7 @@ matchRoute =
         [ map BeamtimeSelection top
         , map Attributi (s "attributi" </> int <?> Query.custom "tab" tabFromString)
         , map Chemicals (s "chemicals" </> int)
+        , map Geometries (s "geometries" </> int)
         , map RunOverview (s "runoverview" </> int)
         , map Geometry (s "geometry" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)

@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Geometries as Geometries
 import Amarcord.Pages.Geometry as Geometry
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.Import as Import
@@ -85,6 +86,7 @@ main =
 type Msg
     = AttributiPageMsg Attributi.Msg
     | ChemicalsPageMsg Chemicals.Msg
+    | GeometriesPageMsg Geometries.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | GeometryPageMsg Geometry.Msg
@@ -109,6 +111,7 @@ type Page
     = RootPage
     | AttributiPage Attributi.Model
     | ChemicalsPage Chemicals.Model
+    | GeometriesPage Geometries.Model
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
     | GeometryPage Geometry.Model
@@ -192,6 +195,9 @@ buildTitleForPage page =
 
         ChemicalsPage model ->
             Chemicals.pageTitle model
+
+        GeometriesPage model ->
+            Geometries.pageTitle model
 
         MergeResultPage model ->
             MergeResult.pageTitle model
@@ -352,6 +358,12 @@ currentView model =
                     |> Html.map ChemicalsPageMsg
                 ]
 
+        GeometriesPage pageModel ->
+            div []
+                [ Geometries.view pageModel
+                    |> Html.map GeometriesPageMsg
+                ]
+
         MergeResultPage pageModel ->
             div []
                 [ MergeResult.view pageModel
@@ -501,6 +513,15 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = ChemicalsPage updatedPageModel }
             , Cmd.map ChemicalsPageMsg updatedCmd
+            )
+
+        ( GeometriesPageMsg subMsg, GeometriesPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Geometries.update subMsg pageModel
+            in
+            ( { model | page = GeometriesPage updatedPageModel }
+            , Cmd.map GeometriesPageMsg updatedCmd
             )
 
         ( MergeResultPageMsg subMsg, MergeResultPage pageModel ) ->
@@ -734,6 +755,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             Chemicals.init beamtimeId
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
+
+                Route.Geometries beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Geometries.init beamtimeId
+                    in
+                    ( GeometriesPage pageModel, Cmd.map GeometriesPageMsg pageCmds )
 
                 Route.MergeResult beamtimeId experimentTypeId dataSetId mergeResultId ->
                     let
