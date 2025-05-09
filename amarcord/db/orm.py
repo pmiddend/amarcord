@@ -60,6 +60,43 @@ class Base(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
     }
 
 
+class Geometry(Base):
+    __tablename__ = "Geometry"
+
+    # Real attributes
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    beamtime_id: Mapped[BeamtimeId] = mapped_column(
+        ForeignKey("Beamtime.id", ondelete="cascade"),
+    )
+    content: Mapped[str] = mapped_column(sa.Text)
+    hash: Mapped[str] = mapped_column(sa.String(length=64))
+    name: Mapped[str] = mapped_column(sa.String(length=255))
+    created: Mapped[datetime] = mapped_column()
+    # parent_geometry_id: Mapped[None | int] = mapped_column(
+    #     ForeignKey("Geometry.id", ondelete="cascade"),
+    # )
+
+    # Relationships
+    beamtime: Mapped["Beamtime"] = relationship(back_populates="geometries", init=False)
+    indexing_parameters: Mapped[list["IndexingParameters"]] = relationship(
+        back_populates="geometry",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
+    )
+    # These two just don't work, and we have no idea why that is (yet).
+    # indexing_results: Mapped[list["IndexingResult"]] = relationship(
+    #     backref="geometry",
+    #     cascade="all, delete, delete-orphan",
+    #     default_factory=list,
+    # )
+    # generated_indexing_results: Mapped[list["IndexingResult"]] = relationship(
+    #     back_populates="generated_geometry",
+    #     cascade="all, delete, delete-orphan",
+    #     default_factory=list,
+    # )
+    # parent_geometry: Mapped["Geometry"] = relationship(back_populates="parent_geometry_id")
+
+
 class Beamtime(Base):
     __tablename__ = "Beamtime"
 
@@ -75,6 +112,11 @@ class Beamtime(Base):
     analysis_output_path: Mapped[str] = mapped_column(sa.Text)
 
     # Relationships
+    geometries: Mapped[list["Geometry"]] = relationship(
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
+    )
     experiment_types: Mapped[list["ExperimentType"]] = relationship(
         back_populates="beamtime",
         cascade="all, delete, delete-orphan",
@@ -568,7 +610,9 @@ class IndexingParameters(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     is_online: Mapped[bool] = mapped_column()
     cell_description: Mapped[None | str] = mapped_column(sa.String(length=255))
-    geometry_file: Mapped[None | str] = mapped_column(sa.Text)
+    geometry_id: Mapped[None | int] = mapped_column(
+        ForeignKey("Geometry.id", ondelete="cascade"),
+    )
     command_line: Mapped[str] = mapped_column(sa.Text)
     source: Mapped[str] = mapped_column(sa.String(length=255))
 
@@ -580,6 +624,9 @@ class IndexingParameters(Base):
     configurations: Mapped[list["UserConfiguration"]] = relationship(
         back_populates="current_online_indexing_parameters",
         default_factory=list,
+    )
+    geometry: Mapped[None | Geometry] = relationship(
+        back_populates="indexing_parameters", init=False
     )
 
 
@@ -660,9 +707,12 @@ class IndexingResult(Base):
     frames: Mapped[None | int] = mapped_column()
     hits: Mapped[None | int] = mapped_column()
     indexed_frames: Mapped[int] = mapped_column()
-    geometry_file: Mapped[None | str] = mapped_column()
-    geometry_hash: Mapped[None | str] = mapped_column()
-    generated_geometry_file: Mapped[None | str] = mapped_column()
+    geometry_id: Mapped[None | int] = mapped_column(
+        ForeignKey("Geometry.id", ondelete="cascade")
+    )
+    generated_geometry_id: Mapped[None | int] = mapped_column(
+        ForeignKey("Geometry.id", ondelete="cascade")
+    )
     # In some of AMARCORD's code, this will be called "workload
     # manager job ID" (see workload managers in the docs)
     job_id: Mapped[None | int] = mapped_column()

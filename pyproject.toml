@@ -37,7 +37,7 @@ dependencies = [
     # see https://fastapi.tiangolo.com/tutorial/request-files/
     "python-multipart==0.0.9",
     # for general DB access
-    "sqlalchemy==2.0.36",
+    "sqlalchemy==2.0.40",
     "structlog-overtime==1.0.1",
     "structlog==24.2.0",
     # For parsing the arguments for programs (always required basically)

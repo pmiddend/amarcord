@@ -101,6 +101,10 @@ def sha256_combination(hashes: Iterable[bytes]) -> str:
     return hashlib.sha256(b"".join(hashes)).hexdigest()
 
 
+def sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
 def sha256_file_bytes(p: Path) -> bytes:
     with p.open("rb") as f:
         return hashlib.sha256(f.read()).digest()

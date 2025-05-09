@@ -36,6 +36,47 @@ class JsonUpdateBeamtimeInput(BaseModel):
     analysis_output_path: str
 
 
+# In case you're wondering why geometries are a little different w.r.t
+# creation and updates: we tried a new scheme here that makes more sense.
+class JsonGeometryUpdate(BaseModel):
+    content: str
+    name: str
+
+
+class JsonGeometryCreate(BaseModel):
+    beamtime_id: BeamtimeId
+    content: str
+    name: str
+
+
+class JsonReadGeometriesForSingleBeamtime(BaseModel):
+    geometries: list["JsonGeometryWithoutContent"]
+
+
+class JsonReadGeometriesForAllBeamtimes(BaseModel):
+    geometries: list["JsonGeometryWithoutContent"]
+    beamtimes: list["JsonBeamtimeOutput"]
+
+
+class JsonGeometryWithContent(BaseModel):
+    id: int
+    beamtime_id: BeamtimeId
+    content: str
+    hash: str
+    name: str
+    created: int
+    created_local: int
+
+
+class JsonGeometryWithoutContent(BaseModel):
+    id: int
+    beamtime_id: BeamtimeId
+    hash: str
+    name: str
+    created: int
+    created_local: int
+
+
 class JsonBeamtimeInput(BaseModel):
     id: BeamtimeId
     external_id: str

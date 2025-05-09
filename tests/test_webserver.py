@@ -60,7 +60,13 @@ from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaString
 from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
-from amarcord.web.json_models import JsonAlignDetectorGroup
+from amarcord.web.json_models import (
+    JsonAlignDetectorGroup,
+    JsonGeometryCreate,
+    JsonGeometryUpdate,
+    JsonGeometryWithoutContent,
+    JsonReadGeometriesForSingleBeamtime,
+)
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonAttributoValue
@@ -247,6 +253,20 @@ def second_beamtime_id(client: TestClient) -> BeamtimeId:
             analysis_output_path="/",
         ),
     )
+
+
+@pytest.fixture
+def geometry_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id, content="hehe", name="geometry name"
+            ).model_dump(),
+        ).json(),
+    )
+    assert response.id > 0
+    return response.id
 
 
 @pytest.fixture
@@ -751,6 +771,55 @@ def run_without_files_data_set_id(
 
     assert create_data_set_response.data_set_id > 0
     return create_data_set_response.data_set_id
+
+
+def test_read_single_geometry(client: TestClient, geometry_id: int) -> None:
+    result = client.get(f"/api/geometries/{geometry_id}").text
+
+    assert result == "hehe"
+
+
+def test_update_single_geometry(client: TestClient, geometry_id: int) -> None:
+    result = JsonGeometryWithoutContent(
+        **client.patch(
+            f"/api/geometries/{geometry_id}",
+            json=JsonGeometryUpdate(content="newcontent", name="newname").model_dump(),
+        ).json()
+    )
+
+    assert result.name == "newname"
+
+    single_result = client.get(f"/api/geometries/{geometry_id}").text
+
+    assert single_result == "newcontent"
+
+
+def test_delete_single_geometry(client: TestClient, geometry_id: int) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.delete(f"/api/geometries/{geometry_id}").json()
+    )
+
+    assert not result.geometries
+
+
+def test_read_single_beamtime_geometry(
+    client: TestClient, beamtime_id: BeamtimeId, geometry_id: int
+) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
+
+
+def test_read_all_geometries(client: TestClient, geometry_id: int) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/all-geometries").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
 
 
 def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
