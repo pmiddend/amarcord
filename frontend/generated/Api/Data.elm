@@ -95,6 +95,9 @@ module Api.Data exposing
     , JsonExperimentTypeAndRuns
     , JsonExperimentTypeWithBeamtimeInformation
     , JsonFileOutput
+    , JsonGeometryCreate
+    , JsonGeometryUpdate
+    , JsonGeometryWithoutContent
     , JsonImportFinishedIndexingJobInput
     , JsonImportFinishedIndexingJobOutput
     , JsonIndexingFom
@@ -136,6 +139,8 @@ module Api.Data exposing
     , JsonReadDataSets
     , JsonReadEvents
     , JsonReadExperimentTypes
+    , JsonReadGeometriesForAllBeamtimes
+    , JsonReadGeometriesForSingleBeamtime
     , JsonReadIndexingParametersOutput
     , JsonReadIndexingResultsOutput
     , JsonReadMergeResultsOutput
@@ -258,6 +263,9 @@ module Api.Data exposing
     , encodeJsonExperimentTypeAndRuns
     , encodeJsonExperimentTypeWithBeamtimeInformation
     , encodeJsonFileOutput
+    , encodeJsonGeometryCreate
+    , encodeJsonGeometryUpdate
+    , encodeJsonGeometryWithoutContent
     , encodeJsonImportFinishedIndexingJobInput
     , encodeJsonImportFinishedIndexingJobOutput
     , encodeJsonIndexingFom
@@ -299,6 +307,8 @@ module Api.Data exposing
     , encodeJsonReadDataSets
     , encodeJsonReadEvents
     , encodeJsonReadExperimentTypes
+    , encodeJsonReadGeometriesForAllBeamtimes
+    , encodeJsonReadGeometriesForSingleBeamtime
     , encodeJsonReadIndexingParametersOutput
     , encodeJsonReadIndexingResultsOutput
     , encodeJsonReadMergeResultsOutput
@@ -429,6 +439,9 @@ module Api.Data exposing
     , jsonExperimentTypeAndRunsDecoder
     , jsonExperimentTypeWithBeamtimeInformationDecoder
     , jsonFileOutputDecoder
+    , jsonGeometryCreateDecoder
+    , jsonGeometryUpdateDecoder
+    , jsonGeometryWithoutContentDecoder
     , jsonImportFinishedIndexingJobInputDecoder
     , jsonImportFinishedIndexingJobOutputDecoder
     , jsonIndexingFomDecoder
@@ -470,6 +483,8 @@ module Api.Data exposing
     , jsonReadDataSetsDecoder
     , jsonReadEventsDecoder
     , jsonReadExperimentTypesDecoder
+    , jsonReadGeometriesForAllBeamtimesDecoder
+    , jsonReadGeometriesForSingleBeamtimeDecoder
     , jsonReadIndexingParametersOutputDecoder
     , jsonReadIndexingResultsOutputDecoder
     , jsonReadMergeResultsOutputDecoder
@@ -1176,6 +1191,29 @@ type alias JsonFileOutput =
     }
 
 
+type alias JsonGeometryCreate =
+    { beamtimeId : Int
+    , content : String
+    , name : String
+    }
+
+
+type alias JsonGeometryUpdate =
+    { content : String
+    , name : String
+    }
+
+
+type alias JsonGeometryWithoutContent =
+    { id : Int
+    , beamtimeId : Int
+    , hash : String
+    , name : String
+    , created : Int
+    , createdLocal : Int
+    }
+
+
 type alias JsonImportFinishedIndexingJobInput =
     { isOnline : Bool
     , cellDescription : String
@@ -1602,6 +1640,17 @@ type alias JsonReadExperimentTypes =
     , attributi : List JsonAttributoOutput
     , experimentTypeIdToRun : List JsonExperimentTypeAndRuns
     , currentExperimentTypeId : Maybe Int
+    }
+
+
+type alias JsonReadGeometriesForAllBeamtimes =
+    { geometries : List JsonGeometryWithoutContent
+    , beamtimes : List JsonBeamtimeOutput
+    }
+
+
+type alias JsonReadGeometriesForSingleBeamtime =
+    { geometries : List JsonGeometryWithoutContent
     }
 
 
@@ -3764,6 +3813,74 @@ encodeJsonFileOutputPairs model =
     pairs
 
 
+encodeJsonGeometryCreate : JsonGeometryCreate -> Json.Encode.Value
+encodeJsonGeometryCreate =
+    encodeObject << encodeJsonGeometryCreatePairs
+
+
+encodeJsonGeometryCreateWithTag : ( String, String ) -> JsonGeometryCreate -> Json.Encode.Value
+encodeJsonGeometryCreateWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryCreatePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryCreatePairs : JsonGeometryCreate -> List EncodedField
+encodeJsonGeometryCreatePairs model =
+    let
+        pairs =
+            [ encode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "content" Json.Encode.string model.content
+            , encode "name" Json.Encode.string model.name
+            ]
+    in
+    pairs
+
+
+encodeJsonGeometryUpdate : JsonGeometryUpdate -> Json.Encode.Value
+encodeJsonGeometryUpdate =
+    encodeObject << encodeJsonGeometryUpdatePairs
+
+
+encodeJsonGeometryUpdateWithTag : ( String, String ) -> JsonGeometryUpdate -> Json.Encode.Value
+encodeJsonGeometryUpdateWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryUpdatePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryUpdatePairs : JsonGeometryUpdate -> List EncodedField
+encodeJsonGeometryUpdatePairs model =
+    let
+        pairs =
+            [ encode "content" Json.Encode.string model.content
+            , encode "name" Json.Encode.string model.name
+            ]
+    in
+    pairs
+
+
+encodeJsonGeometryWithoutContent : JsonGeometryWithoutContent -> Json.Encode.Value
+encodeJsonGeometryWithoutContent =
+    encodeObject << encodeJsonGeometryWithoutContentPairs
+
+
+encodeJsonGeometryWithoutContentWithTag : ( String, String ) -> JsonGeometryWithoutContent -> Json.Encode.Value
+encodeJsonGeometryWithoutContentWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryWithoutContentPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryWithoutContentPairs : JsonGeometryWithoutContent -> List EncodedField
+encodeJsonGeometryWithoutContentPairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , encode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "hash" Json.Encode.string model.hash
+            , encode "name" Json.Encode.string model.name
+            , encode "created" Json.Encode.int model.created
+            , encode "created_local" Json.Encode.int model.createdLocal
+            ]
+    in
+    pairs
+
+
 encodeJsonImportFinishedIndexingJobInput : JsonImportFinishedIndexingJobInput -> Json.Encode.Value
 encodeJsonImportFinishedIndexingJobInput =
     encodeObject << encodeJsonImportFinishedIndexingJobInputPairs
@@ -4792,6 +4909,47 @@ encodeJsonReadExperimentTypesPairs model =
             , encode "attributi" (Json.Encode.list encodeJsonAttributoOutput) model.attributi
             , encode "experiment_type_id_to_run" (Json.Encode.list encodeJsonExperimentTypeAndRuns) model.experimentTypeIdToRun
             , maybeEncodeNullable "current_experiment_type_id" Json.Encode.int model.currentExperimentTypeId
+            ]
+    in
+    pairs
+
+
+encodeJsonReadGeometriesForAllBeamtimes : JsonReadGeometriesForAllBeamtimes -> Json.Encode.Value
+encodeJsonReadGeometriesForAllBeamtimes =
+    encodeObject << encodeJsonReadGeometriesForAllBeamtimesPairs
+
+
+encodeJsonReadGeometriesForAllBeamtimesWithTag : ( String, String ) -> JsonReadGeometriesForAllBeamtimes -> Json.Encode.Value
+encodeJsonReadGeometriesForAllBeamtimesWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadGeometriesForAllBeamtimesPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadGeometriesForAllBeamtimesPairs : JsonReadGeometriesForAllBeamtimes -> List EncodedField
+encodeJsonReadGeometriesForAllBeamtimesPairs model =
+    let
+        pairs =
+            [ encode "geometries" (Json.Encode.list encodeJsonGeometryWithoutContent) model.geometries
+            , encode "beamtimes" (Json.Encode.list encodeJsonBeamtimeOutput) model.beamtimes
+            ]
+    in
+    pairs
+
+
+encodeJsonReadGeometriesForSingleBeamtime : JsonReadGeometriesForSingleBeamtime -> Json.Encode.Value
+encodeJsonReadGeometriesForSingleBeamtime =
+    encodeObject << encodeJsonReadGeometriesForSingleBeamtimePairs
+
+
+encodeJsonReadGeometriesForSingleBeamtimeWithTag : ( String, String ) -> JsonReadGeometriesForSingleBeamtime -> Json.Encode.Value
+encodeJsonReadGeometriesForSingleBeamtimeWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadGeometriesForSingleBeamtimePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadGeometriesForSingleBeamtimePairs : JsonReadGeometriesForSingleBeamtime -> List EncodedField
+encodeJsonReadGeometriesForSingleBeamtimePairs model =
+    let
+        pairs =
+            [ encode "geometries" (Json.Encode.list encodeJsonGeometryWithoutContent) model.geometries
             ]
     in
     pairs
@@ -6493,6 +6651,32 @@ jsonFileOutputDecoder =
         |> maybeDecodeNullable "size_in_bytes_compressed" Json.Decode.int Nothing
 
 
+jsonGeometryCreateDecoder : Json.Decode.Decoder JsonGeometryCreate
+jsonGeometryCreateDecoder =
+    Json.Decode.succeed JsonGeometryCreate
+        |> decode "beamtime_id" Json.Decode.int 
+        |> decode "content" Json.Decode.string 
+        |> decode "name" Json.Decode.string 
+
+
+jsonGeometryUpdateDecoder : Json.Decode.Decoder JsonGeometryUpdate
+jsonGeometryUpdateDecoder =
+    Json.Decode.succeed JsonGeometryUpdate
+        |> decode "content" Json.Decode.string 
+        |> decode "name" Json.Decode.string 
+
+
+jsonGeometryWithoutContentDecoder : Json.Decode.Decoder JsonGeometryWithoutContent
+jsonGeometryWithoutContentDecoder =
+    Json.Decode.succeed JsonGeometryWithoutContent
+        |> decode "id" Json.Decode.int 
+        |> decode "beamtime_id" Json.Decode.int 
+        |> decode "hash" Json.Decode.string 
+        |> decode "name" Json.Decode.string 
+        |> decode "created" Json.Decode.int 
+        |> decode "created_local" Json.Decode.int 
+
+
 jsonImportFinishedIndexingJobInputDecoder : Json.Decode.Decoder JsonImportFinishedIndexingJobInput
 jsonImportFinishedIndexingJobInputDecoder =
     Json.Decode.succeed JsonImportFinishedIndexingJobInput
@@ -6966,6 +7150,19 @@ jsonReadExperimentTypesDecoder =
         |> decode "attributi" (Json.Decode.list jsonAttributoOutputDecoder) 
         |> decode "experiment_type_id_to_run" (Json.Decode.list jsonExperimentTypeAndRunsDecoder) 
         |> maybeDecodeNullable "current_experiment_type_id" Json.Decode.int Nothing
+
+
+jsonReadGeometriesForAllBeamtimesDecoder : Json.Decode.Decoder JsonReadGeometriesForAllBeamtimes
+jsonReadGeometriesForAllBeamtimesDecoder =
+    Json.Decode.succeed JsonReadGeometriesForAllBeamtimes
+        |> decode "geometries" (Json.Decode.list jsonGeometryWithoutContentDecoder) 
+        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeOutputDecoder) 
+
+
+jsonReadGeometriesForSingleBeamtimeDecoder : Json.Decode.Decoder JsonReadGeometriesForSingleBeamtime
+jsonReadGeometriesForSingleBeamtimeDecoder =
+    Json.Decode.succeed JsonReadGeometriesForSingleBeamtime
+        |> decode "geometries" (Json.Decode.list jsonGeometryWithoutContentDecoder) 
 
 
 jsonReadIndexingParametersOutputDecoder : Json.Decode.Decoder JsonReadIndexingParametersOutput

@@ -42,6 +42,9 @@ class JsonGeometryUpdate(BaseModel):
     content: str
     name: str
 
+class JsonGeometryCopyToBeamtime(BaseModel):
+    geometry_id: int
+    target_beamtime_id: BeamtimeId
 
 class JsonGeometryCreate(BaseModel):
     beamtime_id: BeamtimeId

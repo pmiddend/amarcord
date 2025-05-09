@@ -62,9 +62,11 @@ from amarcord.json_schema import JSONSchemaString
 from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
 from amarcord.web.json_models import (
     JsonAlignDetectorGroup,
+    JsonGeometryCopyToBeamtime,
     JsonGeometryCreate,
     JsonGeometryUpdate,
     JsonGeometryWithoutContent,
+    JsonReadGeometriesForAllBeamtimes,
     JsonReadGeometriesForSingleBeamtime,
 )
 from amarcord.web.json_models import JsonAttributiIdAndRole
@@ -811,6 +813,48 @@ def test_read_single_beamtime_geometry(
 
     assert len(result.geometries) == 1
     assert result.geometries[0].id == geometry_id
+
+
+def test_copy_geometry_to_other_beamtime(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    second_beamtime_id: BeamtimeId,
+    geometry_id: int,
+) -> None:
+    # First, let's make sure the "for single beamtime" request doesn't mix up beamtimes
+    result_first = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+    assert len(result_first.geometries) == 1
+
+    result_second = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{second_beamtime_id}").json()
+    )
+    assert len(result_second.geometries) == 0
+
+    result_all = JsonReadGeometriesForAllBeamtimes(
+        **client.get(f"/api/all-geometries").json()
+    )
+    assert len(result_all.geometries) == 1
+
+    # Now copy the beamtime from "first" to "second"
+    client.post(
+        "/api/geometry-copy-to-beamtime",
+        json=JsonGeometryCopyToBeamtime(
+            geometry_id=geometry_id,
+            target_beamtime_id=second_beamtime_id,
+        ).model_dump(),
+    )
+    result_second_after_copy = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{second_beamtime_id}").json()
+    )
+    assert len(result_second_after_copy.geometries) == 1
+    assert result_second_after_copy.geometries[0] != geometry_id
+
+    result_first_after_copy = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+    assert len(result_first_after_copy.geometries) == 1
 
 
 def test_read_all_geometries(client: TestClient, geometry_id: int) -> None:
