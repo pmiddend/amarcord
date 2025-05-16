@@ -2,7 +2,6 @@
 # ruff: noqa: T201
 
 import asyncio
-import hashlib
 import os
 from dataclasses import replace
 from functools import partial
@@ -701,6 +700,7 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
 def simple_indexing_result_id(
     client: TestClient,
     simple_data_set_id: RunInternalId,
+    geometry_id: int,
 ) -> int:
     create_indexing_response = JsonCreateIndexingForDataSetOutput(
         **client.post(
@@ -709,7 +709,7 @@ def simple_indexing_result_id(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
@@ -722,8 +722,6 @@ def simple_indexing_result_id(
             workload_manager_job_id=1,
             stream_file="/tmp/some-file.stream",  # noqa: S108
             program_version="",
-            geometry_file="/tmp/some.geom",  # noqa: S108
-            geometry_hash=hashlib.sha256(b"").hexdigest(),
             # More or less random values, we don't care about the specifics here
             frames=200,
             # Hit rate 50%
@@ -749,7 +747,7 @@ def simple_indexing_result_id(
                     y_rotation_deg=0,
                 ),
             ],
-            generated_geometry_file="",
+            generated_geometry_contents="",
             unit_cell_histograms_id=None,
             latest_log="",
         ).model_dump(),
@@ -781,7 +779,9 @@ def test_read_single_geometry(client: TestClient, geometry_id: int) -> None:
 
     assert result_raw == "hehe"
 
-    result_json = JsonReadSingleGeometryOutput(**client.get(f"/api/geometries/{geometry_id}").json())
+    result_json = JsonReadSingleGeometryOutput(
+        **client.get(f"/api/geometries/{geometry_id}").json()
+    )
 
     assert result_json.content == "hehe"
 
@@ -863,7 +863,7 @@ def test_copy_geometry_to_other_beamtime(
 
 
 def test_read_all_geometries(client: TestClient, geometry_id: int) -> None:
-    result = JsonReadGeometriesForSingleBeamtime(
+    result = JsonReadGeometriesForAllBeamtimes(
         **client.get(f"/api/all-geometries").json()
     )
 
@@ -1757,8 +1757,7 @@ def test_create_run_and_import_external_indexing_result(
                 hits=2,
                 indexed_frames=3,
                 align_detector_groups=[],
-                geometry_file="/tmp/geom",  # noqa: S108
-                geometry_hash="00000000000000000000000000",
+                geometry_contents="/tmp/geom",
                 generated_geometry_file=None,
                 job_log="test log",
             ).model_dump(),
@@ -2022,8 +2021,6 @@ def test_update_indexing_job(
                 workload_manager_job_id=1,
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 # More or less random values, we don't care about the specifics here
                 frames=200,
                 # Hit rate 50%
@@ -2049,7 +2046,7 @@ def test_update_indexing_job(
                         y_rotation_deg=0,
                     ),
                 ],
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 unit_cell_histograms_id=None,
                 latest_log="",
             ).model_dump(),
@@ -2136,6 +2133,7 @@ def test_indexing_result_with_two_equal_parameter(
     lyso_chemical_id: int,  # noqa: ARG001
     simple_run_id: int,  # noqa: ARG001
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
@@ -2147,7 +2145,7 @@ def test_indexing_result_with_two_equal_parameter(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
@@ -2176,7 +2174,7 @@ def test_indexing_result_with_two_equal_parameter(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
@@ -2198,8 +2196,6 @@ def test_indexing_result_with_two_equal_parameter(
             workload_manager_job_id=1,
             stream_file="/tmp/some-file.stream",  # noqa: S108
             program_version="",
-            geometry_file="/tmp/some.geom",  # noqa: S108
-            geometry_hash=hashlib.sha256(b"").hexdigest(),
             # More or less random values, we don't care about the specifics here
             frames=200,
             # Hit rate 50%
@@ -2217,7 +2213,7 @@ def test_indexing_result_with_two_equal_parameter(
                     y_rotation_deg=2,
                 ),
             ],
-            generated_geometry_file="",
+            generated_geometry_contents="",
             unit_cell_histograms_id=None,
             latest_log="",
         ).model_dump(),
@@ -2505,8 +2501,6 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
             json=JsonIndexingResultFinishSuccessfully(
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 workload_manager_job_id=1,
                 # More or less random values, we don't care about the specifics here
                 frames=200,
@@ -2534,7 +2528,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                     ),
                 ],
                 unit_cell_histograms_id=None,
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 latest_log="",
             ).model_dump(),
         ).json(),
@@ -2655,8 +2649,6 @@ def test_queue_then_start_then_finish_merge_job(
             json=JsonIndexingResultFinishSuccessfully(
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 workload_manager_job_id=1,
                 # More or less random values, we don't care about the specifics here
                 frames=200,
@@ -2684,7 +2676,7 @@ def test_queue_then_start_then_finish_merge_job(
                     ),
                 ],
                 unit_cell_histograms_id=None,
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 latest_log="",
             ).model_dump(),
         ).json(),
@@ -4079,6 +4071,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     client.post(
@@ -4087,7 +4080,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
             data_set_id=simple_data_set_id,
             is_online=False,
             cell_description="",
-            geometry_file="/mock/geometry.geom",
+            geometry_id=geometry_id,
             command_line="",
             source="raw",
         ).model_dump(),
@@ -4138,6 +4131,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     run_without_files_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     client.post(
@@ -4146,7 +4140,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
             data_set_id=run_without_files_data_set_id,
             is_online=False,
             cell_description="",
-            geometry_file="",
+            geometry_id=geometry_id,
             command_line="",
             source="raw",
         ).model_dump(),
@@ -4174,6 +4168,22 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
 
     assert not workload_manager.job_starts
     assert not list(await workload_manager.list_jobs())
+
+
+async def test_geometry_with_usage_in_result(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    geometry_id: int,
+    simple_indexing_result_id: int,  # noqa: ARG001
+) -> None:
+    # We have a geometry in the indexing parameters corresponding to
+    # the simple result we pass here. So we should have usages in the list of geometries
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
 
 
 async def test_merge_daemon(
@@ -4360,6 +4370,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     create_response = JsonCreateIndexingForDataSetOutput(
@@ -4369,7 +4380,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),

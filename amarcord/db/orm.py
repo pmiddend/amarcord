@@ -89,11 +89,11 @@ class Geometry(Base):
     #     cascade="all, delete, delete-orphan",
     #     default_factory=list,
     # )
-    # generated_indexing_results: Mapped[list["IndexingResult"]] = relationship(
-    #     back_populates="generated_geometry",
-    #     cascade="all, delete, delete-orphan",
-    #     default_factory=list,
-    # )
+    generated_indexing_results: Mapped[list["IndexingResult"]] = relationship(
+        back_populates="generated_geometry",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
+    )
     # parent_geometry: Mapped["Geometry"] = relationship(back_populates="parent_geometry_id")
 
 
@@ -635,7 +635,7 @@ def are_indexing_parameters_equal(a: IndexingParameters, b: IndexingParameters) 
         a.is_online == b.is_online
         and a.cell_description == b.cell_description
         and a.command_line == b.command_line
-        and a.geometry_file == b.geometry_file
+        and a.geometry_id == b.geometry_id
         and a.source == b.source
     )
 
@@ -707,9 +707,6 @@ class IndexingResult(Base):
     frames: Mapped[None | int] = mapped_column()
     hits: Mapped[None | int] = mapped_column()
     indexed_frames: Mapped[int] = mapped_column()
-    geometry_id: Mapped[None | int] = mapped_column(
-        ForeignKey("Geometry.id", ondelete="cascade")
-    )
     generated_geometry_id: Mapped[None | int] = mapped_column(
         ForeignKey("Geometry.id", ondelete="cascade")
     )
@@ -752,6 +749,9 @@ class IndexingResult(Base):
     indexing_parameters: Mapped[IndexingParameters] = relationship(
         back_populates="indexing_results",
         init=False,
+    )
+    generated_geometry: Mapped[None | Geometry] = relationship(
+        init=False, back_populates="generated_indexing_results", cascade="all, delete"
     )
 
 

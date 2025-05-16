@@ -467,7 +467,7 @@ async def create_or_update_run(
                     else None
                 ),
                 command_line=current_online_indexing_parameters.command_line,
-                geometry_file=current_online_indexing_parameters.geometry_file,
+                geometry_id=current_online_indexing_parameters.geometry_id,
                 source=current_online_indexing_parameters.source,
             )
             session.add(new_indexing_result_parameters)
@@ -482,10 +482,7 @@ async def create_or_update_run(
                 frames=0,
                 hits=0,
                 indexed_frames=0,
-                # autodetect geometry file for online indexing
-                geometry_file=None,
-                geometry_hash="",
-                generated_geometry_file=None,
+                generated_geometry_id=None,
                 unit_cell_histograms_file_id=None,
                 job_id=None,
                 job_status=DBJobStatus.QUEUED,

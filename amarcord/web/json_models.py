@@ -42,20 +42,30 @@ class JsonGeometryUpdate(BaseModel):
     content: str
     name: str
 
+
 class JsonGeometryCopyToBeamtime(BaseModel):
     geometry_id: int
     target_beamtime_id: BeamtimeId
+
 
 class JsonGeometryCreate(BaseModel):
     beamtime_id: BeamtimeId
     content: str
     name: str
 
+
+class JsonGeometryWithUsages(BaseModel):
+    geometry_id: int
+    usages: int
+
+
 class JsonReadSingleGeometryOutput(BaseModel):
     content: str
 
+
 class JsonReadGeometriesForSingleBeamtime(BaseModel):
     geometries: list["JsonGeometryWithoutContent"]
+    geometry_with_usage: list[JsonGeometryWithUsages]
 
 
 class JsonReadGeometriesForAllBeamtimes(BaseModel):
@@ -384,12 +394,12 @@ class JsonIndexingParameters(BaseModel):
     cell_description: None | str = None
     is_online: bool
     command_line: str
-    geometry_file: str
+    geometry_id: None | int
 
 
 class JsonUpdateOnlineIndexingParametersInput(BaseModel):
     command_line: str
-    geometry_file: str
+    geometry_id: int
     source: str
 
 
@@ -425,9 +435,7 @@ class JsonIndexingResult(BaseModel):
     indexed_crystals: int
     status: DBJobStatus
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
-    generated_geometry_file: str
+    generated_geometry_id: None | int
     unit_cell_histograms_file_id: None | int = None
     has_error: bool
     # Commented out, we retrieve the log separately
@@ -438,7 +446,7 @@ class JsonCreateIndexingForDataSetInput(BaseModel):
     data_set_id: int
     is_online: bool
     cell_description: str
-    geometry_file: str
+    geometry_id: int
     command_line: str
     source: str
 
@@ -455,8 +463,7 @@ class JsonImportFinishedIndexingJobInput(BaseModel):
     hits: int
     indexed_frames: int
     align_detector_groups: list[AlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
+    geometry_contents: str
     generated_geometry_file: None | str = None
     job_log: str
 
@@ -497,9 +504,7 @@ class JsonIndexingResultFinishSuccessfully(BaseModel):
     indexed_frames: int
     indexed_crystals: int
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
-    generated_geometry_file: str
+    generated_geometry_contents: str
     unit_cell_histograms_id: None | int = None
 
     # None, in this case, means "don't change/append to the log"
@@ -639,8 +644,6 @@ class JsonIndexingResultStillRunning(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    geometry_file: str
-    geometry_hash: str
     # can be missing, in case we don't have that information but still want to signal progress
     job_started: None | int = None
     # None, in this case, means "don't change/append to the log"
@@ -672,7 +675,7 @@ class JsonDetectorShift(BaseModel):
     run_end: None | int = None
     run_end_local: None | int = None
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_hash: str
+    geometry_id: None | int = None
 
 
 class JsonReadBeamtimeGeometryDetails(BaseModel):
@@ -1094,8 +1097,8 @@ class JsonIndexingJob(BaseModel):
     stream_file: None | str = None
     source: str
     cell_description: None | str = None
-    geometry_file_input: str
-    geometry_file_output: str
+    geometry_id: None | int = None
+    generated_geometry_id: None | int = None
     command_line: str
     run_internal_id: int
     run_external_id: int

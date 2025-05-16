@@ -4,6 +4,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter
+from amarcord.cli.crystfel_index import sha256_bytes
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi.responses import PlainTextResponse
@@ -16,6 +17,7 @@ from amarcord.db import orm
 from amarcord.db.attributi import utc_datetime_to_local_int
 from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributi import utc_int_to_utc_datetime
+from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import IndexingResultSummary
@@ -55,12 +57,8 @@ async def json_indexing_job_from_orm(
         stream_file=ij.stream_file,
         cell_description=ij.indexing_parameters.cell_description,
         source=ij.indexing_parameters.source,
-        geometry_file_input=(
-            ij.indexing_parameters.geometry_file
-            if ij.indexing_parameters.geometry_file is not None
-            else ""
-        ),
-        geometry_file_output=ij.geometry_file if ij.geometry_file is not None else "",
+        geometry_id=ij.indexing_parameters.geometry_id,
+        generated_geometry_id=ij.generated_geometry_id,
         run_external_id=ij.run.external_id,
         run_internal_id=ij.run.id,
         beamtime=JsonBeamtimeOutput(
@@ -141,6 +139,30 @@ def fom_for_indexing_result(jr: orm.IndexingResult) -> IndexingResultSummary:
     )
 
 
+async def _locate_or_create_geometry(
+    session: AsyncSession, beamtime_id: BeamtimeId, name: str, contents: str
+) -> orm.Geometry:
+    geometry_hash = sha256_bytes(contents.encode("utf-8"))
+    geometry: None | orm.Geometry = (
+        await session.scalars(
+            select(orm.Geometry).where(orm.Geometry.hash == geometry_hash)
+        )
+    ).one_or_none()
+
+    if geometry is None:
+        geometry = orm.Geometry(
+            beamtime_id=beamtime_id,
+            content=contents,
+            hash=geometry_hash,
+            name=name,
+            created=datetime.datetime.now(datetime.timezone.utc),
+        )
+        session.add(geometry)
+        # To get the new geometry ID
+        await session.flush()
+    return geometry
+
+
 def summary_from_foms(ir: list[IndexingResultSummary]) -> IndexingResultSummary:
     if not ir:
         return empty_indexing_fom
@@ -181,11 +203,18 @@ async def import_finished_indexing_job(
             detail=f"internal run ID {input_.run_internal_id} not found",
         )
 
+    geometry = await _locate_or_create_geometry(
+        session,
+        run.beamtime_id,
+        f"import for run {run.external_id}",
+        input_.geometry_contents,
+    )
+
     new_indexing_parameters = orm.IndexingParameters(
         is_online=input_.is_online,
         cell_description=input_.cell_description.strip(),
         command_line=input_.command_line.strip(),
-        geometry_file=input_.geometry_file.strip(),
+        geometry_id=geometry.id,
         source=input_.source.strip(),
     )
     session.add(new_indexing_parameters)
@@ -198,9 +227,7 @@ async def import_finished_indexing_job(
         frames=input_.frames,
         hits=input_.hits,
         indexed_frames=input_.indexed_frames,
-        geometry_file=input_.geometry_file,
-        geometry_hash=input_.geometry_hash,
-        generated_geometry_file=input_.generated_geometry_file,
+        generated_geometry_id=None,
         unit_cell_histograms_file_id=None,
         job_id=None,
         job_status=DBJobStatus.DONE,
@@ -282,7 +309,7 @@ async def indexing_job_queue_for_data_set(
         is_online=input_.is_online,
         cell_description=input_.cell_description.strip(),
         command_line=input_.command_line.strip(),
-        geometry_file=input_.geometry_file.strip(),
+        geometry_id=input_.geometry_id,
         source=input_.source.strip(),
     )
     for ir in existing_indexing_results:
@@ -324,11 +351,8 @@ async def indexing_job_queue_for_data_set(
             frames=0,
             hits=0,
             indexed_frames=0,
-            # initialize geometry in result with empty string (for "not found")
-            geometry_file="",
-            geometry_hash="",
             unit_cell_histograms_file_id=None,
-            generated_geometry_file=None,
+            generated_geometry_id=None,
             job_id=None,
             # program version will be determined by the job itself
             program_version="",
@@ -475,10 +499,6 @@ async def indexing_job_still_running(
         current_indexing_result.job_status = DBJobStatus.RUNNING
         current_indexing_result.frames = jr.frames
         current_indexing_result.hits = jr.hits
-        if jr.geometry_hash:
-            current_indexing_result.geometry_hash = jr.geometry_hash
-        if jr.geometry_file:
-            current_indexing_result.geometry_file = jr.geometry_file
         current_indexing_result.indexed_frames = jr.indexed_frames
         # job started can be missing, in case we don't have that information
         if jr.job_started is not None:
@@ -521,9 +541,11 @@ async def indexing_job_finish_successfully(
     async with session.begin():
         current_indexing_result = (
             await session.scalars(
-                select(orm.IndexingResult).where(
+                select(orm.IndexingResult)
+                .where(
                     orm.IndexingResult.id == indexingResultId,
-                ),
+                )
+                .options(selectinload(orm.IndexingResult.run)),
             )
         ).one_or_none()
         if current_indexing_result is None:
@@ -537,10 +559,6 @@ async def indexing_job_finish_successfully(
         current_indexing_result.job_status = DBJobStatus.DONE
         current_indexing_result.frames = jr.frames
         current_indexing_result.hits = jr.hits
-        if jr.geometry_hash:
-            current_indexing_result.geometry_hash = jr.geometry_hash
-        if jr.geometry_file:
-            current_indexing_result.geometry_file = jr.geometry_file
         current_indexing_result.unit_cell_histograms_file_id = (
             json_result.unit_cell_histograms_id
         )
@@ -551,8 +569,15 @@ async def indexing_job_finish_successfully(
         if current_indexing_result.job_started is None:
             current_indexing_result.job_started = current_indexing_result.job_stopped
         current_indexing_result.indexed_frames = jr.indexed_frames
-        if jr.generated_geometry_file:
-            current_indexing_result.generated_geometry_file = jr.generated_geometry_file
+
+        if jr.generated_geometry_contents:
+            geometry = await _locate_or_create_geometry(
+                session,
+                current_indexing_result.run.beamtime_id,
+                f"import for run {current_indexing_result.run.external_id}, indexing ID {indexingResultId}",
+                jr.generated_geometry_contents,
+            )
+            current_indexing_result.generated_geometry_id = geometry.id
         if json_result.latest_log is not None:
             current_indexing_result.job_latest_log = json_result.latest_log
         for g in json_result.align_detector_groups:

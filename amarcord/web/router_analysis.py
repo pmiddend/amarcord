@@ -120,9 +120,7 @@ async def read_beamtime_geometry_details(
                             )
                             for g in ir.align_detector_groups
                         ],
-                        geometry_hash=(
-                            ir.geometry_hash if ir.geometry_hash is not None else ""
-                        ),
+                        geometry_id=ir.indexing_parameters.geometry_id,
                     ),
                 )
 

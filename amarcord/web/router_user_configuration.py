@@ -117,7 +117,7 @@ async def update_online_indexing_parameters(
                 new_config.current_online_indexing_parameters
             )
         current_online_indexing_parameters.command_line = parameters.command_line
-        current_online_indexing_parameters.geometry_file = parameters.geometry_file
+        current_online_indexing_parameters.geometry_id = parameters.geometry_id
         current_online_indexing_parameters.source = parameters.source
         await session.commit()
         return JsonUpdateOnlineIndexingParametersOutput(success=True)

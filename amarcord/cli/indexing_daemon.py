@@ -90,6 +90,7 @@ def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
 
 async def start_offline_indexing_job(
     bound_logger: BoundLogger,
+    session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     args: Arguments,
     indexing_result: JsonIndexingJob,
@@ -161,12 +162,18 @@ async def start_offline_indexing_job(
                 indexing_result.input_file_globs,
             ),
         }
-        # An explicit geometry file may be missing for a new job - it
-        # will then be found dynamically in the beamtime directory.
-        if indexing_result.geometry_file_input:
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-            ] = indexing_result.geometry_file_input
+        if indexing_result.geometry_id is None:
+            raise JobStartError(f"job has no geometry ID")
+
+        try:
+            async with session.get(
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw"
+            ) as response:
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+                ] = await response.text()
+        except Exception as e:
+            raise JobStartError(f"error retrieving geometry: {e}")
         # Offline indexing jobs, if configured that way, can emit
         # other jobs in a job array. For that, we need the SLURM REST
         # token again, so we transmit it here.
@@ -211,6 +218,7 @@ def _build_output_base_name(indexing_result: JsonIndexingJob) -> str:
 
 
 async def start_online_indexing_job(
+    session: aiohttp.ClientSession,
     bound_logger: BoundLogger,
     workload_manager: WorkloadManager,
     args: Arguments,
@@ -276,12 +284,15 @@ async def start_online_indexing_job(
                 indexing_result.run_external_id,
             ),
         }
-        # An explicit geometry file may be missing for a new job - it
-        # will then be found dynamically in the beamtime directory.
-        if indexing_result.geometry_file_input:
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-            ] = indexing_result.geometry_file_input
+        try:
+            async with session.get(
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw"
+            ) as response:
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+                ] = await response.text()
+        except Exception as e:
+            raise JobStartError(f"error retrieving geometry: {e}")
         bound_logger.info("environment for this job is " + " ".join(job_environment))
         job_start_result = await workload_manager.start_job(
             working_directory=job_base_directory,
@@ -360,6 +371,7 @@ async def _start_new_jobs(
         )
         new_status = (
             await start_online_indexing_job(
+                session,
                 bound_logger,
                 (
                     online_workload_manager
@@ -372,6 +384,7 @@ async def _start_new_jobs(
             if indexing_result.is_online
             else await start_offline_indexing_job(
                 bound_logger,
+                session,
                 workload_manager,
                 args,
                 indexing_result,
@@ -399,8 +412,6 @@ async def _start_new_jobs(
                 frames=0,
                 indexed_frames=0,
                 indexed_crystals=0,
-                geometry_file="",
-                geometry_hash="",
                 job_started=utc_datetime_to_utc_int(
                     datetime.datetime.now(tz=datetime.timezone.utc),
                 ),

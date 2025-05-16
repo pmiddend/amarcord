@@ -73,19 +73,9 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
+    with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
+        batch_op.drop_column("geometry_file")
     with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
-        batch_op.add_column(
-            sa.Column(
-                "geometry_id",
-                sa.Integer,
-                sa.ForeignKey(
-                    "Geometry.id",
-                    ondelete="cascade",
-                    name="indexing_result_geometry_fk",
-                ),
-                nullable=True,
-            ),
-        )
         batch_op.add_column(
             sa.Column(
                 "generated_geometry_id",
@@ -98,6 +88,10 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
+        # Remove geometry ID column
+        batch_op.drop_column("geometry_file")
+        batch_op.drop_column("geometry_hash")
+        batch_op.drop_column("generated_geometry_file")
 
 
 def downgrade() -> None:

@@ -4,7 +4,7 @@ import datetime
 from fastapi import APIRouter, HTTPException, Response
 from fastapi import Depends
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
@@ -18,6 +18,7 @@ from amarcord.db.orm_utils import encode_beamtime
 from amarcord.web.json_models import (
     JsonGeometryCopyToBeamtime,
     JsonGeometryCreate,
+    JsonGeometryWithUsages,
     JsonGeometryWithoutContent,
     JsonGeometryUpdate,
     JsonReadGeometriesForAllBeamtimes,
@@ -43,6 +44,19 @@ async def create_geometry(
             hash=hash,
             created=created,
         )
+        existing_geometry = (
+            await session.scalars(
+                select(orm.Geometry).where(
+                    (orm.Geometry.name == input_.name)
+                    & (orm.Geometry.beamtime_id == input_.beamtime_id)
+                ),
+            )
+        ).one_or_none()
+        if existing_geometry:
+            raise HTTPException(
+                status_code=400,
+                detail=f"gemoetry with name {existing_geometry} already exists",
+            )
         session.add(new_geometry)
         # we need to the ID in the next line, so have to flush
         await session.flush()
@@ -55,27 +69,42 @@ async def create_geometry(
             created_local=utc_datetime_to_local_int(created),
         )
 
+
 @router.post("/api/geometry-copy-to-beamtime", tags=["geometries"])
 async def copy_to_beamtime(
     input_: JsonGeometryCopyToBeamtime,
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonGeometryWithoutContent:
     async with session.begin():
-        existing_geometry = (
+        geometry_to_copy = (
             await session.scalars(
                 select(orm.Geometry).where(orm.Geometry.id == input_.geometry_id),
             )
         ).one_or_none()
-        if existing_geometry is None:
+        if geometry_to_copy is None:
             raise HTTPException(
-                status_code=404, detail=f"geometry with id {input_.geometry_id} not found"
+                status_code=404,
+                detail=f"geometry with id {input_.geometry_id} not found",
+            )
+        existing_geometry = (
+            await session.scalars(
+                select(orm.Geometry).where(
+                    (orm.Geometry.name == geometry_to_copy.name)
+                    & (orm.Geometry.beamtime_id == input_.target_beamtime_id)
+                ),
+            )
+        ).one_or_none()
+        if existing_geometry is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"geometry with name {geometry_to_copy.name} already exists",
             )
         created = datetime.datetime.now(datetime.timezone.utc)
         new_geometry = orm.Geometry(
             beamtime_id=input_.target_beamtime_id,
-            content=existing_geometry.content,
-            name=existing_geometry.name,
-            hash=existing_geometry.hash,
+            content=geometry_to_copy.content,
+            name=geometry_to_copy.name,
+            hash=geometry_to_copy.hash,
             created=created,
         )
         session.add(new_geometry)
@@ -84,11 +113,34 @@ async def copy_to_beamtime(
         return JsonGeometryWithoutContent(
             id=new_geometry.id,
             beamtime_id=input_.target_beamtime_id,
-            name=existing_geometry.name,
-            hash=existing_geometry.hash,
+            name=geometry_to_copy.name,
+            hash=geometry_to_copy.hash,
             created=utc_datetime_to_utc_int(created),
             created_local=utc_datetime_to_local_int(created),
         )
+
+
+async def _count_usages(session: AsyncSession, geometry_ids: list[int]) -> int:
+    # This doesn't scale with the amount of geometries. If that
+    # becomes an issue, we can just use a nested select statement,
+    # problem solved.
+    parameter_count = await session.scalar(
+        select(func.count(orm.IndexingParameters.id)).where(
+            (orm.IndexingParameters.geometry_id.in_(geometry_ids))
+        )
+    )
+    # For some reason, scalar returns "None | int" here, but how can
+    # it be None? Even with zero rows, it'll return "0"
+    assert parameter_count is not None
+    result_count = await session.scalar(
+        select(func.count(orm.IndexingResult.id)).where(
+            orm.IndexingResult.generated_geometry_id.in_(geometry_ids)
+        )
+    )
+    # See above
+    assert result_count is not None
+    return parameter_count + result_count
+
 
 @router.patch("/api/geometries/{geometryId}", tags=["geometries"])
 async def update_geometry(
@@ -106,6 +158,28 @@ async def update_geometry(
             raise HTTPException(
                 status_code=404, detail=f"geometry with id {geometryId} not found"
             )
+        existing_geometry_with_name = (
+            await session.scalars(
+                select(orm.Geometry).where(
+                    (orm.Geometry.name == input_.name)
+                    & (orm.Geometry.id != geometryId)
+                    & (orm.Geometry.beamtime_id == existing_geometry.beamtime_id)
+                ),
+            )
+        ).one_or_none()
+        if existing_geometry_with_name is not None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"geometry with name {input_.name} already in beamtime",
+            )
+        if existing_geometry.content != input_.content:
+            usages = await _count_usages(session, [geometryId])
+            if usages > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"geometry {geometryId} is used {usages} times and the content cannot be updated",
+                )
+
         hash = sha256_bytes(input_.content.encode("utf-8"))
         existing_geometry.content = input_.content
         existing_geometry.hash = hash
@@ -125,20 +199,50 @@ async def update_geometry(
 async def _retrieve_single_beamtime_geometries(
     session: AsyncSession, beamtime_id: BeamtimeId
 ) -> JsonReadGeometriesForSingleBeamtime:
+    geometries = [
+        JsonGeometryWithoutContent(
+            id=geom.id,
+            beamtime_id=geom.beamtime_id,
+            hash=geom.hash,
+            name=geom.name,
+            created=utc_datetime_to_utc_int(geom.created),
+            created_local=utc_datetime_to_local_int(geom.created),
+        )
+        for geom in await session.scalars(
+            select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
+        )
+    ]
+    # For every geometry ID, store the number of usages
+    result: dict[int, int] = {}
+    # Important: use execute here since we're selecting individual columns
+    for row in await session.execute(
+        select(orm.Geometry.id, func.count().label("count"))
+        .join(
+            orm.IndexingParameters,
+            orm.IndexingParameters.geometry_id == orm.Geometry.id,
+        )
+        .group_by(orm.Geometry.id)
+    ):
+        result[row.id] = row.count
+    # Important: use execute here since we're selecting individual columns
+    for row in await session.execute(
+        select(orm.Geometry.id, func.count().label("count"))
+        .join(
+            orm.IndexingResult,
+            orm.IndexingResult.generated_geometry_id == orm.Geometry.id,
+        )
+        .group_by(orm.Geometry.id)
+    ):
+        if row.id not in result:
+            result[row.id] = 0
+        result[row.id] += row.count
+
     return JsonReadGeometriesForSingleBeamtime(
-        geometries=[
-            JsonGeometryWithoutContent(
-                id=geom.id,
-                beamtime_id=geom.beamtime_id,
-                hash=geom.hash,
-                name=geom.name,
-                created=utc_datetime_to_utc_int(geom.created),
-                created_local=utc_datetime_to_local_int(geom.created),
-            )
-            for geom in await session.scalars(
-                select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
-            )
-        ]
+        geometries=geometries,
+        geometry_with_usage=[
+            JsonGeometryWithUsages(geometry_id=geometry_id, usages=geometry_usage_count)
+            for geometry_id, geometry_usage_count in result.items()
+        ],
     )
 
 
@@ -205,11 +309,12 @@ async def read_geometries_for_all_beamtimes(
         ],
     )
 
+
 @router.get(
     "/api/geometries/{geometryId}/raw",
     tags=["geometries"],
     response_model_exclude_defaults=True,
-    response_class=PlainTextResponse
+    response_class=PlainTextResponse,
 )
 async def read_single_geometry_raw(
     geometryId: int,  # noqa: N803
@@ -225,6 +330,7 @@ async def read_single_geometry_raw(
         .content,
         media_type="text/plain",
     )
+
 
 @router.get(
     "/api/geometries/{geometryId}",
@@ -244,4 +350,3 @@ async def read_single_geometry(
         .one()
         .content
     )
-
