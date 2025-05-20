@@ -11,13 +11,13 @@ from starlette.types import Scope
 from amarcord.logging_util import setup_structlog
 from amarcord.web.router_analysis import router as analysis_router
 from amarcord.web.router_attributi import router as attributi_router
-from amarcord.web.router_geometry import router as geometry_router
 from amarcord.web.router_beamtimes import router as beamtimes_router
 from amarcord.web.router_chemicals import router as chemicals_router
 from amarcord.web.router_data_sets import router as data_sets_router
 from amarcord.web.router_events import router as events_router
 from amarcord.web.router_experiment_types import router as experiment_types_router
 from amarcord.web.router_files import router as files_router
+from amarcord.web.router_geometry import router as geometry_router
 from amarcord.web.router_indexing import router as indexing_router
 from amarcord.web.router_merging import router as merging_router
 from amarcord.web.router_misc import router as misc_router

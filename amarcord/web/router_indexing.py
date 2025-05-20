@@ -4,7 +4,6 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter
-from amarcord.cli.crystfel_index import sha256_bytes
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi.responses import PlainTextResponse
@@ -13,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
+from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db import orm
 from amarcord.db.attributi import utc_datetime_to_local_int
 from amarcord.db.attributi import utc_datetime_to_utc_int
@@ -22,6 +22,7 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.orm_utils import all_geometry_metadatas
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
@@ -631,10 +632,11 @@ async def read_indexing_parameters(
         if c_av.attributo.name == CELL_DESCRIPTION_ATTRIBUTO and c_av.string_value
     ]
 
+    beamtime_id = (await data_set.awaitable_attrs.experiment_type).beamtime_id
     runs_in_data_set: list[orm.Run] = await retrieve_runs_matching_data_set(
         session,
         dataSetId,
-        (await data_set.awaitable_attrs.experiment_type).beamtime_id,
+        beamtime_id,
     )
     sources: set[str] = set()
     for run in runs_in_data_set:
@@ -645,6 +647,7 @@ async def read_indexing_parameters(
         data_set_id=dataSetId,
         cell_description=cell_descriptions[0] if cell_descriptions else "",
         sources=list(sources),
+        geometries=await all_geometry_metadatas(session, beamtime_id),
     )
 
 

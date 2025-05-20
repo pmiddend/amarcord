@@ -5,6 +5,7 @@ import structlog
 from sqlalchemy.ext.asyncio import create_async_engine
 from tap import Tap
 
+from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
@@ -17,6 +18,7 @@ from amarcord.db.orm import DataSet
 from amarcord.db.orm import DataSetHasAttributoValue
 from amarcord.db.orm import ExperimentHasAttributo
 from amarcord.db.orm import ExperimentType
+from amarcord.db.orm import Geometry
 from amarcord.db.orm import Run
 from amarcord.db.orm import RunHasAttributoValue
 from amarcord.db.orm import RunHasFiles
@@ -31,6 +33,7 @@ class Arguments(Tap):
     db_connection_url: (
         str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     )
+    h5_glob: str
 
 
 async def _main(args: Arguments) -> None:
@@ -47,7 +50,7 @@ async def _main(args: Arguments) -> None:
             comment="",
             start=datetime.datetime.now(),
             end=datetime.datetime.now(),
-            analysis_output_path="/",
+            analysis_output_path="/tmp/analysis-output",
         )
         session.add(beamtime)
         await session.flush()
@@ -134,7 +137,7 @@ async def _main(args: Arguments) -> None:
                     chemical_value=chemical.id,
                 ),
             ],
-            files=[RunHasFiles(glob="/home/pmidden/*nx5", source="raw")],
+            files=[RunHasFiles(glob=args.h5_glob, source="h5")],
         )
         session.add(run_1)
         # run_2 = Run(
@@ -182,6 +185,39 @@ async def _main(args: Arguments) -> None:
             ],
         )
         session.add(data_set)
+
+        geometry_content = """
+photon_energy = 12000 eV
+clen = 0.1986
+bandwidth = 1.000000e-08
+coffset = 0.000000
+res = 13333.300000
+data = /entry/data/data
+flag_morethan = 65534
+adu_per_photon = 1.000000
+dim0 = %
+dim1 = ss
+dim2 = fs
+
+panel0/min_fs = 0
+panel0/max_fs = 4147
+panel0/min_ss = 0
+panel0/max_ss = 4361
+panel0/corner_x = 2139.097467
+panel0/corner_y = 2182.737834
+panel0/fs = -1.000000x +0.000000y +0.000000z
+panel0/ss = 0.000000x -1.000000y +0.000000z
+
+group_all = panel0
+            """
+        geometry = Geometry(
+            beamtime_id=beamtime.id,
+            content=geometry_content,
+            name="first geometry",
+            hash=sha256_bytes(geometry_content.encode("utf-8")),
+            created=datetime.datetime.now(datetime.timezone.utc),
+        )
+        session.add(geometry)
         # indexing_params_with_cell = IndexingParameters(
         #     is_online=False,
         #     cell_description="orthorhombic P ? (51.00 89.00 94.00) (90 90 90)",

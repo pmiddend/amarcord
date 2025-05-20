@@ -48,6 +48,7 @@ from amarcord.web.json_models import JsonDataSetStatistics
 from amarcord.web.json_models import JsonDataSetWithIndexingResults
 from amarcord.web.json_models import JsonDetectorShift
 from amarcord.web.json_models import JsonExperimentTypeWithBeamtimeInformation
+from amarcord.web.json_models import JsonGeometryMetadata
 from amarcord.web.json_models import JsonIndexingParametersWithResults
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonMergeStatus
@@ -361,7 +362,12 @@ async def read_single_data_set_results(
             select(orm.IndexingResult)
             .join(orm.Run, orm.Run.id == orm.IndexingResult.run_id)
             .where(orm.Run.beamtime_id == beamtimeId)
-            .options(selectinload(orm.IndexingResult.indexing_parameters))
+            .options(selectinload(orm.IndexingResult.generated_geometry))
+            .options(
+                selectinload(orm.IndexingResult.indexing_parameters).selectinload(
+                    orm.IndexingParameters.geometry
+                )
+            )
             .options(selectinload(orm.IndexingResult.run)),
         ),
         lambda ir: ir.run_id,
@@ -377,6 +383,8 @@ async def read_single_data_set_results(
     # that).
     main_indexing_parameter_id: dict[int, int] = {}
 
+    geometry_id_to_name: dict[int, str] = {}
+
     # In this dict, we store, for each main indexing parameter object,
     # all corresponding indexing results.
     ip_and_ix_results: dict[int, list[orm.IndexingResult]] = {}
@@ -387,6 +395,12 @@ async def read_single_data_set_results(
         if v.run_id in relevant_run_ids
     ):
         new_ip = ir.indexing_parameters
+
+        if new_ip.geometry is not None:
+            geometry_id_to_name[new_ip.geometry.id] = new_ip.geometry.name
+
+        if ir.generated_geometry is not None:
+            geometry_id_to_name[ir.generated_geometry.id] = ir.generated_geometry.name
 
         # We either have a new indexing parmeter object, or this one
         # is equivalent to one of the previously selected "main" ones.
@@ -499,6 +513,10 @@ async def read_single_data_set_results(
             await data_set.awaitable_attrs.experiment_type,
         ),
         data_set=_build_data_set_result(data_set),
+        geometries=[
+            JsonGeometryMetadata(id=gid, name=gname)
+            for gid, gname in geometry_id_to_name.items()
+        ],
     )
 
 

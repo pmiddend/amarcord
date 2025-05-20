@@ -1,30 +1,32 @@
-from typing import Annotated
 import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
+from fastapi import Response
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import delete, func
+from sqlalchemy import delete
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db import orm
-from amarcord.db.attributi import utc_datetime_to_local_int, utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.beamtime_id import BeamtimeId
-from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.db.orm_utils import encode_beamtime
-from amarcord.web.json_models import (
-    JsonGeometryCopyToBeamtime,
-    JsonGeometryCreate,
-    JsonGeometryWithUsages,
-    JsonGeometryWithoutContent,
-    JsonGeometryUpdate,
-    JsonReadGeometriesForAllBeamtimes,
-    JsonReadGeometriesForSingleBeamtime,
-    JsonReadSingleGeometryOutput,
-)
+from amarcord.web.fastapi_utils import get_orm_db
+from amarcord.web.json_models import JsonGeometryCopyToBeamtime
+from amarcord.web.json_models import JsonGeometryCreate
+from amarcord.web.json_models import JsonGeometryUpdate
+from amarcord.web.json_models import JsonGeometryWithoutContent
+from amarcord.web.json_models import JsonGeometryWithUsages
+from amarcord.web.json_models import JsonReadGeometriesForAllBeamtimes
+from amarcord.web.json_models import JsonReadGeometriesForSingleBeamtime
+from amarcord.web.json_models import JsonReadSingleGeometryOutput
 
 router = APIRouter()
 
@@ -35,13 +37,13 @@ async def create_geometry(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonGeometryWithoutContent:
     async with session.begin():
-        hash = sha256_bytes(input_.content.encode("utf-8"))
+        hash_ = sha256_bytes(input_.content.encode("utf-8"))
         created = datetime.datetime.now(datetime.timezone.utc)
         new_geometry = orm.Geometry(
             beamtime_id=input_.beamtime_id,
             content=input_.content,
             name=input_.name,
-            hash=hash,
+            hash=hash_,
             created=created,
         )
         existing_geometry = (
@@ -64,7 +66,7 @@ async def create_geometry(
             id=new_geometry.id,
             beamtime_id=input_.beamtime_id,
             name=input_.name,
-            hash=hash,
+            hash=hash_,
             created=utc_datetime_to_utc_int(created),
             created_local=utc_datetime_to_local_int(created),
         )
@@ -126,7 +128,7 @@ async def _count_usages(session: AsyncSession, geometry_ids: list[int]) -> int:
     # problem solved.
     parameter_count = await session.scalar(
         select(func.count(orm.IndexingParameters.id)).where(
-            (orm.IndexingParameters.geometry_id.in_(geometry_ids))
+            orm.IndexingParameters.geometry_id.in_(geometry_ids)
         )
     )
     # For some reason, scalar returns "None | int" here, but how can
@@ -144,7 +146,7 @@ async def _count_usages(session: AsyncSession, geometry_ids: list[int]) -> int:
 
 @router.patch("/api/geometries/{geometryId}", tags=["geometries"])
 async def update_geometry(
-    geometryId: int,
+    geometryId: int,  # noqa: N803
     input_: JsonGeometryUpdate,
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonGeometryWithoutContent:
@@ -180,9 +182,9 @@ async def update_geometry(
                     detail=f"geometry {geometryId} is used {usages} times and the content cannot be updated",
                 )
 
-        hash = sha256_bytes(input_.content.encode("utf-8"))
+        hash_ = sha256_bytes(input_.content.encode("utf-8"))
         existing_geometry.content = input_.content
-        existing_geometry.hash = hash
+        existing_geometry.hash = hash_
         existing_geometry.name = input_.name
         session.add(existing_geometry)
         await session.flush()
@@ -190,7 +192,7 @@ async def update_geometry(
             id=geometryId,
             beamtime_id=existing_geometry.beamtime_id,
             name=input_.name,
-            hash=hash,
+            hash=hash_,
             created=utc_datetime_to_utc_int(existing_geometry.created),
             created_local=utc_datetime_to_local_int(existing_geometry.created),
         )
@@ -223,7 +225,7 @@ async def _retrieve_single_beamtime_geometries(
         )
         .group_by(orm.Geometry.id)
     ):
-        result[row.id] = row.count
+        result[row.id] = row.count  # type: ignore
     # Important: use execute here since we're selecting individual columns
     for row in await session.execute(
         select(orm.Geometry.id, func.count().label("count"))
@@ -235,7 +237,7 @@ async def _retrieve_single_beamtime_geometries(
     ):
         if row.id not in result:
             result[row.id] = 0
-        result[row.id] += row.count
+        result[row.id] += row.count  # type: ignore
 
     return JsonReadGeometriesForSingleBeamtime(
         geometries=geometries,
@@ -252,7 +254,7 @@ async def _retrieve_single_beamtime_geometries(
     response_model_exclude_defaults=True,
 )
 async def delete_single_geometry(
-    geometryId: int,
+    geometryId: int,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadGeometriesForSingleBeamtime:
     async with session.begin():
@@ -271,7 +273,7 @@ async def delete_single_geometry(
     response_model_exclude_defaults=True,
 )
 async def read_geometries_for_single_beamtime(
-    beamtimeId: BeamtimeId,
+    beamtimeId: BeamtimeId,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadGeometriesForSingleBeamtime:
     return await _retrieve_single_beamtime_geometries(session, beamtimeId)

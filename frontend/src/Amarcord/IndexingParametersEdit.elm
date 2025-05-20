@@ -1,10 +1,10 @@
-module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineToModel, init, isEditOpen, toCommandLine, update, view)
+module Amarcord.IndexingParametersEdit exposing (Model, Msg(..), convertCommandLineToModel, extractGeometryId, init, isEditOpen, noGeometrySelected, toCommandLine, update, view)
 
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
 import Amarcord.GeometryEdit as GeometryEdit
-import Amarcord.GeometryViewer as GeometryViewer
+import Amarcord.GeometryMetadata exposing (GeometryId, GeometryMetadata)
 import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
@@ -86,6 +86,11 @@ isEditOpen { commandLineEdit } =
     Maybe.Extra.isJust commandLineEdit
 
 
+noGeometrySelected : Model -> Bool
+noGeometrySelected =
+    Maybe.Extra.isNothing << GeometryEdit.extractCurrentId << .geometry
+
+
 type alias Model =
     { openTab : TabType
     , peakDetection : PeakDetection.Model
@@ -98,7 +103,8 @@ type alias Model =
 
     -- Specials
     , source : String
-    , geometryFile : GeometryEdit.Model
+    , geometry : GeometryEdit.Model
+    , geometries : List GeometryMetadata
     , cellDescription : CellDescriptionEdit.Model
     , peakDetector : Maybe String
     , indexingMethods : Maybe (Dict String IndexingMethod)
@@ -122,6 +128,11 @@ type alias Model =
     , noCheckCell : Bool
     , profile : Bool
     }
+
+
+extractGeometryId : Model -> Maybe GeometryId
+extractGeometryId { geometry } =
+    GeometryEdit.extractCurrentId geometry
 
 
 type Msg
@@ -263,7 +274,8 @@ makeEmptyModel : Model -> Model
 makeEmptyModel m =
     init m.sources
         (CellDescriptionEdit.modelAsText m.cellDescription)
-        (GeometryEdit.extractContent m.geometryFile)
+        (GeometryEdit.extractCurrentId m.geometry)
+        m.geometries
         m.mutableCellDescription
 
 
@@ -474,8 +486,8 @@ convertCommandLineToModel model cli =
             List.foldl convertSingle (Ok (makeEmptyModel model)) options
 
 
-init : List String -> String -> String -> Bool -> Model
-init sources cellDescription geometryFile mutableCellDescription =
+init : List String -> String -> Maybe GeometryId -> List GeometryMetadata -> Bool -> Model
+init sources cellDescription geometry geometries mutableCellDescription =
     { peakDetector = Nothing
     , peakDetection = PeakDetection.init
     , sources = sources
@@ -485,7 +497,8 @@ init sources cellDescription geometryFile mutableCellDescription =
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
-    , geometryFile = GeometryEdit.init "ip-geom" geometryFile
+    , geometry = GeometryEdit.init geometry geometries
+    , geometries = geometries
     , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
     , indexingMethods = Nothing
@@ -994,7 +1007,7 @@ viewCellDescription model =
 viewGeometry : Model -> Html Msg
 viewGeometry model =
     div [ class "mb-3" ]
-        [ Html.map GeometryChange (GeometryEdit.view model.geometryFile)
+        [ Html.map GeometryChange (GeometryEdit.view model.geometry)
         , div
             [ class "form-text"
             ]
@@ -1098,7 +1111,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GeometryChange subMsg ->
-            ( { model | geometryFile = GeometryEdit.update subMsg model.geometryFile }, Cmd.none )
+            ( { model | geometry = GeometryEdit.update subMsg model.geometry }, Cmd.none )
 
         CellDescriptionChange subMsg ->
             ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )

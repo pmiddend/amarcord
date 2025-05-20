@@ -97,7 +97,9 @@ module Api.Data exposing
     , JsonFileOutput
     , JsonGeometryCopyToBeamtime
     , JsonGeometryCreate
+    , JsonGeometryMetadata
     , JsonGeometryUpdate
+    , JsonGeometryWithUsages
     , JsonGeometryWithoutContent
     , JsonImportFinishedIndexingJobInput
     , JsonImportFinishedIndexingJobOutput
@@ -147,6 +149,7 @@ module Api.Data exposing
     , JsonReadMergeResultsOutput
     , JsonReadNewAnalysisInput
     , JsonReadNewAnalysisOutput
+    , JsonReadOnlineIndexingParametersOutput
     , JsonReadRunAnalysis
     , JsonReadRuns
     , JsonReadRunsBulkInput
@@ -267,7 +270,9 @@ module Api.Data exposing
     , encodeJsonFileOutput
     , encodeJsonGeometryCopyToBeamtime
     , encodeJsonGeometryCreate
+    , encodeJsonGeometryMetadata
     , encodeJsonGeometryUpdate
+    , encodeJsonGeometryWithUsages
     , encodeJsonGeometryWithoutContent
     , encodeJsonImportFinishedIndexingJobInput
     , encodeJsonImportFinishedIndexingJobOutput
@@ -317,6 +322,7 @@ module Api.Data exposing
     , encodeJsonReadMergeResultsOutput
     , encodeJsonReadNewAnalysisInput
     , encodeJsonReadNewAnalysisOutput
+    , encodeJsonReadOnlineIndexingParametersOutput
     , encodeJsonReadRunAnalysis
     , encodeJsonReadRuns
     , encodeJsonReadRunsBulkInput
@@ -445,7 +451,9 @@ module Api.Data exposing
     , jsonFileOutputDecoder
     , jsonGeometryCopyToBeamtimeDecoder
     , jsonGeometryCreateDecoder
+    , jsonGeometryMetadataDecoder
     , jsonGeometryUpdateDecoder
+    , jsonGeometryWithUsagesDecoder
     , jsonGeometryWithoutContentDecoder
     , jsonImportFinishedIndexingJobInputDecoder
     , jsonImportFinishedIndexingJobOutputDecoder
@@ -495,6 +503,7 @@ module Api.Data exposing
     , jsonReadMergeResultsOutputDecoder
     , jsonReadNewAnalysisInputDecoder
     , jsonReadNewAnalysisOutputDecoder
+    , jsonReadOnlineIndexingParametersOutputDecoder
     , jsonReadRunAnalysisDecoder
     , jsonReadRunsDecoder
     , jsonReadRunsBulkInputDecoder
@@ -981,7 +990,7 @@ type alias JsonCreateIndexingForDataSetInput =
     { dataSetId : Int
     , isOnline : Bool
     , cellDescription : String
-    , geometryFile : String
+    , geometryId : Int
     , commandLine : String
     , source : String
     }
@@ -1131,7 +1140,7 @@ type alias JsonDetectorShift =
     , runEnd : Maybe Int
     , runEndLocal : Maybe Int
     , alignDetectorGroups : List JsonAlignDetectorGroup
-    , geometryHash : String
+    , geometryId : Maybe Int
     }
 
 
@@ -1210,9 +1219,21 @@ type alias JsonGeometryCreate =
     }
 
 
+type alias JsonGeometryMetadata =
+    { id : Int
+    , name : String
+    }
+
+
 type alias JsonGeometryUpdate =
     { content : String
     , name : String
+    }
+
+
+type alias JsonGeometryWithUsages =
+    { geometryId : Int
+    , usages : Int
     }
 
 
@@ -1238,8 +1259,7 @@ type alias JsonImportFinishedIndexingJobInput =
     , hits : Int
     , indexedFrames : Int
     , alignDetectorGroups : List AlignDetectorGroup
-    , geometryFile : String
-    , geometryHash : String
+    , geometryContents : String
     , generatedGeometryFile : Maybe String
     , jobLog : String
     }
@@ -1270,8 +1290,8 @@ type alias JsonIndexingJob =
     , streamFile : Maybe String
     , source : String
     , cellDescription : Maybe String
-    , geometryFileInput : String
-    , geometryFileOutput : String
+    , geometryId : Maybe Int
+    , generatedGeometryId : Maybe Int
     , commandLine : String
     , runInternalId : Int
     , runExternalId : Int
@@ -1290,7 +1310,7 @@ type alias JsonIndexingParameters =
     , cellDescription : Maybe String
     , isOnline : Bool
     , commandLine : String
-    , geometryFile : String
+    , geometryId : Maybe Int
     }
 
 
@@ -1320,9 +1340,7 @@ type alias JsonIndexingResult =
     , indexedCrystals : Int
     , status : DBJobStatus
     , alignDetectorGroups : List JsonAlignDetectorGroup
-    , geometryFile : String
-    , geometryHash : String
-    , generatedGeometryFile : String
+    , generatedGeometryId : Maybe Int
     , unitCellHistogramsFileId : Maybe Int
     , hasError : Bool
     }
@@ -1337,9 +1355,7 @@ type alias JsonIndexingResultFinishSuccessfully =
     , indexedFrames : Int
     , indexedCrystals : Int
     , alignDetectorGroups : List JsonAlignDetectorGroup
-    , geometryFile : String
-    , geometryHash : String
-    , generatedGeometryFile : String
+    , generatedGeometryContents : String
     , unitCellHistogramsId : Maybe Int
     , latestLog : Maybe String
     }
@@ -1359,8 +1375,6 @@ type alias JsonIndexingResultStillRunning =
     , hits : Int
     , indexedFrames : Int
     , indexedCrystals : Int
-    , geometryFile : String
-    , geometryHash : String
     , jobStarted : Maybe Int
     , latestLog : Maybe String
     }
@@ -1663,6 +1677,7 @@ type alias JsonReadGeometriesForAllBeamtimes =
 
 type alias JsonReadGeometriesForSingleBeamtime =
     { geometries : List JsonGeometryWithoutContent
+    , geometryWithUsage : List JsonGeometryWithUsages
     }
 
 
@@ -1670,6 +1685,7 @@ type alias JsonReadIndexingParametersOutput =
     { dataSetId : Int
     , cellDescription : String
     , sources : List String
+    , geometries : List JsonGeometryMetadata
     }
 
 
@@ -1698,6 +1714,12 @@ type alias JsonReadNewAnalysisOutput =
     , filteredDataSets : List JsonDataSet
     , dataSetStatistics : List JsonDataSetStatistics
     , attributiValues : List JsonAttributoValue
+    }
+
+
+type alias JsonReadOnlineIndexingParametersOutput =
+    { parameters : JsonIndexingParameters
+    , geometries : List JsonGeometryMetadata
     }
 
 
@@ -1754,6 +1776,7 @@ type alias JsonReadSingleDataSetResults =
     , chemicalIdToName : List JsonChemicalIdAndName
     , experimentType : JsonExperimentType
     , dataSet : JsonDataSetWithIndexingResults
+    , geometries : List JsonGeometryMetadata
     }
 
 
@@ -1904,7 +1927,7 @@ type alias JsonUpdateLiveStream =
 
 type alias JsonUpdateOnlineIndexingParametersInput =
     { commandLine : String
-    , geometryFile : String
+    , geometryId : Int
     , source : String
     }
 
@@ -3162,7 +3185,7 @@ encodeJsonCreateIndexingForDataSetInputPairs model =
             [ encode "data_set_id" Json.Encode.int model.dataSetId
             , encode "is_online" Json.Encode.bool model.isOnline
             , encode "cell_description" Json.Encode.string model.cellDescription
-            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_id" Json.Encode.int model.geometryId
             , encode "command_line" Json.Encode.string model.commandLine
             , encode "source" Json.Encode.string model.source
             ]
@@ -3642,7 +3665,7 @@ encodeJsonDetectorShiftPairs model =
             , maybeEncodeNullable "run_end" Json.Encode.int model.runEnd
             , maybeEncodeNullable "run_end_local" Json.Encode.int model.runEndLocal
             , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
-            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , maybeEncodeNullable "geometry_id" Json.Encode.int model.geometryId
             ]
     in
     pairs
@@ -3873,6 +3896,27 @@ encodeJsonGeometryCreatePairs model =
     pairs
 
 
+encodeJsonGeometryMetadata : JsonGeometryMetadata -> Json.Encode.Value
+encodeJsonGeometryMetadata =
+    encodeObject << encodeJsonGeometryMetadataPairs
+
+
+encodeJsonGeometryMetadataWithTag : ( String, String ) -> JsonGeometryMetadata -> Json.Encode.Value
+encodeJsonGeometryMetadataWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryMetadataPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryMetadataPairs : JsonGeometryMetadata -> List EncodedField
+encodeJsonGeometryMetadataPairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , encode "name" Json.Encode.string model.name
+            ]
+    in
+    pairs
+
+
 encodeJsonGeometryUpdate : JsonGeometryUpdate -> Json.Encode.Value
 encodeJsonGeometryUpdate =
     encodeObject << encodeJsonGeometryUpdatePairs
@@ -3889,6 +3933,27 @@ encodeJsonGeometryUpdatePairs model =
         pairs =
             [ encode "content" Json.Encode.string model.content
             , encode "name" Json.Encode.string model.name
+            ]
+    in
+    pairs
+
+
+encodeJsonGeometryWithUsages : JsonGeometryWithUsages -> Json.Encode.Value
+encodeJsonGeometryWithUsages =
+    encodeObject << encodeJsonGeometryWithUsagesPairs
+
+
+encodeJsonGeometryWithUsagesWithTag : ( String, String ) -> JsonGeometryWithUsages -> Json.Encode.Value
+encodeJsonGeometryWithUsagesWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryWithUsagesPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryWithUsagesPairs : JsonGeometryWithUsages -> List EncodedField
+encodeJsonGeometryWithUsagesPairs model =
+    let
+        pairs =
+            [ encode "geometry_id" Json.Encode.int model.geometryId
+            , encode "usages" Json.Encode.int model.usages
             ]
     in
     pairs
@@ -3944,8 +4009,7 @@ encodeJsonImportFinishedIndexingJobInputPairs model =
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "align_detector_groups" (Json.Encode.list encodeAlignDetectorGroup) model.alignDetectorGroups
-            , encode "geometry_file" Json.Encode.string model.geometryFile
-            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , encode "geometry_contents" Json.Encode.string model.geometryContents
             , maybeEncodeNullable "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
             , encode "job_log" Json.Encode.string model.jobLog
             ]
@@ -4021,8 +4085,8 @@ encodeJsonIndexingJobPairs model =
             , maybeEncodeNullable "stream_file" Json.Encode.string model.streamFile
             , encode "source" Json.Encode.string model.source
             , maybeEncodeNullable "cell_description" Json.Encode.string model.cellDescription
-            , encode "geometry_file_input" Json.Encode.string model.geometryFileInput
-            , encode "geometry_file_output" Json.Encode.string model.geometryFileOutput
+            , maybeEncodeNullable "geometry_id" Json.Encode.int model.geometryId
+            , maybeEncodeNullable "generated_geometry_id" Json.Encode.int model.generatedGeometryId
             , encode "command_line" Json.Encode.string model.commandLine
             , encode "run_internal_id" Json.Encode.int model.runInternalId
             , encode "run_external_id" Json.Encode.int model.runExternalId
@@ -4071,7 +4135,7 @@ encodeJsonIndexingParametersPairs model =
             , maybeEncodeNullable "cell_description" Json.Encode.string model.cellDescription
             , encode "is_online" Json.Encode.bool model.isOnline
             , encode "command_line" Json.Encode.string model.commandLine
-            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encodeNullable "geometry_id" Json.Encode.int model.geometryId
             ]
     in
     pairs
@@ -4131,9 +4195,7 @@ encodeJsonIndexingResultPairs model =
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
             , encode "status" encodeDBJobStatus model.status
             , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
-            , encode "geometry_file" Json.Encode.string model.geometryFile
-            , encode "geometry_hash" Json.Encode.string model.geometryHash
-            , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
+            , encodeNullable "generated_geometry_id" Json.Encode.int model.generatedGeometryId
             , maybeEncodeNullable "unit_cell_histograms_file_id" Json.Encode.int model.unitCellHistogramsFileId
             , encode "has_error" Json.Encode.bool model.hasError
             ]
@@ -4163,9 +4225,7 @@ encodeJsonIndexingResultFinishSuccessfullyPairs model =
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
             , encode "align_detector_groups" (Json.Encode.list encodeJsonAlignDetectorGroup) model.alignDetectorGroups
-            , encode "geometry_file" Json.Encode.string model.geometryFile
-            , encode "geometry_hash" Json.Encode.string model.geometryHash
-            , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
+            , encode "generated_geometry_contents" Json.Encode.string model.generatedGeometryContents
             , maybeEncodeNullable "unit_cell_histograms_id" Json.Encode.int model.unitCellHistogramsId
             , maybeEncodeNullable "latest_log" Json.Encode.string model.latestLog
             ]
@@ -4215,8 +4275,6 @@ encodeJsonIndexingResultStillRunningPairs model =
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
-            , encode "geometry_file" Json.Encode.string model.geometryFile
-            , encode "geometry_hash" Json.Encode.string model.geometryHash
             , maybeEncodeNullable "job_started" Json.Encode.int model.jobStarted
             , maybeEncodeNullable "latest_log" Json.Encode.string model.latestLog
             ]
@@ -4988,6 +5046,7 @@ encodeJsonReadGeometriesForSingleBeamtimePairs model =
     let
         pairs =
             [ encode "geometries" (Json.Encode.list encodeJsonGeometryWithoutContent) model.geometries
+            , encode "geometry_with_usage" (Json.Encode.list encodeJsonGeometryWithUsages) model.geometryWithUsage
             ]
     in
     pairs
@@ -5010,6 +5069,7 @@ encodeJsonReadIndexingParametersOutputPairs model =
             [ encode "data_set_id" Json.Encode.int model.dataSetId
             , encode "cell_description" Json.Encode.string model.cellDescription
             , encode "sources" (Json.Encode.list Json.Encode.string) model.sources
+            , encode "geometries" (Json.Encode.list encodeJsonGeometryMetadata) model.geometries
             ]
     in
     pairs
@@ -5098,6 +5158,27 @@ encodeJsonReadNewAnalysisOutputPairs model =
             , encode "filtered_data_sets" (Json.Encode.list encodeJsonDataSet) model.filteredDataSets
             , encode "data_set_statistics" (Json.Encode.list encodeJsonDataSetStatistics) model.dataSetStatistics
             , encode "attributi_values" (Json.Encode.list encodeJsonAttributoValue) model.attributiValues
+            ]
+    in
+    pairs
+
+
+encodeJsonReadOnlineIndexingParametersOutput : JsonReadOnlineIndexingParametersOutput -> Json.Encode.Value
+encodeJsonReadOnlineIndexingParametersOutput =
+    encodeObject << encodeJsonReadOnlineIndexingParametersOutputPairs
+
+
+encodeJsonReadOnlineIndexingParametersOutputWithTag : ( String, String ) -> JsonReadOnlineIndexingParametersOutput -> Json.Encode.Value
+encodeJsonReadOnlineIndexingParametersOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadOnlineIndexingParametersOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadOnlineIndexingParametersOutputPairs : JsonReadOnlineIndexingParametersOutput -> List EncodedField
+encodeJsonReadOnlineIndexingParametersOutputPairs model =
+    let
+        pairs =
+            [ encode "parameters" encodeJsonIndexingParameters model.parameters
+            , encode "geometries" (Json.Encode.list encodeJsonGeometryMetadata) model.geometries
             ]
     in
     pairs
@@ -5244,6 +5325,7 @@ encodeJsonReadSingleDataSetResultsPairs model =
             , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
             , encode "experiment_type" encodeJsonExperimentType model.experimentType
             , encode "data_set" encodeJsonDataSetWithIndexingResults model.dataSet
+            , encode "geometries" (Json.Encode.list encodeJsonGeometryMetadata) model.geometries
             ]
     in
     pairs
@@ -5694,7 +5776,7 @@ encodeJsonUpdateOnlineIndexingParametersInputPairs model =
     let
         pairs =
             [ encode "command_line" Json.Encode.string model.commandLine
-            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_id" Json.Encode.int model.geometryId
             , encode "source" Json.Encode.string model.source
             ]
     in
@@ -6464,7 +6546,7 @@ jsonCreateIndexingForDataSetInputDecoder =
         |> decode "data_set_id" Json.Decode.int 
         |> decode "is_online" Json.Decode.bool 
         |> decode "cell_description" Json.Decode.string 
-        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_id" Json.Decode.int 
         |> decode "command_line" Json.Decode.string 
         |> decode "source" Json.Decode.string 
 
@@ -6636,7 +6718,7 @@ jsonDetectorShiftDecoder =
         |> maybeDecodeNullable "run_end" Json.Decode.int Nothing
         |> maybeDecodeNullable "run_end_local" Json.Decode.int Nothing
         |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
-        |> decode "geometry_hash" Json.Decode.string 
+        |> maybeDecodeNullable "geometry_id" Json.Decode.int Nothing
 
 
 jsonEventDecoder : Json.Decode.Decoder JsonEvent
@@ -6724,11 +6806,25 @@ jsonGeometryCreateDecoder =
         |> decode "name" Json.Decode.string 
 
 
+jsonGeometryMetadataDecoder : Json.Decode.Decoder JsonGeometryMetadata
+jsonGeometryMetadataDecoder =
+    Json.Decode.succeed JsonGeometryMetadata
+        |> decode "id" Json.Decode.int 
+        |> decode "name" Json.Decode.string 
+
+
 jsonGeometryUpdateDecoder : Json.Decode.Decoder JsonGeometryUpdate
 jsonGeometryUpdateDecoder =
     Json.Decode.succeed JsonGeometryUpdate
         |> decode "content" Json.Decode.string 
         |> decode "name" Json.Decode.string 
+
+
+jsonGeometryWithUsagesDecoder : Json.Decode.Decoder JsonGeometryWithUsages
+jsonGeometryWithUsagesDecoder =
+    Json.Decode.succeed JsonGeometryWithUsages
+        |> decode "geometry_id" Json.Decode.int 
+        |> decode "usages" Json.Decode.int 
 
 
 jsonGeometryWithoutContentDecoder : Json.Decode.Decoder JsonGeometryWithoutContent
@@ -6756,8 +6852,7 @@ jsonImportFinishedIndexingJobInputDecoder =
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "align_detector_groups" (Json.Decode.list alignDetectorGroupDecoder) 
-        |> decode "geometry_file" Json.Decode.string 
-        |> decode "geometry_hash" Json.Decode.string 
+        |> decode "geometry_contents" Json.Decode.string 
         |> maybeDecodeNullable "generated_geometry_file" Json.Decode.string Nothing
         |> decode "job_log" Json.Decode.string 
 
@@ -6791,8 +6886,8 @@ jsonIndexingJobDecoder =
         |> maybeDecodeNullable "stream_file" Json.Decode.string Nothing
         |> decode "source" Json.Decode.string 
         |> maybeDecodeNullable "cell_description" Json.Decode.string Nothing
-        |> decode "geometry_file_input" Json.Decode.string 
-        |> decode "geometry_file_output" Json.Decode.string 
+        |> maybeDecodeNullable "geometry_id" Json.Decode.int Nothing
+        |> maybeDecodeNullable "generated_geometry_id" Json.Decode.int Nothing
         |> decode "command_line" Json.Decode.string 
         |> decode "run_internal_id" Json.Decode.int 
         |> decode "run_external_id" Json.Decode.int 
@@ -6813,7 +6908,7 @@ jsonIndexingParametersDecoder =
         |> maybeDecodeNullable "cell_description" Json.Decode.string Nothing
         |> decode "is_online" Json.Decode.bool 
         |> decode "command_line" Json.Decode.string 
-        |> decode "geometry_file" Json.Decode.string 
+        |> decodeNullable "geometry_id" Json.Decode.int 
 
 
 jsonIndexingParametersWithResultsDecoder : Json.Decode.Decoder JsonIndexingParametersWithResults
@@ -6845,9 +6940,7 @@ jsonIndexingResultDecoder =
         |> decode "indexed_crystals" Json.Decode.int 
         |> decode "status" dBJobStatusDecoder 
         |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
-        |> decode "geometry_file" Json.Decode.string 
-        |> decode "geometry_hash" Json.Decode.string 
-        |> decode "generated_geometry_file" Json.Decode.string 
+        |> decodeNullable "generated_geometry_id" Json.Decode.int 
         |> maybeDecodeNullable "unit_cell_histograms_file_id" Json.Decode.int Nothing
         |> decode "has_error" Json.Decode.bool 
 
@@ -6863,9 +6956,7 @@ jsonIndexingResultFinishSuccessfullyDecoder =
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
         |> decode "align_detector_groups" (Json.Decode.list jsonAlignDetectorGroupDecoder) 
-        |> decode "geometry_file" Json.Decode.string 
-        |> decode "geometry_hash" Json.Decode.string 
-        |> decode "generated_geometry_file" Json.Decode.string 
+        |> decode "generated_geometry_contents" Json.Decode.string 
         |> maybeDecodeNullable "unit_cell_histograms_id" Json.Decode.int Nothing
         |> maybeDecodeNullable "latest_log" Json.Decode.string Nothing
 
@@ -6887,8 +6978,6 @@ jsonIndexingResultStillRunningDecoder =
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
-        |> decode "geometry_file" Json.Decode.string 
-        |> decode "geometry_hash" Json.Decode.string 
         |> maybeDecodeNullable "job_started" Json.Decode.int Nothing
         |> maybeDecodeNullable "latest_log" Json.Decode.string Nothing
 
@@ -7228,6 +7317,7 @@ jsonReadGeometriesForSingleBeamtimeDecoder : Json.Decode.Decoder JsonReadGeometr
 jsonReadGeometriesForSingleBeamtimeDecoder =
     Json.Decode.succeed JsonReadGeometriesForSingleBeamtime
         |> decode "geometries" (Json.Decode.list jsonGeometryWithoutContentDecoder) 
+        |> decode "geometry_with_usage" (Json.Decode.list jsonGeometryWithUsagesDecoder) 
 
 
 jsonReadIndexingParametersOutputDecoder : Json.Decode.Decoder JsonReadIndexingParametersOutput
@@ -7236,6 +7326,7 @@ jsonReadIndexingParametersOutputDecoder =
         |> decode "data_set_id" Json.Decode.int 
         |> decode "cell_description" Json.Decode.string 
         |> decode "sources" (Json.Decode.list Json.Decode.string) 
+        |> decode "geometries" (Json.Decode.list jsonGeometryMetadataDecoder) 
 
 
 jsonReadIndexingResultsOutputDecoder : Json.Decode.Decoder JsonReadIndexingResultsOutput
@@ -7268,6 +7359,13 @@ jsonReadNewAnalysisOutputDecoder =
         |> decode "filtered_data_sets" (Json.Decode.list jsonDataSetDecoder) 
         |> decode "data_set_statistics" (Json.Decode.list jsonDataSetStatisticsDecoder) 
         |> decode "attributi_values" (Json.Decode.list jsonAttributoValueDecoder) 
+
+
+jsonReadOnlineIndexingParametersOutputDecoder : Json.Decode.Decoder JsonReadOnlineIndexingParametersOutput
+jsonReadOnlineIndexingParametersOutputDecoder =
+    Json.Decode.succeed JsonReadOnlineIndexingParametersOutput
+        |> decode "parameters" jsonIndexingParametersDecoder 
+        |> decode "geometries" (Json.Decode.list jsonGeometryMetadataDecoder) 
 
 
 jsonReadRunAnalysisDecoder : Json.Decode.Decoder JsonReadRunAnalysis
@@ -7330,6 +7428,7 @@ jsonReadSingleDataSetResultsDecoder =
         |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
         |> decode "experiment_type" jsonExperimentTypeDecoder 
         |> decode "data_set" jsonDataSetWithIndexingResultsDecoder 
+        |> decode "geometries" (Json.Decode.list jsonGeometryMetadataDecoder) 
 
 
 jsonReadSingleGeometryOutputDecoder : Json.Decode.Decoder JsonReadSingleGeometryOutput
@@ -7500,7 +7599,7 @@ jsonUpdateOnlineIndexingParametersInputDecoder : Json.Decode.Decoder JsonUpdateO
 jsonUpdateOnlineIndexingParametersInputDecoder =
     Json.Decode.succeed JsonUpdateOnlineIndexingParametersInput
         |> decode "command_line" Json.Decode.string 
-        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_id" Json.Decode.int 
         |> decode "source" Json.Decode.string 
 
 

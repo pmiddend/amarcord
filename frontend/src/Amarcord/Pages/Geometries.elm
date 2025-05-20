@@ -1,28 +1,24 @@
 module Amarcord.Pages.Geometries exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.Attributo exposing (AttributoType(..))
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..))
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (form_, h2_, h4_, input_, onIntInput, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
+import Amarcord.Html exposing (div_, form_, h2_, h4_, input_, onIntInput, small_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (monthToNumericString, scrollToTop)
-import Api.Data exposing (ChemicalType(..), JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
+import Api.Data exposing (JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
 import Api.Request.Geometries exposing (copyToBeamtimeApiGeometryCopyToBeamtimePost, createGeometryApiGeometriesPost, deleteSingleGeometryApiGeometriesGeometryIdDelete, readGeometriesForAllBeamtimesApiAllGeometriesGet, readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet, readSingleGeometryApiGeometriesGeometryIdGet, updateGeometryApiGeometriesGeometryIdPatch)
 import Html exposing (..)
-import Html.Attributes exposing (class, disabled, for, id, selected, title, type_, value)
+import Html.Attributes exposing (class, disabled, for, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
+import Set
 import String
 import Time exposing (millisToPosix, toMonth, toYear, utc)
-
-
-type alias GeometryId =
-    Int
 
 
 type alias CopyPriorData =
@@ -99,8 +95,8 @@ getGeometries beamtimeId =
     send GeometriesReceived (readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet beamtimeId)
 
 
-viewEditForm : List JsonGeometryWithoutContent -> EditableGeometry -> Html Msg
-viewEditForm geometries editingGeometry =
+viewEditForm : List JsonGeometryWithoutContent -> Set.Set Int -> EditableGeometry -> Html Msg
+viewEditForm geometries usages editingGeometry =
     let
         otherGeometriesNames =
             List.map .name <|
@@ -109,7 +105,7 @@ viewEditForm geometries editingGeometry =
                         geometries
 
                     Just editingId ->
-                        List.filter (\s -> not <| .id s == editingId) geometries
+                        List.filter (\s -> not <| GeometryId s.id == editingId) geometries
 
         isDuplicateName =
             otherGeometriesNames
@@ -137,6 +133,9 @@ viewEditForm geometries editingGeometry =
                         "Edit geometry"
                     )
                 ]
+
+        isUsed =
+            editingGeometry.id |> Maybe.map (\gid -> Set.member (geometryIdToInt gid) usages) |> Maybe.withDefault False
     in
     form_ <|
         [ addOrEditHeadline
@@ -164,13 +163,20 @@ viewEditForm geometries editingGeometry =
             ]
         , div [ class "mb-3" ]
             [ label [ for "content", class "form-label" ] [ text "Content" ]
-            , textarea
-                [ id "content"
-                , class "form-control"
-                , value editingGeometry.content
-                , onInput EditGeometryContent
-                ]
-                [ text editingGeometry.content ]
+            , if isUsed then
+                div_
+                    [ div [ class "form-text" ] [ small_ [ text "Geometry is in use; cannot change content anymore." ] ]
+                    , pre [ class "text-bg-light shadow-sm" ] [ text editingGeometry.content ]
+                    ]
+
+              else
+                textarea
+                    [ id "content"
+                    , class "form-control"
+                    , value editingGeometry.content
+                    , onInput EditGeometryContent
+                    ]
+                    [ text editingGeometry.content ]
             ]
         , button
             [ class "btn btn-primary me-3 mb-3"
@@ -196,8 +202,12 @@ viewEditForm geometries editingGeometry =
         ]
 
 
-viewGeometryRow : JsonGeometryWithoutContent -> List (Html Msg)
-viewGeometryRow geometry =
+viewGeometryRow : Set.Set Int -> JsonGeometryWithoutContent -> List (Html Msg)
+viewGeometryRow usages geometry =
+    let
+        isUsed =
+            Set.member geometry.id usages
+    in
     [ tr_
         [ td_
             [ div [ class "hstack gap-1" ]
@@ -211,7 +221,8 @@ viewGeometryRow geometry =
                     ]
                 , button
                     [ class "btn btn-sm btn-outline-danger text-nowrap"
-                    , onClick (AskDelete geometry.name geometry.id)
+                    , onClick (AskDelete geometry.name (GeometryId geometry.id))
+                    , disabled isUsed
                     ]
                     [ icon { name = "trash" }, text " Delete" ]
                 ]
@@ -222,8 +233,8 @@ viewGeometryRow geometry =
     ]
 
 
-viewGeometryTable : List JsonGeometryWithoutContent -> Html Msg
-viewGeometryTable geometries =
+viewGeometryTable : List JsonGeometryWithoutContent -> Set.Set Int -> Html Msg
+viewGeometryTable geometries usages =
     if isEmpty geometries then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No geometries entered yet." ] ]
 
@@ -232,7 +243,7 @@ viewGeometryTable geometries =
             [ h2_ [ text "Available geometries" ]
             , table [ class "table table-striped" ]
                 [ thead_ [ tr_ [ th_ [], th_ [ text "ID" ], th_ [ text "Name" ] ] ]
-                , tbody_ (List.concatMap viewGeometryRow geometries)
+                , tbody_ (List.concatMap (viewGeometryRow usages) geometries)
                 ]
             ]
 
@@ -261,7 +272,7 @@ viewPriorGeometries { priorGeometries, selectedId, submitRequest } =
             in
             option
                 [ value (String.fromInt id)
-                , selected (selectedId == Just id)
+                , selected (selectedId == Just (GeometryId id))
                 ]
                 [ text title ]
     in
@@ -270,7 +281,7 @@ viewPriorGeometries { priorGeometries, selectedId, submitRequest } =
         , select
             [ id "geometry-to-copy"
             , class "form-select mb-3"
-            , onIntInput CopyFromPreviousBeamtimeIdChanged
+            , onIntInput (CopyFromPreviousBeamtimeIdChanged << GeometryId)
             ]
             (option
                 [ disabled True
@@ -312,8 +323,20 @@ viewInner model =
         Failure e ->
             singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve geometries" ], showError e ]
 
-        Success { geometries } ->
+        Success { geometries, geometryWithUsage } ->
             let
+                usagesSet =
+                    List.foldr
+                        (\{ geometryId, usages } ->
+                            if usages > 0 then
+                                Set.insert geometryId
+
+                            else
+                                identity
+                        )
+                        Set.empty
+                        geometryWithUsage
+
                 prefix =
                     case model.priorGeometries of
                         Success priorGeometriesAndBeamtimes ->
@@ -322,7 +345,7 @@ viewInner model =
                         _ ->
                             case model.editGeometry of
                                 Success editGeometry ->
-                                    viewEditForm geometries editGeometry
+                                    viewEditForm geometries usagesSet editGeometry
 
                                 Loading ->
                                     loadingBar "Loading geometry..."
@@ -369,7 +392,7 @@ viewInner model =
             [ prefix
             , modifyRequestResult
             , deleteRequestResult
-            , viewGeometryTable geometries
+            , viewGeometryTable geometries usagesSet
             ]
 
 
@@ -443,7 +466,7 @@ update msg model =
                             ( { model | priorGeometries = Success { priorChemsSuccess | submitRequest = Loading } }
                             , send CopyFromPreviousBeamtimeFinished
                                 (copyToBeamtimeApiGeometryCopyToBeamtimePost
-                                    { geometryId = selectedId
+                                    { geometryId = geometryIdToInt selectedId
                                     , targetBeamtimeId = model.beamtimeId
                                     }
                                 )
@@ -476,7 +499,7 @@ update msg model =
         -- The user pressed "yes, really delete!" in the modal
         ConfirmDelete geometryId ->
             ( { model | geometryDeleteRequest = Loading, deleteModalOpen = Nothing }
-            , send GeometryDeleteFinished (deleteSingleGeometryApiGeometriesGeometryIdDelete geometryId)
+            , send GeometryDeleteFinished (deleteSingleGeometryApiGeometriesGeometryIdDelete (geometryIdToInt geometryId))
             )
 
         -- The user closed the "Really delete?" modal
@@ -535,7 +558,7 @@ update msg model =
                         Just priorId ->
                             ( { model | modifyRequest = Loading }
                             , send (EditGeometryFinished << Result.map (always {}))
-                                (updateGeometryApiGeometriesGeometryIdPatch priorId
+                                (updateGeometryApiGeometriesGeometryIdPatch (geometryIdToInt priorId)
                                     { content = editGeometry.content
                                     , name = editGeometry.name
                                     }
@@ -588,7 +611,7 @@ update msg model =
                     ( { model
                         | editGeometry =
                             Success
-                                { id = Just geometry.id
+                                { id = Just (GeometryId geometry.id)
                                 , name = geometry.name
                                 , content = content
                                 }

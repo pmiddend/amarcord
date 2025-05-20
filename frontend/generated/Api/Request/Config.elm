@@ -27,7 +27,7 @@ import Http
 import Json.Decode
 import Json.Encode
 
-readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet : Int -> Api.Request Api.Data.JsonIndexingParameters
+readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet : Int -> Api.Request Api.Data.JsonReadOnlineIndexingParametersOutput
 readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId_path =
     Api.request
         "GET"
@@ -36,7 +36,7 @@ readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtim
         []
         []
         Nothing
-        Api.Data.jsonIndexingParametersDecoder
+        Api.Data.jsonReadOnlineIndexingParametersOutputDecoder
 
 
 readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet : Int -> String -> Api.Request Api.Data.JsonUserConfigurationSingleOutput

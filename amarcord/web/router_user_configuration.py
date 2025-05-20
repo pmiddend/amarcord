@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from amarcord.db import orm
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.orm_utils import all_geometry_metadatas
 from amarcord.db.orm_utils import create_new_user_configuration
 from amarcord.db.orm_utils import default_online_indexing_parameters
 from amarcord.db.orm_utils import retrieve_latest_config
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import orm_indexing_parameters_to_json
-from amarcord.web.json_models import JsonIndexingParameters
+from amarcord.web.json_models import JsonReadOnlineIndexingParametersOutput
 from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersInput
 from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersOutput
 from amarcord.web.json_models import JsonUserConfig
@@ -48,7 +49,7 @@ def encode_user_configuration(c: orm.UserConfiguration) -> JsonUserConfig:
 async def read_indexing_parameters(
     beamtimeId: BeamtimeId,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
-) -> JsonIndexingParameters:
+) -> JsonReadOnlineIndexingParametersOutput:
     async with session.begin():
         user_configuration = await retrieve_latest_config(session, beamtimeId)
         if (
@@ -58,7 +59,10 @@ async def read_indexing_parameters(
             parameters = default_online_indexing_parameters()
         else:
             parameters = await user_configuration.awaitable_attrs.current_online_indexing_parameters
-        return orm_indexing_parameters_to_json(parameters)
+        return JsonReadOnlineIndexingParametersOutput(
+            parameters=orm_indexing_parameters_to_json(parameters),
+            geometries=await all_geometry_metadatas(session, beamtimeId),
+        )
 
 
 @router.get(

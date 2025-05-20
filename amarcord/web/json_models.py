@@ -472,10 +472,16 @@ class JsonImportFinishedIndexingJobOutput(BaseModel):
     indexing_result_id: int
 
 
+class JsonGeometryMetadata(BaseModel):
+    id: int
+    name: str
+
+
 class JsonReadIndexingParametersOutput(BaseModel):
     data_set_id: int
     cell_description: str
     sources: list[str]
+    geometries: list[JsonGeometryMetadata]
 
 
 class JsonCreateIndexingForDataSetOutput(BaseModel):
@@ -1039,6 +1045,12 @@ class JsonReadSingleDataSetResults(BaseModel):
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
     data_set: JsonDataSetWithIndexingResults
+    geometries: list[JsonGeometryMetadata]
+
+
+class JsonReadOnlineIndexingParametersOutput(BaseModel):
+    parameters: JsonIndexingParameters
+    geometries: list[JsonGeometryMetadata]
 
 
 class JsonMergeStatus(str, Enum):

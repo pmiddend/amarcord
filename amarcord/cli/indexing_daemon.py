@@ -163,7 +163,7 @@ async def start_offline_indexing_job(
             ),
         }
         if indexing_result.geometry_id is None:
-            raise JobStartError(f"job has no geometry ID")
+            raise JobStartError("job has no geometry ID")
 
         try:
             async with session.get(

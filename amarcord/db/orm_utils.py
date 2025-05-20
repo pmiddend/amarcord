@@ -35,6 +35,7 @@ from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonBeamtimeOutput
+from amarcord.web.json_models import JsonGeometryMetadata
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
 
@@ -686,3 +687,17 @@ def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
         if not av.is_value_equal(bv):
             return False
     return True
+
+
+async def all_geometry_metadatas(
+    session: AsyncSession, beamtime_id: BeamtimeId
+) -> list[JsonGeometryMetadata]:
+    return [
+        JsonGeometryMetadata(
+            id=geom.id,
+            name=geom.name,
+        )
+        for geom in await session.scalars(
+            select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
+        )
+    ]

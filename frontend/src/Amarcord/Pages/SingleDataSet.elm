@@ -11,11 +11,11 @@ import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseComman
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.GeometryEdit as GeometryEdit
-import Amarcord.GeometryViewer as GeometryViewer exposing (extractMode)
+import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), GeometryMetadata, geometryIdToInt)
+import Amarcord.GeometryViewer as GeometryViewer
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
-import Amarcord.IndexingParameters as IndexingParameters
+import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
 import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributoOutput, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
@@ -49,7 +49,7 @@ subscriptions _ =
 
 type alias ProcessingParametersInput =
     { dataSetId : DataSetId
-    , indexingParamFormModel : IndexingParameters.Model
+    , indexingParamFormModel : IndexingParametersEdit.Model
     }
 
 
@@ -58,7 +58,6 @@ type GeometryViewerPath
     | ResultPath
         { parametersId : IndexingParametersId
         , resultIndex : IndexingResultId
-        , generated : Bool
         }
 
 
@@ -66,10 +65,10 @@ type Msg
     = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
     | CopyToClipboard String
     | OpenMergeForm DataSetId IndexingParametersId String String String
-    | OpenProcessingFormWithExisting IndexingParameters DataSetId
+    | OpenProcessingFormWithExisting IndexingParametersData DataSetId
     | ToggleIndexingParameterExpansion IndexingParametersId
-    | IndexingParametersMsg IndexingParameters.Msg
-    | ProcessingParametersWithExistingReceived IndexingParameters DataSetId (Result HttpError JsonReadIndexingParametersOutput)
+    | IndexingParametersMsg IndexingParametersEdit.Msg
+    | ProcessingParametersWithExistingReceived IndexingParametersData DataSetId (Result HttpError JsonReadIndexingParametersOutput)
     | ProcessingParametersReceived (Result HttpError JsonReadIndexingParametersOutput)
     | SubmitQuickMerge DataSetId IndexingParametersId
     | ProcessingSubmitted (Result HttpError JsonCreateIndexingForDataSetOutput)
@@ -116,15 +115,16 @@ type alias SingleDataSetResults =
     , chemicalIdToName : List JsonChemicalIdAndName
     , experimentType : JsonExperimentType
     , dataSet : DataSetWithIndexingResults
+    , geometries : List GeometryMetadata
     }
 
 
-type alias IndexingParameters =
+type alias IndexingParametersData =
     { id : IndexingParametersId
     , cellDescription : Maybe String
     , isOnline : Bool
     , commandLine : String
-    , geometryFile : GeometryViewer.Model
+    , geometry : GeometryViewer.Model
     }
 
 
@@ -147,16 +147,14 @@ type alias IndexingResult =
     , indexedCrystals : Int
     , status : DBJobStatus
     , alignDetectorGroups : List JsonAlignDetectorGroup
-    , geometryFile : GeometryViewer.Model
-    , geometryHash : String
-    , generatedGeometryFile : GeometryViewer.Model
+    , generatedGeometry : GeometryViewer.Model
     , unitCellHistogramsFileId : Maybe Int
     , hasError : Bool
     }
 
 
 type alias IndexingParametersWithResults =
-    { parameters : IndexingParameters
+    { parameters : IndexingParametersData
     , indexingResults : List IndexingResult
     , mergeResults : List JsonMergeResult
     }
@@ -174,24 +172,29 @@ type alias DataSetWithIndexingResults =
 
 
 convertAnalysisResultsWithPrevious : JsonReadSingleDataSetResults -> SingleDataSetResults -> SingleDataSetResults
-convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType, dataSet } prior =
+convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType, dataSet, geometries } prior =
     let
-        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParameters -> Maybe IndexingParameters
+        geometryIdToMetadata : Dict Int GeometryMetadata
+        geometryIdToMetadata =
+            List.foldr (\geom -> Dict.insert geom.id (GeometryMetadata.fromJson geom)) Dict.empty geometries
+
+        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData -> Maybe IndexingParametersData
         convertIndexingParameters ip priorParameters =
+            -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
             ip.id
                 |> Maybe.map
-                    (\id ->
-                        { id = IndexingParametersId id
+                    (\ipId ->
+                        { id = IndexingParametersId ipId
                         , cellDescription = ip.cellDescription
                         , isOnline = ip.isOnline
                         , commandLine = ip.commandLine
-                        , geometryFile =
-                            GeometryViewer.init (Maybe.map (extractMode << .geometryFile) priorParameters) ("ip" ++ String.fromInt (Maybe.withDefault 0 ip.id)) ip.geometryFile
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init
                         }
                     )
 
         convertIndexingResult : JsonIndexingResult -> Maybe IndexingResult -> IndexingResult
         convertIndexingResult ir priorResult =
+            -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
             { id = IndexingResultId ir.id
             , created = ir.created
             , createdLocal = ir.createdLocal
@@ -210,9 +213,7 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
             , indexedCrystals = ir.indexedCrystals
             , status = ir.status
             , alignDetectorGroups = ir.alignDetectorGroups
-            , geometryFile = GeometryViewer.init (Maybe.map (extractMode << .geometryFile) priorResult) ("ir" ++ String.fromInt ir.id) ir.geometryFile
-            , geometryHash = ir.geometryHash
-            , generatedGeometryFile = GeometryViewer.init (Maybe.map (extractMode << .generatedGeometryFile) priorResult) ("irg" ++ String.fromInt ir.id) ir.generatedGeometryFile
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init
             , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
             , hasError = ir.hasError
             }
@@ -262,13 +263,18 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
     , chemicalIdToName = chemicalIdToName
     , experimentType = experimentType
     , dataSet = convertDataSet dataSet
+    , geometries = List.map GeometryMetadata.fromJson geometries
     }
 
 
 convertAnalysisResults : JsonReadSingleDataSetResults -> SingleDataSetResults
-convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet } =
+convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, geometries } =
     let
-        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParameters
+        geometryIdToMetadata : Dict Int GeometryMetadata
+        geometryIdToMetadata =
+            List.foldr (\geom -> Dict.insert geom.id { id = GeometryId geom.id, name = geom.name }) Dict.empty geometries
+
+        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData
         convertIndexingParameters ip =
             ip.id
                 |> Maybe.map
@@ -277,7 +283,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet } 
                         , cellDescription = ip.cellDescription
                         , isOnline = ip.isOnline
                         , commandLine = ip.commandLine
-                        , geometryFile = GeometryViewer.init Nothing ("ip" ++ String.fromInt (Maybe.withDefault 0 ip.id)) ip.geometryFile
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init
                         }
                     )
 
@@ -301,9 +307,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet } 
             , indexedCrystals = ir.indexedCrystals
             , status = ir.status
             , alignDetectorGroups = ir.alignDetectorGroups
-            , geometryFile = GeometryViewer.init Nothing ("ir" ++ String.fromInt ir.id) ir.geometryFile
-            , geometryHash = ir.geometryHash
-            , generatedGeometryFile = GeometryViewer.init Nothing ("irg" ++ String.fromInt ir.id) ir.generatedGeometryFile
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init
             , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
             , hasError = ir.hasError
             }
@@ -334,6 +338,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet } 
     , chemicalIdToName = chemicalIdToName
     , experimentType = experimentType
     , dataSet = convertDataSet dataSet
+    , geometries = List.map (\{ id, name } -> { id = GeometryId id, name = name }) geometries
     }
 
 
@@ -676,7 +681,7 @@ viewRate part total =
         ]
 
 
-viewIndexingResults : Posix -> Bool -> IndexingParameters -> List IndexingResult -> Html Msg
+viewIndexingResults : Posix -> Bool -> IndexingParametersData -> List IndexingResult -> Html Msg
 viewIndexingResults now showErroneous parameters results =
     let
         tableHeaders : List String
@@ -712,7 +717,7 @@ viewIndexingResults now showErroneous parameters results =
                 )
 
         viewIndexingResultRow : IndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometryFile } =
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometry } =
             if showErroneous || not hasError then
                 [ tr
                     [ class
@@ -825,11 +830,10 @@ viewIndexingResults now showErroneous parameters results =
                                 (ResultPath
                                     { parametersId = parameters.id
                                     , resultIndex = id
-                                    , generated = True
                                     }
                                 )
                             )
-                            (GeometryViewer.view generatedGeometryFile)
+                            (GeometryViewer.view generatedGeometry)
                         , case unitCellHistogramsFileId of
                             Nothing ->
                                 text ""
@@ -852,7 +856,7 @@ viewIndexingResults now showErroneous parameters results =
         ]
 
 
-mergeActions : Bool -> JsonDataSet -> IndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions : Bool -> JsonDataSet -> IndexingParametersData -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
 mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
@@ -1104,7 +1108,7 @@ viewCommandLineDiff priorCmdLine newCmdLine =
                         ]
 
 
-viewRowDiff : IndexingParameters -> IndexingParameters -> Html msg
+viewRowDiff : IndexingParametersData -> IndexingParametersData -> Html msg
 viewRowDiff pparams params =
     let
         viewCellDescription d =
@@ -1122,8 +1126,8 @@ viewRowDiff pparams params =
     tr_
         [ td [ colspan 5 ]
             [ div [ class "alert alert-dark" ]
-                [ if pparams.geometryFile /= params.geometryFile then
-                    div_ [ em_ [ text "Geometry file changed" ] ]
+                [ if pparams.geometry /= params.geometry then
+                    div_ [ em_ [ text "Geometry changed" ] ]
 
                   else
                     text ""
@@ -1205,8 +1209,7 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
                     ]
                 , processingInProgressButton
                 ]
-    in
-    let
+
         successfulResults : List IndexingResult
         successfulResults =
             List.filter (\ir -> not ir.hasError) indexingResults
@@ -1318,7 +1321,7 @@ viewMergeResultsTable model experimentType mergeResults =
             ]
 
 
-viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> IndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> IndexingParametersData -> List JsonMergeResult -> Html Msg
 viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParameters mergeResults =
     div [ style "margin-bottom" "4rem" ] <|
         [ mergeActions
@@ -1399,9 +1402,11 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                             , copyToClipboardButton (CopyToClipboard cellDescription)
                             ]
                 ]
-            , dt [ class "col-3" ] [ text "Geometry file" ]
+            , dt [ class "col-3" ] [ text "Geometry" ]
             , dd [ class "col-9" ]
-                [ Html.map (GeometryViewerMsg (ParameterPath parameters.id)) (GeometryViewer.view parameters.geometryFile)
+                [ Html.map
+                    (GeometryViewerMsg (ParameterPath parameters.id))
+                    (GeometryViewer.view parameters.geometry)
                 ]
             ]
         , p_
@@ -1455,16 +1460,17 @@ viewProcessingParameterForm model { indexingParamFormModel } =
             , em_ [ text "indexamajig" ]
             , text " takes a list of diffraction snapshots from crystals in random orientations and attempts to find peaks, index and integrate each one."
             ]
-        , Html.map IndexingParametersMsg <| IndexingParameters.view indexingParamFormModel
-        , div [ class "hstack gap-3 mb-3" ]
+        , Html.map IndexingParametersMsg <| IndexingParametersEdit.view indexingParamFormModel
+        , div [ class "hstack gap-3" ]
             [ button
                 [ type_ "button"
                 , class "btn btn-primary"
                 , onClick SubmitProcessing
                 , disabled
                     (isLoading model.submitProcessingRequest
-                        || Result.Extra.isErr (IndexingParameters.toCommandLine indexingParamFormModel)
-                        || IndexingParameters.isEditOpen indexingParamFormModel
+                        || Result.Extra.isErr (IndexingParametersEdit.toCommandLine indexingParamFormModel)
+                        || IndexingParametersEdit.isEditOpen indexingParamFormModel
+                        || IndexingParametersEdit.noGeometrySelected indexingParamFormModel
                     )
                 ]
                 [ viewSpinnerOrIcon model.submitProcessingRequest
@@ -1478,10 +1484,20 @@ viewProcessingParameterForm model { indexingParamFormModel } =
                 ]
                 [ icon { name = "x-lg" }, text " Cancel" ]
             ]
+        , if IndexingParametersEdit.noGeometrySelected indexingParamFormModel then
+            div [ class "form-text" ] [ small_ [ text "Please select a geometry." ] ]
+
+          else
+            text ""
+        , if IndexingParametersEdit.isEditOpen indexingParamFormModel then
+            div [ class "form-text" ] [ small_ [ text "Please finish editing the parameters." ] ]
+
+          else
+            text ""
         , case model.submitProcessingRequest of
             Failure e ->
                 viewAlert [ AlertDanger ] <|
-                    [ h4 [ class "alert-heading" ]
+                    [ h4 [ class "alert-heading mt-3" ]
                         [ text "Failed to start processing job. Read the error message carefully!"
                         ]
                     , showError e
@@ -1693,13 +1709,13 @@ update msg model =
                                     if ir.parameters.id == parameterId then
                                         let
                                             ( newViewer, viewerCmds ) =
-                                                GeometryViewer.update subMsg ir.parameters.geometryFile
+                                                GeometryViewer.update subMsg ir.parameters.geometry
 
                                             oldParameters =
                                                 ir.parameters
 
                                             newParameters =
-                                                { oldParameters | geometryFile = newViewer }
+                                                { oldParameters | geometry = newViewer }
                                         in
                                         ( { ir | parameters = newParameters }, Cmd.map (GeometryViewerMsg path) viewerCmds )
 
@@ -1719,24 +1735,16 @@ update msg model =
                             in
                             ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
 
-                        ResultPath { parametersId, resultIndex, generated } ->
+                        ResultPath { parametersId, resultIndex } ->
                             let
                                 changeIndexingResult : IndexingResult -> ( IndexingResult, Cmd Msg )
                                 changeIndexingResult ir =
                                     if ir.id == resultIndex then
-                                        if generated then
-                                            let
-                                                ( newViewer, cmds ) =
-                                                    GeometryViewer.update subMsg ir.generatedGeometryFile
-                                            in
-                                            ( { ir | generatedGeometryFile = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
-
-                                        else
-                                            let
-                                                ( newViewer, cmds ) =
-                                                    GeometryViewer.update subMsg ir.geometryFile
-                                            in
-                                            ( { ir | geometryFile = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
+                                        let
+                                            ( newViewer, cmds ) =
+                                                GeometryViewer.update subMsg ir.generatedGeometry
+                                        in
+                                        ( { ir | generatedGeometry = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
 
                                     else
                                         ( ir, Cmd.none )
@@ -1809,7 +1817,7 @@ update msg model =
                 Just processingParameters ->
                     let
                         ( updatedIndexingParams, cmd ) =
-                            IndexingParameters.update paramsMsg processingParameters.indexingParamFormModel
+                            IndexingParametersEdit.update paramsMsg processingParameters.indexingParamFormModel
 
                         updatedProcessingParams =
                             { processingParameters | indexingParamFormModel = updatedIndexingParams }
@@ -1831,13 +1839,14 @@ update msg model =
                 Err e ->
                     ( { model | processingParametersRequest = Failure e }, Cmd.none )
 
-                Ok { sources } ->
+                Ok { sources, geometries } ->
                     case
-                        IndexingParameters.convertCommandLineToModel
-                            (IndexingParameters.init
+                        IndexingParametersEdit.convertCommandLineToModel
+                            (IndexingParametersEdit.init
                                 sources
                                 (Maybe.withDefault "" parameters.cellDescription)
-                                (GeometryViewer.extractContent parameters.geometryFile)
+                                (GeometryViewer.extractId parameters.geometry)
+                                (List.map GeometryMetadata.fromJson geometries)
                                 True
                             )
                             parameters.commandLine
@@ -1871,16 +1880,27 @@ update msg model =
                     ( { model | processingParametersRequest = Failure e }, Cmd.none )
 
                 Ok v ->
-                    ( { model
-                        | processingParametersRequest = Success v
-                        , currentProcessingParameters =
-                            Just
-                                { dataSetId = v.dataSetId
-                                , indexingParamFormModel = IndexingParameters.init v.sources v.cellDescription "" True
-                                }
-                      }
-                    , Cmd.none
-                    )
+                    case model.analysisRequest of
+                        Success _ ->
+                            ( { model
+                                | processingParametersRequest = Success v
+                                , currentProcessingParameters =
+                                    Just
+                                        { dataSetId = v.dataSetId
+                                        , indexingParamFormModel =
+                                            IndexingParametersEdit.init
+                                                v.sources
+                                                v.cellDescription
+                                                Nothing
+                                                (List.map GeometryMetadata.fromJson v.geometries)
+                                                True
+                                        }
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
 
         CancelProcessing ->
             ( { model
@@ -1916,45 +1936,50 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just { dataSetId, indexingParamFormModel } ->
-                    case IndexingParameters.toCommandLine indexingParamFormModel of
+                    case IndexingParametersEdit.toCommandLine indexingParamFormModel of
                         Err _ ->
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
-                                ( { model | submitProcessingRequest = Loading }
-                                , send
-                                    ProcessingSubmitted
-                                    (indexingJobQueueForDataSetApiIndexingPost
-                                        { dataSetId = dataSetId
-                                        , isOnline = False
-                                        , cellDescription = ""
-                                        , geometryFile = GeometryEdit.extractContent indexingParamFormModel.geometryFile
-                                        , commandLine = coparseCommandLine commandLine
-                                        , source = indexingParamFormModel.source
-                                        }
-                                    )
-                                )
+                            case IndexingParametersEdit.extractGeometryId indexingParamFormModel of
+                                Nothing ->
+                                    ( model, Cmd.none )
 
-                            else
-                                case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
-                                    Err _ ->
-                                        ( model, Cmd.none )
-
-                                    Ok cellDescription ->
+                                Just geometryId ->
+                                    if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
                                         ( { model | submitProcessingRequest = Loading }
                                         , send
                                             ProcessingSubmitted
                                             (indexingJobQueueForDataSetApiIndexingPost
                                                 { dataSetId = dataSetId
                                                 , isOnline = False
-                                                , cellDescription = cellDescriptionToString cellDescription
-                                                , geometryFile = GeometryEdit.extractContent indexingParamFormModel.geometryFile
+                                                , cellDescription = ""
+                                                , geometryId = geometryIdToInt geometryId
                                                 , commandLine = coparseCommandLine commandLine
                                                 , source = indexingParamFormModel.source
                                                 }
                                             )
                                         )
+
+                                    else
+                                        case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
+                                            Err _ ->
+                                                ( model, Cmd.none )
+
+                                            Ok cellDescription ->
+                                                ( { model | submitProcessingRequest = Loading }
+                                                , send
+                                                    ProcessingSubmitted
+                                                    (indexingJobQueueForDataSetApiIndexingPost
+                                                        { dataSetId = dataSetId
+                                                        , isOnline = False
+                                                        , cellDescription = cellDescriptionToString cellDescription
+                                                        , geometryId = geometryIdToInt geometryId
+                                                        , commandLine = coparseCommandLine commandLine
+                                                        , source = indexingParamFormModel.source
+                                                        }
+                                                    )
+                                                )
 
         AnalysisResultsReceived analysisResults ->
             let
