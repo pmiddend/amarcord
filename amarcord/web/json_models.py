@@ -61,11 +61,7 @@ class JsonGeometryWithUsages(BaseModel):
 
 class JsonReadSingleGeometryOutput(BaseModel):
     content: str
-
-
-class JsonReadGeometriesForSingleBeamtime(BaseModel):
-    geometries: list["JsonGeometryWithoutContent"]
-    geometry_with_usage: list[JsonGeometryWithUsages]
+    attributi: list[int]
 
 
 class JsonReadGeometriesForAllBeamtimes(BaseModel):
@@ -81,6 +77,7 @@ class JsonGeometryWithContent(BaseModel):
     name: str
     created: int
     created_local: int
+    attributi: list[int]
 
 
 class JsonGeometryWithoutContent(BaseModel):
@@ -90,6 +87,7 @@ class JsonGeometryWithoutContent(BaseModel):
     name: str
     created: int
     created_local: int
+    attributi: list[int]
 
 
 class JsonBeamtimeInput(BaseModel):
@@ -361,6 +359,12 @@ class JsonAttributo(BaseModel):
     attributo_type_string: None | JSONSchemaString = None
     attributo_type_array: None | JSONSchemaArray = None
     attributo_type_boolean: None | JSONSchemaBoolean = None
+
+
+class JsonReadGeometriesForSingleBeamtime(BaseModel):
+    geometries: list["JsonGeometryWithoutContent"]
+    geometry_with_usage: list[JsonGeometryWithUsages]
+    attributi: list[JsonAttributo]
 
 
 class JsonReadChemicals(BaseModel):

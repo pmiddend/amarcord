@@ -1244,6 +1244,7 @@ type alias JsonGeometryWithoutContent =
     , name : String
     , created : Int
     , createdLocal : Int
+    , attributi : List Int
     }
 
 
@@ -1678,6 +1679,7 @@ type alias JsonReadGeometriesForAllBeamtimes =
 type alias JsonReadGeometriesForSingleBeamtime =
     { geometries : List JsonGeometryWithoutContent
     , geometryWithUsage : List JsonGeometryWithUsages
+    , attributi : List JsonAttributoOutput
     }
 
 
@@ -1782,6 +1784,7 @@ type alias JsonReadSingleDataSetResults =
 
 type alias JsonReadSingleGeometryOutput =
     { content : String
+    , attributi : List Int
     }
 
 
@@ -3979,6 +3982,7 @@ encodeJsonGeometryWithoutContentPairs model =
             , encode "name" Json.Encode.string model.name
             , encode "created" Json.Encode.int model.created
             , encode "created_local" Json.Encode.int model.createdLocal
+            , encode "attributi" (Json.Encode.list Json.Encode.int) model.attributi
             ]
     in
     pairs
@@ -5047,6 +5051,7 @@ encodeJsonReadGeometriesForSingleBeamtimePairs model =
         pairs =
             [ encode "geometries" (Json.Encode.list encodeJsonGeometryWithoutContent) model.geometries
             , encode "geometry_with_usage" (Json.Encode.list encodeJsonGeometryWithUsages) model.geometryWithUsage
+            , encode "attributi" (Json.Encode.list encodeJsonAttributoOutput) model.attributi
             ]
     in
     pairs
@@ -5346,6 +5351,7 @@ encodeJsonReadSingleGeometryOutputPairs model =
     let
         pairs =
             [ encode "content" Json.Encode.string model.content
+            , encode "attributi" (Json.Encode.list Json.Encode.int) model.attributi
             ]
     in
     pairs
@@ -6836,6 +6842,7 @@ jsonGeometryWithoutContentDecoder =
         |> decode "name" Json.Decode.string 
         |> decode "created" Json.Decode.int 
         |> decode "created_local" Json.Decode.int 
+        |> decode "attributi" (Json.Decode.list Json.Decode.int) 
 
 
 jsonImportFinishedIndexingJobInputDecoder : Json.Decode.Decoder JsonImportFinishedIndexingJobInput
@@ -7318,6 +7325,7 @@ jsonReadGeometriesForSingleBeamtimeDecoder =
     Json.Decode.succeed JsonReadGeometriesForSingleBeamtime
         |> decode "geometries" (Json.Decode.list jsonGeometryWithoutContentDecoder) 
         |> decode "geometry_with_usage" (Json.Decode.list jsonGeometryWithUsagesDecoder) 
+        |> decode "attributi" (Json.Decode.list jsonAttributoOutputDecoder) 
 
 
 jsonReadIndexingParametersOutputDecoder : Json.Decode.Decoder JsonReadIndexingParametersOutput
@@ -7435,6 +7443,7 @@ jsonReadSingleGeometryOutputDecoder : Json.Decode.Decoder JsonReadSingleGeometry
 jsonReadSingleGeometryOutputDecoder =
     Json.Decode.succeed JsonReadSingleGeometryOutput
         |> decode "content" Json.Decode.string 
+        |> decode "attributi" (Json.Decode.list Json.Decode.int) 
 
 
 jsonReadSingleMergeResultDecoder : Json.Decode.Decoder JsonReadSingleMergeResult

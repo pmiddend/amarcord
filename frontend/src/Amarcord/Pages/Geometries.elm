@@ -4,18 +4,20 @@ import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Dialog as Dialog
 import Amarcord.GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
-import Amarcord.Html exposing (div_, form_, h2_, h4_, input_, onIntInput, small_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (code_, div_, em_, form_, h2_, h4_, input_, li_, onIntInput, small_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
-import Amarcord.Util exposing (monthToNumericString, scrollToTop)
-import Api.Data exposing (JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
+import Amarcord.Util exposing (deadEndToString, monthToNumericString, scrollToTop)
+import Api.Data exposing (JsonAttributoOutput, JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
 import Api.Request.Geometries exposing (copyToBeamtimeApiGeometryCopyToBeamtimePost, createGeometryApiGeometriesPost, deleteSingleGeometryApiGeometriesGeometryIdDelete, readGeometriesForAllBeamtimesApiAllGeometriesGet, readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet, readSingleGeometryApiGeometriesGeometryIdGet, updateGeometryApiGeometriesGeometryIdPatch)
+import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, disabled, for, id, selected, type_, value)
+import Html.Attributes exposing (class, disabled, for, id, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra exposing (isNothing)
-import RemoteData exposing (RemoteData(..), fromResult, isLoading)
+import Mustache
+import RemoteData exposing (RemoteData(..), fromResult, isFailure, isLoading, isNotAsked)
 import Set
 import String
 import Time exposing (millisToPosix, toMonth, toYear, utc)
@@ -43,6 +45,7 @@ type alias Model =
     , editGeometry : RemoteData HttpError EditableGeometry
     , modifyRequest : RemoteData HttpError ()
     , beamtimeId : BeamtimeId
+    , templateErrors : RemoteData (List String) ()
     }
 
 
@@ -71,6 +74,7 @@ type Msg
     | EditGeometryName String
     | EditGeometryContent String
     | EditGeometrySubmit
+    | EditGeometryCheck
     | EditGeometryFinished (Result HttpError {})
     | EditGeometryCancel
     | Nop
@@ -85,6 +89,7 @@ init beamtimeId =
       , modifyRequest = NotAsked
       , editGeometry = NotAsked
       , beamtimeId = beamtimeId
+      , templateErrors = NotAsked
       }
     , getGeometries beamtimeId
     )
@@ -95,8 +100,8 @@ getGeometries beamtimeId =
     send GeometriesReceived (readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet beamtimeId)
 
 
-viewEditForm : List JsonGeometryWithoutContent -> Set.Set Int -> EditableGeometry -> Html Msg
-viewEditForm geometries usages editingGeometry =
+viewEditForm : List JsonGeometryWithoutContent -> Set.Set Int -> EditableGeometry -> RemoteData (List String) () -> Html Msg
+viewEditForm geometries usages editingGeometry templateErrors =
     let
         otherGeometriesNames =
             List.map .name <|
@@ -163,6 +168,11 @@ viewEditForm geometries usages editingGeometry =
             ]
         , div [ class "mb-3" ]
             [ label [ for "content", class "form-label" ] [ text "Content" ]
+            , div [ class "form-text mb-2" ]
+                [ text "You can use placeholders for Attributo values like "
+                , code_ [ text "{{detector_distance}}" ]
+                , text "."
+                ]
             , if isUsed then
                 div_
                     [ div [ class "form-text" ] [ small_ [ text "Geometry is in use; cannot change content anymore." ] ]
@@ -175,18 +185,29 @@ viewEditForm geometries usages editingGeometry =
                     , class "form-control"
                     , value editingGeometry.content
                     , onInput EditGeometryContent
+                    , style "height" "20em"
                     ]
                     [ text editingGeometry.content ]
             ]
         , button
             [ class "btn btn-primary me-3 mb-3"
-            , onClick EditGeometrySubmit
-            , disabled (not isValidGeometryName)
+            , onClick
+                (case templateErrors of
+                    Success _ ->
+                        EditGeometrySubmit
+
+                    _ ->
+                        EditGeometryCheck
+                )
+            , disabled (not isValidGeometryName || isFailure templateErrors)
             , type_ "button"
             ]
             [ icon { name = "plus-lg" }
             , text
-                (if isNothing editingGeometry.id then
+                (if isNotAsked templateErrors then
+                    " Check content"
+
+                 else if isNothing editingGeometry.id then
                     " Save"
 
                  else
@@ -199,11 +220,20 @@ viewEditForm geometries usages editingGeometry =
             , type_ "button"
             ]
             [ icon { name = "x-lg" }, text " Cancel" ]
+        , case templateErrors of
+            Failure errors ->
+                div [ class "form-text text-danger" ] [ em_ [ text (String.join "\n" errors) ] ]
+
+            Success _ ->
+                div [ class "form-text text-success" ] [ em_ [ text "Content looks good!" ] ]
+
+            _ ->
+                text ""
         ]
 
 
-viewGeometryRow : Set.Set Int -> JsonGeometryWithoutContent -> List (Html Msg)
-viewGeometryRow usages geometry =
+viewGeometryRow : Set.Set Int -> Dict.Dict Int String -> JsonGeometryWithoutContent -> List (Html Msg)
+viewGeometryRow usages attributiById geometry =
     let
         isUsed =
             Set.member geometry.id usages
@@ -228,13 +258,14 @@ viewGeometryRow usages geometry =
                 ]
             ]
         , td_ [ text (String.fromInt geometry.id) ]
-        , td [ class "w-100" ] [ text geometry.name ]
+        , td [ class "w-50" ] [ text geometry.name ]
+        , td [ class "w-50" ] [ ul_ (List.filterMap (\a -> Dict.get a attributiById |> Maybe.map (\aname -> li_ [ text aname ])) geometry.attributi) ]
         ]
     ]
 
 
-viewGeometryTable : List JsonGeometryWithoutContent -> Set.Set Int -> Html Msg
-viewGeometryTable geometries usages =
+viewGeometryTable : List JsonAttributoOutput -> List JsonGeometryWithoutContent -> Set.Set Int -> Html Msg
+viewGeometryTable attributi geometries usages =
     if isEmpty geometries then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No geometries entered yet." ] ]
 
@@ -242,8 +273,13 @@ viewGeometryTable geometries usages =
         div [ class "mt-3" ]
             [ h2_ [ text "Available geometries" ]
             , table [ class "table table-striped" ]
-                [ thead_ [ tr_ [ th_ [], th_ [ text "ID" ], th_ [ text "Name" ] ] ]
-                , tbody_ (List.concatMap (viewGeometryRow usages) geometries)
+                [ thead_ [ tr_ [ th_ [], th_ [ text "ID" ], th_ [ text "Name" ], th_ [ text "Attributi" ] ] ]
+                , let
+                    attributiById : Dict.Dict Int String
+                    attributiById =
+                        List.foldr (\a -> Dict.insert a.id a.name) Dict.empty attributi
+                  in
+                  tbody_ (List.concatMap (viewGeometryRow usages attributiById) geometries)
                 ]
             ]
 
@@ -323,7 +359,7 @@ viewInner model =
         Failure e ->
             singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve geometries" ], showError e ]
 
-        Success { geometries, geometryWithUsage } ->
+        Success { geometries, geometryWithUsage, attributi } ->
             let
                 usagesSet =
                     List.foldr
@@ -345,7 +381,7 @@ viewInner model =
                         _ ->
                             case model.editGeometry of
                                 Success editGeometry ->
-                                    viewEditForm geometries usagesSet editGeometry
+                                    viewEditForm geometries usagesSet editGeometry model.templateErrors
 
                                 Loading ->
                                     loadingBar "Loading geometry..."
@@ -392,7 +428,7 @@ viewInner model =
             [ prefix
             , modifyRequestResult
             , deleteRequestResult
-            , viewGeometryTable geometries usagesSet
+            , viewGeometryTable attributi geometries usagesSet
             ]
 
 
@@ -420,9 +456,67 @@ view model =
     div [ class "container" ] (maybeDeleteModal ++ viewInner model)
 
 
+findVariablesInMustache : Mustache.Ast -> List String
+findVariablesInMustache nodes =
+    let
+        findVariable : Mustache.AstNode -> List String
+        findVariable x =
+            case x of
+                Mustache.Variable { name } ->
+                    [ String.join "." name ]
+
+                Mustache.Section { subsection } ->
+                    List.concatMap findVariable subsection
+
+                Mustache.InvertedSection { subsection } ->
+                    List.concatMap findVariable subsection
+
+                _ ->
+                    []
+    in
+    List.concatMap findVariable nodes
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        EditGeometryCheck ->
+            case model.geometries of
+                Success { attributi } ->
+                    case model.editGeometry of
+                        Success { content } ->
+                            case Mustache.parse content of
+                                Err deadEnds ->
+                                    ( { model | templateErrors = Failure (List.map deadEndToString deadEnds) }, Cmd.none )
+
+                                Ok ast ->
+                                    let
+                                        attributiNames =
+                                            List.foldr (\{ name } -> Set.insert name) Set.empty attributi
+
+                                        nonExistingVariables =
+                                            List.filter (\variableName -> not (Set.member variableName attributiNames)) (findVariablesInMustache ast)
+                                    in
+                                    if List.isEmpty nonExistingVariables then
+                                        ( { model | templateErrors = Success () }, Cmd.none )
+
+                                    else
+                                        ( { model
+                                            | templateErrors =
+                                                Failure
+                                                    [ "The following placeholders in the geometry are not valid attributi: "
+                                                        ++ String.join "," nonExistingVariables
+                                                    ]
+                                          }
+                                        , Cmd.none
+                                        )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
         InitiateCopyFromPreviousBeamtime ->
             ( { model | priorGeometries = Loading }
             , send PriorGeometriesReceived readGeometriesForAllBeamtimesApiAllGeometriesGet
@@ -597,7 +691,7 @@ update msg model =
         EditGeometryContent newContent ->
             case model.editGeometry of
                 Success geom ->
-                    ( { model | editGeometry = Success { geom | content = newContent } }, Cmd.none )
+                    ( { model | editGeometry = Success { geom | content = newContent }, templateErrors = NotAsked }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )

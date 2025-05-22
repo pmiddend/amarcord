@@ -60,6 +60,14 @@ class Base(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
     }
 
 
+geometry_references_attributo = Table(
+    "GeometryReferencesAttributo",
+    Base.metadata,
+    Column[int]("geometry_id", ForeignKey("Geometry.id", ondelete="cascade")),
+    Column[int]("attributo_id", ForeignKey("Attributo.id", ondelete="cascade")),
+)
+
+
 class Geometry(Base):
     __tablename__ = "Geometry"
 
@@ -72,9 +80,6 @@ class Geometry(Base):
     hash: Mapped[str] = mapped_column(sa.String(length=64))
     name: Mapped[str] = mapped_column(sa.String(length=255))
     created: Mapped[datetime] = mapped_column()
-    # parent_geometry_id: Mapped[None | int] = mapped_column(
-    #     ForeignKey("Geometry.id", ondelete="cascade"),
-    # )
 
     # Relationships
     beamtime: Mapped["Beamtime"] = relationship(back_populates="geometries", init=False)
@@ -83,18 +88,16 @@ class Geometry(Base):
         cascade="all, delete, delete-orphan",
         default_factory=list,
     )
-    # These two just don't work, and we have no idea why that is (yet).
-    # indexing_results: Mapped[list["IndexingResult"]] = relationship(
-    #     backref="geometry",
-    #     cascade="all, delete, delete-orphan",
-    #     default_factory=list,
-    # )
     generated_indexing_results: Mapped[list["IndexingResult"]] = relationship(
         back_populates="generated_geometry",
         cascade="all, delete, delete-orphan",
         default_factory=list,
     )
-    # parent_geometry: Mapped["Geometry"] = relationship(back_populates="parent_geometry_id")
+    attributi: Mapped[list["Attributo"]] = relationship(
+        secondary=geometry_references_attributo,
+        back_populates="geometries",
+        default_factory=list,
+    )
 
 
 class Beamtime(Base):
@@ -223,6 +226,16 @@ class Attributo(Base):
         default_factory=list,
     )
     data_set_values: Mapped[list["DataSetHasAttributoValue"]] = relationship(
+        back_populates="attributo",
+        cascade="all,delete,delete-orphan",
+        default_factory=list,
+    )
+    geometries: Mapped[list["Geometry"]] = relationship(
+        secondary=geometry_references_attributo,
+        back_populates="attributi",
+        default_factory=list,
+    )
+    template_replacements: Mapped[list["GeometryTemplateReplacement"]] = relationship(
         back_populates="attributo",
         cascade="all,delete,delete-orphan",
         default_factory=list,
@@ -390,6 +403,23 @@ class ChemicalHasAttributoValue(Base):
     attributo: Mapped[Attributo] = relationship(
         back_populates="chemical_values",
         init=False,
+    )
+
+
+class GeometryTemplateReplacement(Base):
+    __tablename__ = "GeometryTemplateReplacement"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    indexing_result_id: Mapped[int] = mapped_column(ForeignKey("IndexingResult.id"))
+    attributo_id: Mapped[int] = mapped_column(ForeignKey("Attributo.id"))
+    replacement: Mapped[str] = mapped_column()
+
+    # Relationships
+    indexing_result: Mapped["IndexingResult"] = relationship(
+        back_populates="template_replacements", init=False
+    )
+    attributo: Mapped[Attributo] = relationship(
+        back_populates="template_replacements", init=False
     )
 
 
@@ -752,6 +782,11 @@ class IndexingResult(Base):
     )
     generated_geometry: Mapped[None | Geometry] = relationship(
         init=False, back_populates="generated_indexing_results", cascade="all, delete"
+    )
+    template_replacements: Mapped[list["GeometryTemplateReplacement"]] = relationship(
+        back_populates="indexing_result",
+        cascade="all,delete,delete-orphan",
+        default_factory=list,
     )
 
 

@@ -50,7 +50,7 @@ async def _main(args: Arguments) -> None:
             comment="",
             start=datetime.datetime.now(),
             end=datetime.datetime.now(),
-            analysis_output_path="/tmp/analysis-output",
+            analysis_output_path="/tmp/analysis-output",  # noqa: S108
         )
         session.add(beamtime)
         await session.flush()

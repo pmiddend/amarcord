@@ -48,16 +48,38 @@ def upgrade() -> None:
             sa.DateTime,
             nullable=False,
         ),
-        # sa.Column(
-        #     "parent_geometry",
-        #     sa.Integer,
-        #     sa.ForeignKey(
-        #             "Geometry.id",
-        #             ondelete="cascade",
-        #             name="geometry_parent_fk",
-        #     ),
-        #     nullable=True,
-        # ),
+    )
+    op.create_table(
+        "GeometryReferencesAttributo",
+        sa.Column(
+            "geometry_id",
+            sa.Integer,
+            sa.ForeignKey("Geometry.id", ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column(
+            "attributo_id",
+            sa.Integer,
+            sa.ForeignKey("Attributo.id", ondelete="cascade"),
+            nullable=False,
+        ),
+    )
+    op.create_table(
+        "IndexingResultGeometryTemplateReplacement",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "indexing_result_id",
+            sa.Integer,
+            sa.ForeignKey("IndexingResult.id", ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column(
+            "attributo_id",
+            sa.Integer,
+            sa.ForeignKey("Attributo.id", ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column("replacement", sa.String, nullable=False),
     )
     with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
         batch_op.add_column(

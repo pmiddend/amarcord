@@ -1,6 +1,8 @@
 import datetime
 from typing import Annotated
+from typing import Generator
 
+import mstache
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -27,8 +29,46 @@ from amarcord.web.json_models import JsonGeometryWithUsages
 from amarcord.web.json_models import JsonReadGeometriesForAllBeamtimes
 from amarcord.web.json_models import JsonReadGeometriesForSingleBeamtime
 from amarcord.web.json_models import JsonReadSingleGeometryOutput
+from amarcord.web.router_attributi import encode_attributo
 
 router = APIRouter()
+
+
+def _template_variable_names(content: str) -> Generator[str, None, None]:
+    return (
+        scope_key.decode("utf-8")
+        for _, _, _, scope_key, _, _ in mstache.tokenize(content.encode("utf-8"))
+        if len(scope_key)
+    )
+
+
+async def _check_variable_names(
+    session: AsyncSession, beamtime_id: BeamtimeId, content: str
+) -> list[orm.Attributo]:
+    invalid_names: list[str] = []
+    attributi: list[orm.Attributo] = []
+    attributo_name_to_attributo: dict[str, orm.Attributo] = {
+        a.name: a
+        for a in await session.scalars(
+            select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id)
+        )
+    }
+
+    for name in _template_variable_names(content):
+        attributo = attributo_name_to_attributo.get(name)
+        if attributo is None:
+            invalid_names.append(name)
+        else:
+            attributi.append(attributo)
+
+    if invalid_names:
+        raise HTTPException(
+            status_code=400,
+            detail="the following template variables don't correspond to Attributo names: "
+            + ", ".join(invalid_names),
+        )
+
+    return attributi
 
 
 @router.post("/api/geometries", tags=["geometries"])
@@ -39,6 +79,11 @@ async def create_geometry(
     async with session.begin():
         hash_ = sha256_bytes(input_.content.encode("utf-8"))
         created = datetime.datetime.now(datetime.timezone.utc)
+
+        attributi = await _check_variable_names(
+            session, input_.beamtime_id, input_.content
+        )
+
         new_geometry = orm.Geometry(
             beamtime_id=input_.beamtime_id,
             content=input_.content,
@@ -46,6 +91,8 @@ async def create_geometry(
             hash=hash_,
             created=created,
         )
+        for a in attributi:
+            new_geometry.attributi.append(a)
         existing_geometry = (
             await session.scalars(
                 select(orm.Geometry).where(
@@ -69,6 +116,7 @@ async def create_geometry(
             hash=hash_,
             created=utc_datetime_to_utc_int(created),
             created_local=utc_datetime_to_local_int(created),
+            attributi=[a.id for a in attributi],
         )
 
 
@@ -102,6 +150,9 @@ async def copy_to_beamtime(
                 detail=f"geometry with name {geometry_to_copy.name} already exists",
             )
         created = datetime.datetime.now(datetime.timezone.utc)
+        attributi = await _check_variable_names(
+            session, input_.target_beamtime_id, geometry_to_copy.content
+        )
         new_geometry = orm.Geometry(
             beamtime_id=input_.target_beamtime_id,
             content=geometry_to_copy.content,
@@ -109,6 +160,8 @@ async def copy_to_beamtime(
             hash=geometry_to_copy.hash,
             created=created,
         )
+        for a in attributi:
+            new_geometry.attributi.append(a)
         session.add(new_geometry)
         # we need to the ID in the next line, so have to flush
         await session.flush()
@@ -119,6 +172,7 @@ async def copy_to_beamtime(
             hash=geometry_to_copy.hash,
             created=utc_datetime_to_utc_int(created),
             created_local=utc_datetime_to_local_int(created),
+            attributi=[],
         )
 
 
@@ -153,7 +207,9 @@ async def update_geometry(
     async with session.begin():
         existing_geometry = (
             await session.scalars(
-                select(orm.Geometry).where(orm.Geometry.id == geometryId),
+                select(orm.Geometry)
+                .where(orm.Geometry.id == geometryId)
+                .options(selectinload(orm.Geometry.attributi)),
             )
         ).one_or_none()
         if existing_geometry is None:
@@ -182,6 +238,13 @@ async def update_geometry(
                     detail=f"geometry {geometryId} is used {usages} times and the content cannot be updated",
                 )
 
+        attributi = await _check_variable_names(
+            session, existing_geometry.beamtime_id, input_.content
+        )
+        existing_geometry.attributi.clear()
+        await session.flush()
+        for a in attributi:
+            existing_geometry.attributi.append(a)
         hash_ = sha256_bytes(input_.content.encode("utf-8"))
         existing_geometry.content = input_.content
         existing_geometry.hash = hash_
@@ -195,6 +258,7 @@ async def update_geometry(
             hash=hash_,
             created=utc_datetime_to_utc_int(existing_geometry.created),
             created_local=utc_datetime_to_local_int(existing_geometry.created),
+            attributi=[a.id for a in attributi],
         )
 
 
@@ -209,9 +273,12 @@ async def _retrieve_single_beamtime_geometries(
             name=geom.name,
             created=utc_datetime_to_utc_int(geom.created),
             created_local=utc_datetime_to_local_int(geom.created),
+            attributi=[a.id for a in geom.attributi],
         )
         for geom in await session.scalars(
-            select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
+            select(orm.Geometry)
+            .where(orm.Geometry.beamtime_id == beamtime_id)
+            .options(selectinload(orm.Geometry.attributi))
         )
     ]
     # For every geometry ID, store the number of usages
@@ -244,6 +311,12 @@ async def _retrieve_single_beamtime_geometries(
         geometry_with_usage=[
             JsonGeometryWithUsages(geometry_id=geometry_id, usages=geometry_usage_count)
             for geometry_id, geometry_usage_count in result.items()
+        ],
+        attributi=[
+            encode_attributo(a)
+            for a in await session.scalars(
+                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtime_id)
+            )
         ],
     )
 
@@ -290,7 +363,9 @@ async def read_geometries_for_all_beamtimes(
     result = list(
         (
             await session.scalars(
-                select(orm.Geometry).options(selectinload(orm.Geometry.beamtime))
+                select(orm.Geometry)
+                .options(selectinload(orm.Geometry.beamtime))
+                .options(selectinload(orm.Geometry.attributi))
             )
         ).fetchall()
     )
@@ -306,6 +381,7 @@ async def read_geometries_for_all_beamtimes(
                 name=geom.name,
                 created=utc_datetime_to_utc_int(geom.created),
                 created_local=utc_datetime_to_local_int(geom.created),
+                attributi=[a.id for a in geom.attributi],
             )
             for geom in result
         ],
@@ -343,12 +419,13 @@ async def read_single_geometry(
     geometryId: int,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonReadSingleGeometryOutput:
-    return JsonReadSingleGeometryOutput(
-        content=(
-            await session.scalars(
-                select(orm.Geometry).where(orm.Geometry.id == geometryId)
-            )
+    geom = (
+        await session.scalars(
+            select(orm.Geometry)
+            .where(orm.Geometry.id == geometryId)
+            .options(selectinload(orm.Geometry.attributi))
         )
-        .one()
-        .content
+    ).one()
+    return JsonReadSingleGeometryOutput(
+        content=geom.content, attributi=[a.id for a in geom.attributi]
     )

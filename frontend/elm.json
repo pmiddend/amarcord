@@ -32,6 +32,8 @@
             "justinmimbs/date": "4.1.0",
             "justinmimbs/time-extra": "1.2.0",
             "krisajenkins/remotedata": "6.0.1",
+            "pithub/elm-parser-bug-workaround": "1.0.0",
+            "pithub/elm-parser-extra": "1.0.0",
             "pzp1997/assoc-list": "1.0.0",
             "terezka/elm-charts": "4.0.0",
             "ursi/elm-scroll": "1.0.0"

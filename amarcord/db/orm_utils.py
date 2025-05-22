@@ -59,7 +59,6 @@ def default_online_indexing_parameters() -> orm.IndexingParameters:
     return orm.IndexingParameters(
         is_online=True,
         cell_description="",
-        # FIXME
         geometry_id=None,
         command_line="--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2"
         + " --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3"

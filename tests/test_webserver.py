@@ -171,6 +171,8 @@ TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
 TEST_CHEMICAL_NAME = "chemicalname"
 TEST_CHEMICAL_RESPONSIBLE_PERSON = "Rosalind Franklin"
+_RUN_STRING_ATTRIBUTO_NAME = "run_string"
+_RUN_INT_ATTRIBUTO_NAME = "run_int"
 
 # Some of the tests compare ".local" time fields, which then depends
 # on the time zone you're using to run the test, which is suboptimal
@@ -277,6 +279,25 @@ def geometry_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
 
 
 @pytest.fixture
+def geometry_id_with_run_string_attributo(
+    client: TestClient, beamtime_id: BeamtimeId, run_string_attributo_id: int
+) -> int:
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id,
+                content="clen {{" + _RUN_STRING_ATTRIBUTO_NAME + "}}",
+                name="geometry name",
+            ).model_dump(),
+        ).json(),
+    )
+    assert response.id > 0
+    assert response.attributi == [run_string_attributo_id]
+    return response.id
+
+
+@pytest.fixture
 def test_file_path() -> Path:
     # This is just some lame txt file, but it's enough for our purposes of testing. We don't need _actual_ files.
     return Path(__file__).parent / "test-file.txt"
@@ -372,7 +393,7 @@ def space_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int
 @pytest.fixture
 def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
-        name="run_string",
+        name=_RUN_STRING_ATTRIBUTO_NAME,
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
@@ -392,7 +413,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
 @pytest.fixture
 def run_int_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
-        name="run_int",
+        name=_RUN_INT_ATTRIBUTO_NAME,
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
@@ -808,13 +829,80 @@ def test_update_single_geometry_without_usage(
     assert single_result == "newcontent"
 
 
+def test_update_single_geometry_use_different_attributo(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    run_int_attributo_id: int,
+) -> None:
+    result = JsonGeometryWithoutContent(
+        **client.patch(
+            f"/api/geometries/{geometry_id_with_run_string_attributo}",
+            json=JsonGeometryUpdate(
+                # Before we had _RUN_STRING_ATTRIBUTO_NAME, and now we
+                # update it to the int attributo
+                content="clen {{" + _RUN_INT_ATTRIBUTO_NAME + "}}",
+                name="newname",
+            ).model_dump(),
+        ).json()
+    )
+    assert result.attributi == [run_int_attributo_id]
+
+
+def test_update_attributo_name_which_is_used_in_geometry(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    run_string_attributo_id: int,
+) -> None:
+    updated_attributo = JsonAttributo(
+        id=run_string_attributo_id,
+        name=_RUN_STRING_ATTRIBUTO_NAME + "new",
+        description="new description",
+        group="new group",
+        associated_table=AssociatedTable.RUN,
+        # even change the type to string here
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
+    )
+
+    attributo_update_response = JsonUpdateAttributoOutput(
+        **client.patch(
+            "/api/attributi",
+            json=JsonUpdateAttributoInput(
+                attributo=updated_attributo,
+                conversion_flags=JsonUpdateAttributoConversionFlags(ignore_units=True),
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert attributo_update_response.id == run_string_attributo_id
+
+    result_raw = client.get(
+        f"/api/geometries/{geometry_id_with_run_string_attributo}/raw"
+    ).text
+
+    assert "{{" + _RUN_STRING_ATTRIBUTO_NAME + "}}" not in result_raw
+    assert "{{" + _RUN_STRING_ATTRIBUTO_NAME + "new}}" in result_raw
+
+
+def test_delete_attributo_which_is_used_in_geometry(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,  # noqa: ARG001
+    run_string_attributo_id: int,
+) -> None:
+    response = client.request(
+        "DELETE",
+        "/api/attributi",
+        json=JsonDeleteAttributoInput(id=run_string_attributo_id).model_dump(),
+    )
+    assert response.status_code // 100 == 4
+
+
 def test_update_single_geometry_with_usage(
     client: TestClient,
     geometry_id: int,
     # A little bit of domain knowledge needed here:
     # simple_indexing_result_id is using geometry_id for its geometry,
     # constituting a "usage" of the geometry
-    simple_indexing_result_id: int,
+    simple_indexing_result_id: int,  # noqa: ARG001
 ) -> None:
     response = client.patch(
         f"/api/geometries/{geometry_id}",
@@ -851,7 +939,7 @@ def test_delete_single_geometry_with_usage(
     # A little bit of domain knowledge needed here:
     # simple_indexing_result_id is using geometry_id for its geometry,
     # constituting a "usage" of the geometry
-    simple_indexing_result_id: int,
+    simple_indexing_result_id: int,  # noqa: ARG001
 ) -> None:
     result = JsonReadGeometriesForSingleBeamtime(
         **client.delete(f"/api/geometries/{geometry_id}").json()
@@ -916,7 +1004,7 @@ def test_copy_geometry_to_other_beamtime(
 
 def test_copy_geometry_to_other_beamtime_when_other_beamtime_has_one_with_the_same_name(
     client: TestClient,
-    beamtime_id: BeamtimeId,
+    beamtime_id: BeamtimeId,  # noqa: ARG001
     second_beamtime_id: BeamtimeId,
     geometry_id: int,
 ) -> None:
@@ -1841,7 +1929,7 @@ def test_create_run_and_import_external_indexing_result(
                 hits=2,
                 indexed_frames=3,
                 align_detector_groups=[],
-                geometry_contents="/tmp/geom",
+                geometry_contents="/tmp/geom",  # noqa: S108
                 generated_geometry_file=None,
                 job_log="test log",
             ).model_dump(),
@@ -4252,6 +4340,45 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
 
     assert not workload_manager.job_starts
     assert not list(await workload_manager.list_jobs())
+
+
+async def test_geometry_creation_with_invalid_attributo_names(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+) -> None:
+    geometry_with_invalid_attributo = """clen = {{invalid_name}}"""
+
+    response = client.post(
+        "/api/geometries",
+        json=JsonGeometryCreate(
+            beamtime_id=beamtime_id,
+            content=geometry_with_invalid_attributo,
+            name="geometry name",
+        ).model_dump(),
+    )
+
+    assert response.status_code == 400
+
+
+async def test_geometry_creation_with_valid_attributo_name(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_string_attributo_id: int,  # noqa: ARG001
+) -> None:
+    geometry_with_run_string_attributo = """clen = {{run_string}}"""
+
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id,
+                content=geometry_with_run_string_attributo,
+                name="geometry name",
+            ).model_dump(),
+        ).json()
+    )
+
+    assert response.id > 0
 
 
 async def test_geometry_with_usage_in_result(

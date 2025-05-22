@@ -47,6 +47,7 @@ dependencies = [
     "python-magic==0.4.27",
     # for async file opening functions
     "anyio==4.8.0",
+    "mstache>=0.3.0",
 ]
 
 [dependency-groups]
