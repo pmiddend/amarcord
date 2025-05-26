@@ -16,8 +16,22 @@ from sqlalchemy.sql import select
 
 from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db import orm
-from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import (
+    parse_schema_type,
+    schema_union_to_attributo_type,
+    utc_datetime_to_local_int,
+)
 from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributo_type import (
+    AttributoTypeBoolean,
+    AttributoTypeChemical,
+    AttributoTypeChoice,
+    AttributoTypeDateTime,
+    AttributoTypeDecimal,
+    AttributoTypeInt,
+    AttributoTypeList,
+    AttributoTypeString,
+)
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.web.fastapi_utils import get_orm_db
@@ -397,15 +411,72 @@ async def read_geometries_for_all_beamtimes(
 async def read_single_geometry_raw(
     geometryId: int,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
+    indexingResultId: None | int = None,  # noqa: N803
 ) -> Response:
-    return Response(
-        content=(
+    geometry = (
+        await session.scalars(select(orm.Geometry).where(orm.Geometry.id == geometryId))
+    ).one()
+    content = geometry.content
+    if indexingResultId is not None:
+        indexing_result = (
             await session.scalars(
-                select(orm.Geometry).where(orm.Geometry.id == geometryId)
+                select(orm.IndexingResult)
+                .where(orm.IndexingResult.id == indexingResultId)
+                .options(selectinload(orm.IndexingResult.run))
             )
-        )
-        .one()
-        .content,
+        ).one()
+
+        attributo_values: dict[str, bool | str] = {}
+        for av in indexing_result.run.attributo_values:
+            attributo = await av.awaitable_attrs.attributo
+
+            attributo_type = schema_union_to_attributo_type(
+                parse_schema_type(attributo.json_schema)
+            )
+
+            match attributo_type:
+                case AttributoTypeInt():
+                    attributo_values[attributo.name] = (
+                        str(av.integer_value) if av.integer_value is not None else ""
+                    )
+                case AttributoTypeBoolean():
+                    attributo_values[attributo.name] = (
+                        av.bool_value if av.bool_value is not None else False
+                    )
+                case AttributoTypeString() | AttributoTypeChoice():
+                    attributo_values[attributo.name] = (
+                        av.string_value if av.string_value is not None else ""
+                    )
+                case AttributoTypeChemical():
+                    attributo_values[attributo.name] = (
+                        (await av.awaitable_attrs.chemical).name
+                        if av.chemical_value is not None
+                        else ""
+                    )
+                case AttributoTypeDecimal():
+                    attributo_values[attributo.name] = (
+                        str(av.float_value) if av.float_value is not None else ""
+                    )
+                case AttributoTypeDateTime():
+                    attributo_values[attributo.name] = (
+                        str(av.datetime_value) if av.datetime_value is not None else ""
+                    )
+                case AttributoTypeList():
+                    attributo_values[attributo.name] = (
+                        ",".join(
+                            str(v)
+                            for v in (
+                                av.list_value if av.list_value is not None else []
+                            )
+                        )
+                        if av.datetime_value is not None
+                        else ""
+                    )
+
+        content = mstache.render(content, attributo_values)
+
+    return Response(
+        content=content,
         media_type="text/plain",
     )
 

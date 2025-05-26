@@ -641,6 +641,7 @@ def simple_run_id(
     beamtime_id: BeamtimeId,
     run_channel_1_chemical_attributo_id: int,
     chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
     lyso_chemical_id: int,
 ) -> RunInternalId:
     external_run_id = 1000
@@ -658,6 +659,10 @@ def simple_run_id(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
+                    ),
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="foobar",
                     ),
                 ],
                 create_data_set=False,
@@ -725,7 +730,7 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
 @pytest.fixture
 def simple_indexing_result_id(
     client: TestClient,
-    simple_data_set_id: RunInternalId,
+    simple_data_set_id: int,
     geometry_id: int,
 ) -> int:
     create_indexing_response = JsonCreateIndexingForDataSetOutput(
@@ -736,6 +741,66 @@ def simple_indexing_result_id(
                 is_online=False,
                 cell_description="",
                 geometry_id=geometry_id,
+                command_line="",
+                source="raw",
+            ).model_dump(),
+        ).json(),
+    )
+
+    client.post(
+        f"/api/indexing/{create_indexing_response.indexing_result_id}/success",
+        json=JsonIndexingResultFinishSuccessfully(
+            workload_manager_job_id=1,
+            stream_file="/tmp/some-file.stream",  # noqa: S108
+            program_version="",
+            # More or less random values, we don't care about the specifics here
+            frames=200,
+            # Hit rate 50%
+            hits=100,
+            # Indexing rate 20%
+            indexed_frames=20,
+            indexed_crystals=25,
+            align_detector_groups=[
+                JsonAlignDetectorGroup(
+                    group="all",
+                    x_translation_mm=0.5,
+                    y_translation_mm=-0.5,
+                    z_translation_mm=-0.8,
+                    x_rotation_deg=1,
+                    y_rotation_deg=2,
+                ),
+                JsonAlignDetectorGroup(
+                    group="panel0",
+                    x_translation_mm=0,
+                    y_translation_mm=0,
+                    z_translation_mm=0,
+                    x_rotation_deg=0,
+                    y_rotation_deg=0,
+                ),
+            ],
+            generated_geometry_contents="",
+            unit_cell_histograms_id=None,
+            latest_log="",
+        ).model_dump(),
+    )
+
+    return create_indexing_response.indexing_result_id
+
+
+@pytest.fixture
+def indexing_result_id_with_run_string_attributo_geometry(
+    client: TestClient,
+    simple_data_set_id: int,
+    geometry_id_with_run_string_attributo: int,
+) -> int:
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_id=geometry_id_with_run_string_attributo,
                 command_line="",
                 source="raw",
             ).model_dump(),
@@ -4398,6 +4463,19 @@ async def test_geometry_with_usage_in_result(
     assert len(result.geometry_with_usage) == 1
     assert result.geometry_with_usage[0].geometry_id == geometry_id
     assert result.geometry_with_usage[0].usages == 1
+
+
+async def test_geometry_raw_with_variables(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    geometry_id_with_run_string_attributo: int,
+    indexing_result_id_with_run_string_attributo_geometry: int,  # noqa: ARG001
+) -> None:
+    result_raw = client.get(
+        f"/api/geometries/{geometry_id_with_run_string_attributo}/raw?indexingResultId={indexing_result_id_with_run_string_attributo_geometry}"
+    ).text
+
+    assert result_raw == "clen foobar"
 
 
 async def test_merge_daemon(

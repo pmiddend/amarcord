@@ -47,7 +47,8 @@ dependencies = [
     "python-magic==0.4.27",
     # for async file opening functions
     "anyio==4.8.0",
-    "mstache>=0.3.0",
+    # for the geometry templates
+    "mstache==0.3.0",
 ]
 
 [dependency-groups]
@@ -92,6 +93,11 @@ amarcord-slurm-runner = "amarcord.cli.slurm_runner:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Without this, hatch(ling?) doesn't find our code. Maybe if it were
+# located inside "src/amarcord" but that's a MR for the future.
+[tool.hatch.build.targets.wheel]
+packages = ["amarcord"]
 
 [tool.uv]
 # This is a hack, to fix the uv2nix flake thing.

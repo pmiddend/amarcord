@@ -1,7 +1,7 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-24.11";
+  inputs.nixpkgs.url = "nixpkgs/nixos-25.05";
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
     url = "github:jeslie0/mkElmDerivation";
@@ -163,7 +163,7 @@
         rec {
           inherit amarcord-frontend;
 
-          amarcord-python-package = pythonSet.mkVirtualEnv "amarcord-serial-env" workspace.deps.default;
+          amarcord-python-package = pythonSet.mkVirtualEnv "amarcord-env" workspace.deps.default;
 
           amarcord-production-webserver = pkgs.writeShellScriptBin "amarcord-production-webserver" ''
             export AMARCORD_STATIC_PATH="${amarcord-frontend}"
@@ -199,14 +199,23 @@
             python
             pkgs.uv
           ];
-          shellHook = ''
-            unset PYTHONPATH
-            export UV_PYTHON_DOWNLOADS=never
+          env = {
+            # Prevent uv from managing Python downloads
+            UV_PYTHON_DOWNLOADS = "never";
+            # Force uv to use nixpkgs Python interpreter
+            UV_PYTHON = python.interpreter;
             # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
-            export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
+            PYENCHANT_LIBRARY_PATH = "${pkgs.enchant}/lib/libenchant-2.so";
             # This is also more or less a hack, see
             # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
-            export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
+            ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
+          } // lib.optionalAttrs pkgs.stdenv.isLinux {
+            # Python libraries often load native shared objects using dlopen(3).
+            # Setting LD_LIBRARY_PATH makes the dynamic library loader aware of libraries without using RPATH for lookup.
+            LD_LIBRARY_PATH = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+          };
+          shellHook = ''
+            unset PYTHONPATH
           '';
         };
 
@@ -225,12 +234,48 @@
             };
 
             # Override previous set with our overrideable overlay.
-            editablePythonSet = pythonSet.overrideScope editableOverlay;
+            editablePythonSet = pythonSet.overrideScope (
+              lib.composeManyExtensions [
+                editableOverlay
+
+                # Apply fixups for building an editable package of your workspace packages
+                (final: prev: {
+                  amarcord = prev.amarcord.overrideAttrs (old: {
+                    # It's a good idea to filter the sources going into an editable build
+                    # so the editable package doesn't have to be rebuilt on every change.
+                    src = lib.fileset.toSource {
+                      root = old.src;
+                      fileset = lib.fileset.unions [
+                        (old.src + "/pyproject.toml")
+                        (old.src + "/README.md")
+                      ];
+                    };
+
+                    # Hatchling (our build system) has a dependency on
+                    # the `editables` package when building editables.
+                    #
+                    # In normal Python flows this dependency is
+                    # dynamically handled, and doesn't need to be
+                    # explicitly declared. This behaviour is
+                    # documented in PEP-660.
+                    #
+                    # With Nix the dependency needs to be explicitly
+                    # declared.
+                    nativeBuildInputs =
+                      old.nativeBuildInputs
+                      ++ final.resolveBuildSystem {
+                        editables = [ ];
+                      };
+                  });
+
+                })
+              ]
+            );
 
             # Build virtual environment, with local packages being editable.
             #
             # Enable all optional dependencies for development.
-            virtualenv = editablePythonSet.mkVirtualEnv "amarcord-serial-dev-env" workspace.deps.all;
+            virtualenv = editablePythonSet.mkVirtualEnv "amarcord-dev-env" workspace.deps.all;
 
           in
           pkgs.mkShell {
@@ -249,24 +294,28 @@
               pkgs.schemacrawler
               pkgs.shellcheck
             ];
+            env = {
+              # Don't create venv using uv
+              UV_NO_SYNC = "1";
+
+              # Force uv to use Python interpreter from venv
+              UV_PYTHON = "${virtualenv}/bin/python";
+
+              # Prevent uv from downloading managed Python's
+              UV_PYTHON_DOWNLOADS = "never";
+              # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
+              PYENCHANT_LIBRARY_PATH = "${pkgs.enchant}/lib/libenchant-2.so";
+
+              # This is also more or less a hack, see
+              # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
+              ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
+            };
             shellHook = ''
               # Undo dependency propagation by nixpkgs.
               unset PYTHONPATH
 
-              # Don't create venv using uv
-              export UV_NO_SYNC=1
-
-              # Prevent uv from downloading managed Python's
-              export UV_PYTHON_DOWNLOADS=never
-
               # Get repository root using git. This is expanded at runtime by the editable `.pth` machinery.
               export REPO_ROOT=$(git rev-parse --show-toplevel)
-
-              # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
-              export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
-              # This is also more or less a hack, see
-              # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
-              export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
             '';
           };
 
