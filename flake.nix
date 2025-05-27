@@ -190,7 +190,6 @@
             ];
           };
         };
-
       devShells.${system} = {
         # It is of course perfectly OK to keep using an impure virtualenv workflow and only use uv2nix to build packages.
         # This devShell simply adds Python and undoes the dependency leakage done by Nixpkgs Python infrastructure.
@@ -321,7 +320,25 @@
 
         frontend =
           let
-            elm-language-server = (import ./frontend/elm-language-server { inherit pkgs; })."@elm-tooling/elm-language-server";
+            elm-language-server = pkgs.buildNpmPackage (finalAttrs: {
+              pname = "elm-language-server";
+              version = "2.8.0";
+
+              src = pkgs.fetchFromGitHub {
+                owner = "elm-tooling";
+                repo = "elm-language-server";
+                tag = "${finalAttrs.version}";
+                hash = "sha256-OU6VoMu5Qnawxt02vT0B/37VipiBzlLBlZbQbnu8PEE=";
+              };
+
+              # https://discourse.nixos.org/t/error-getaddrinfo-eai-again-github-com-when-using-nix-parcel-and-elm/29605/3
+              npmFlags = [ "--ignore-scripts" ];
+
+              # There _is_ no build script.
+              npmBuildScript = "compile";
+
+              npmDepsHash = "sha256-jb59LiP2EZpTkc4o/t+9j287W01tDgbwFpAsWZCCL/k=";
+            });
           in
           pkgs.mkShell {
             buildInputs = [

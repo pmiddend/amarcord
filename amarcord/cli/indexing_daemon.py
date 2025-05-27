@@ -167,7 +167,7 @@ async def start_offline_indexing_job(
 
         try:
             async with session.get(
-                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw"
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
             ) as response:
                 job_environment[
                     amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
