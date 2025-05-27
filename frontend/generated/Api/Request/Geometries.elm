@@ -31,6 +31,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Copy To Beamtime
+-}
 copyToBeamtimeApiGeometryCopyToBeamtimePost : Api.Data.JsonGeometryCopyToBeamtime -> Api.Request Api.Data.JsonGeometryWithoutContent
 copyToBeamtimeApiGeometryCopyToBeamtimePost jsonGeometryCopyToBeamtime_body =
     Api.request
@@ -43,6 +46,8 @@ copyToBeamtimeApiGeometryCopyToBeamtimePost jsonGeometryCopyToBeamtime_body =
         Api.Data.jsonGeometryWithoutContentDecoder
 
 
+{-| Create Geometry
+-}
 createGeometryApiGeometriesPost : Api.Data.JsonGeometryCreate -> Api.Request Api.Data.JsonGeometryWithoutContent
 createGeometryApiGeometriesPost jsonGeometryCreate_body =
     Api.request
@@ -55,6 +60,8 @@ createGeometryApiGeometriesPost jsonGeometryCreate_body =
         Api.Data.jsonGeometryWithoutContentDecoder
 
 
+{-| Delete Single Geometry
+-}
 deleteSingleGeometryApiGeometriesGeometryIdDelete : Int -> Api.Request Api.Data.JsonReadGeometriesForSingleBeamtime
 deleteSingleGeometryApiGeometriesGeometryIdDelete geometryId_path =
     Api.request
@@ -67,6 +74,8 @@ deleteSingleGeometryApiGeometriesGeometryIdDelete geometryId_path =
         Api.Data.jsonReadGeometriesForSingleBeamtimeDecoder
 
 
+{-| Read Geometries For All Beamtimes
+-}
 readGeometriesForAllBeamtimesApiAllGeometriesGet : Api.Request Api.Data.JsonReadGeometriesForAllBeamtimes
 readGeometriesForAllBeamtimesApiAllGeometriesGet =
     Api.request
@@ -79,6 +88,8 @@ readGeometriesForAllBeamtimesApiAllGeometriesGet =
         Api.Data.jsonReadGeometriesForAllBeamtimesDecoder
 
 
+{-| Read Geometries For Single Beamtime
+-}
 readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadGeometriesForSingleBeamtime
 readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -91,6 +102,8 @@ readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet beamtimeId_pa
         Api.Data.jsonReadGeometriesForSingleBeamtimeDecoder
 
 
+{-| Read Single Geometry
+-}
 readSingleGeometryApiGeometriesGeometryIdGet : Int -> Api.Request Api.Data.JsonReadSingleGeometryOutput
 readSingleGeometryApiGeometriesGeometryIdGet geometryId_path =
     Api.request
@@ -103,18 +116,22 @@ readSingleGeometryApiGeometriesGeometryIdGet geometryId_path =
         Api.Data.jsonReadSingleGeometryOutputDecoder
 
 
-readSingleGeometryRawApiGeometriesGeometryIdRawGet : Int -> Api.Request String
-readSingleGeometryRawApiGeometriesGeometryIdRawGet geometryId_path =
+{-| Read Single Geometry Raw
+-}
+readSingleGeometryRawApiGeometriesGeometryIdRawGet : Int -> Maybe Int -> Api.Request String
+readSingleGeometryRawApiGeometriesGeometryIdRawGet geometryId_path indexingResultId_query =
     Api.request
         "GET"
         "/api/geometries/{geometryId}/raw"
         [ ( "geometryId", String.fromInt geometryId_path ) ]
-        []
+        [ ( "indexingResultId", Maybe.map String.fromInt indexingResultId_query ) ]
         []
         Nothing
         Json.Decode.string
 
 
+{-| Update Geometry
+-}
 updateGeometryApiGeometriesGeometryIdPatch : Int -> Api.Data.JsonGeometryUpdate -> Api.Request Api.Data.JsonGeometryWithoutContent
 updateGeometryApiGeometriesGeometryIdPatch geometryId_path jsonGeometryUpdate_body =
     Api.request

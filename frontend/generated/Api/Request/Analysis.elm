@@ -28,6 +28,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Read Analysis Results
+-}
 readAnalysisResultsApiAnalysisAnalysisResultsPost : Api.Data.JsonReadNewAnalysisInput -> Api.Request Api.Data.JsonReadNewAnalysisOutput
 readAnalysisResultsApiAnalysisAnalysisResultsPost jsonReadNewAnalysisInput_body =
     Api.request
@@ -40,6 +43,8 @@ readAnalysisResultsApiAnalysisAnalysisResultsPost jsonReadNewAnalysisInput_body 
         Api.Data.jsonReadNewAnalysisOutputDecoder
 
 
+{-| Read Beamtime Geometry Details
+-}
 readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet : Int -> Api.Request Api.Data.JsonReadBeamtimeGeometryDetails
 readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId_path =
     Api.request
@@ -52,6 +57,8 @@ readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId_path =
         Api.Data.jsonReadBeamtimeGeometryDetailsDecoder
 
 
+{-| Read Run Analysis
+-}
 readRunAnalysisApiRunAnalysisBeamtimeIdGet : Int -> Maybe Int -> Api.Request Api.Data.JsonReadRunAnalysis
 readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId_path runId_query =
     Api.request
@@ -64,6 +71,8 @@ readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId_path runId_query =
         Api.Data.jsonReadRunAnalysisDecoder
 
 
+{-| Read Single Data Set Results
+-}
 readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet : Int -> Int -> Api.Request Api.Data.JsonReadSingleDataSetResults
 readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId_path dataSetId_path =
     Api.request
@@ -76,6 +85,8 @@ readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeI
         Api.Data.jsonReadSingleDataSetResultsDecoder
 
 
+{-| Read Single Merge Result
+-}
 readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet : Int -> Int -> Int -> Api.Request Api.Data.JsonReadSingleMergeResult
 readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet beamtimeId_path experimentTypeId_path mergeResultId_path =
     Api.request

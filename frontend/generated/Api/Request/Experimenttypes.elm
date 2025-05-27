@@ -28,6 +28,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Change Current Run Experiment Type
+-}
 changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost : Api.Data.JsonChangeRunExperimentType -> Api.Request Api.Data.JsonChangeRunExperimentTypeOutput
 changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost jsonChangeRunExperimentType_body =
     Api.request
@@ -40,6 +43,8 @@ changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost jsonChangeRunEx
         Api.Data.jsonChangeRunExperimentTypeOutputDecoder
 
 
+{-| Copy Experiment Types
+-}
 copyExperimentTypesApiCopyExperimentTypesPost : Api.Data.JsonCopyExperimentTypesInput -> Api.Request Api.Data.JsonCopyExperimentTypesOutput
 copyExperimentTypesApiCopyExperimentTypesPost jsonCopyExperimentTypesInput_body =
     Api.request
@@ -52,6 +57,8 @@ copyExperimentTypesApiCopyExperimentTypesPost jsonCopyExperimentTypesInput_body 
         Api.Data.jsonCopyExperimentTypesOutputDecoder
 
 
+{-| Create Experiment Type
+-}
 createExperimentTypeApiExperimentTypesPost : Api.Data.JsonCreateExperimentTypeInput -> Api.Request Api.Data.JsonCreateExperimentTypeOutput
 createExperimentTypeApiExperimentTypesPost jsonCreateExperimentTypeInput_body =
     Api.request
@@ -64,6 +71,8 @@ createExperimentTypeApiExperimentTypesPost jsonCreateExperimentTypeInput_body =
         Api.Data.jsonCreateExperimentTypeOutputDecoder
 
 
+{-| Delete Experiment Type
+-}
 deleteExperimentTypeApiExperimentTypesDelete : Api.Data.JsonDeleteExperimentType -> Api.Request Api.Data.JsonDeleteExperimentTypeOutput
 deleteExperimentTypeApiExperimentTypesDelete jsonDeleteExperimentType_body =
     Api.request
@@ -76,6 +85,8 @@ deleteExperimentTypeApiExperimentTypesDelete jsonDeleteExperimentType_body =
         Api.Data.jsonDeleteExperimentTypeOutputDecoder
 
 
+{-| Read Experiment Types
+-}
 readExperimentTypesApiExperimentTypesBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadExperimentTypes
 readExperimentTypesApiExperimentTypesBeamtimeIdGet beamtimeId_path =
     Api.request

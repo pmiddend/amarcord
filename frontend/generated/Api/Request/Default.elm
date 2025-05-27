@@ -26,6 +26,9 @@ import Json.Decode
 import Json.Encode
 import File exposing (File)
 
+
+{-| Check Standard Unit
+-}
 checkStandardUnitApiUnitPost : Api.Data.JsonCheckStandardUnitInput -> Api.Request Api.Data.JsonCheckStandardUnitOutput
 checkStandardUnitApiUnitPost jsonCheckStandardUnitInput_body =
     Api.request
@@ -38,6 +41,8 @@ checkStandardUnitApiUnitPost jsonCheckStandardUnitInput_body =
         Api.Data.jsonCheckStandardUnitOutputDecoder
 
 
+{-| Update Live Stream
+-}
 updateLiveStreamApiLiveStreamBeamtimeIdPost : Int -> File -> Api.Request Api.Data.JsonUpdateLiveStream
 updateLiveStreamApiLiveStreamBeamtimeIdPost beamtimeId_path file =
     Api.request

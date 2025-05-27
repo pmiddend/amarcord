@@ -4467,9 +4467,8 @@ async def test_geometry_with_usage_in_result(
 
 async def test_geometry_raw_with_variables(
     client: TestClient,
-    beamtime_id: BeamtimeId,
     geometry_id_with_run_string_attributo: int,
-    indexing_result_id_with_run_string_attributo_geometry: int,  # noqa: ARG001
+    indexing_result_id_with_run_string_attributo_geometry: int,
 ) -> None:
     result_raw = client.get(
         f"/api/geometries/{geometry_id_with_run_string_attributo}/raw?indexingResultId={indexing_result_id_with_run_string_attributo_geometry}"

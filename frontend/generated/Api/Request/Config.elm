@@ -27,6 +27,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Read Indexing Parameters
+-}
 readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet : Int -> Api.Request Api.Data.JsonReadOnlineIndexingParametersOutput
 readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId_path =
     Api.request
@@ -39,6 +42,8 @@ readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtim
         Api.Data.jsonReadOnlineIndexingParametersOutputDecoder
 
 
+{-| Read User Configuration Single
+-}
 readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet : Int -> String -> Api.Request Api.Data.JsonUserConfigurationSingleOutput
 readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet beamtimeId_path key_path =
     Api.request
@@ -51,6 +56,8 @@ readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet beamtimeId_path key_pat
         Api.Data.jsonUserConfigurationSingleOutputDecoder
 
 
+{-| Update Online Indexing Parameters
+-}
 updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch : Int -> Api.Data.JsonUpdateOnlineIndexingParametersInput -> Api.Request Api.Data.JsonUpdateOnlineIndexingParametersOutput
 updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch beamtimeId_path jsonUpdateOnlineIndexingParametersInput_body =
     Api.request
@@ -63,6 +70,8 @@ updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPat
         Api.Data.jsonUpdateOnlineIndexingParametersOutputDecoder
 
 
+{-| Update User Configuration Single
+-}
 updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch : Int -> String -> String -> Api.Request Api.Data.JsonUserConfigurationSingleOutput
 updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch beamtimeId_path key_path value_path =
     Api.request
