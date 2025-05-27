@@ -169,9 +169,12 @@ async def start_offline_indexing_job(
             async with session.get(
                 f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
             ) as response:
+                response_text = await response.text()
+                if response.status % 100 != 2:
+                    raise Exception(f"response was: {response_text}")
                 job_environment[
                     amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-                ] = await response.text()
+                ] = response_text
         except Exception as e:
             raise JobStartError(f"error retrieving geometry: {e}")
         # Offline indexing jobs, if configured that way, can emit
@@ -285,12 +288,17 @@ async def start_online_indexing_job(
             ),
         }
         try:
+            if indexing_result.geometry_id is None:
+                raise Exception(f"indexing result result {indexing_result.id} doesn't have a geometry ID set")
             async with session.get(
-                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw"
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
             ) as response:
+                response_text = await response.text()
+                if response.status // 100 != 2:
+                    raise Exception(f"response code {response.status}, response was: {response_text}")
                 job_environment[
                     amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-                ] = await response.text()
+                ] = response_text
         except Exception as e:
             raise JobStartError(f"error retrieving geometry: {e}")
         bound_logger.info("environment for this job is " + " ".join(job_environment))
