@@ -15,6 +15,26 @@ down_revision = "bb5c96f181f3"
 branch_labels = None
 depends_on = None
 
+RUN_TABLE = sa.sql.table(
+    "Run",
+    sa.column("id", sa.Integer),
+    sa.column("beamtime_id", sa.Integer),
+)
+
+INDEXING_PARAMETERS_TABLE = sa.sql.table(
+    "IndexingParameters",
+    sa.column("id", sa.Integer),
+    sa.column("geometry_file", sa.String),
+)
+
+INDEXING_RESULT_TABLE = sa.sql.table(
+    "IndexingResult",
+    sa.column("id", sa.Integer),
+    sa.column("run_id", sa.Integer),
+    sa.column("geometry_file", sa.String),
+    sa.column("generated_geometry_file", sa.String),
+)
+
 
 def upgrade() -> None:
     op.create_table(
@@ -94,8 +114,6 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
-    with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
-        batch_op.drop_column("geometry_file")
     with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
         batch_op.add_column(
             sa.Column(
@@ -109,6 +127,12 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
+
+    # TODO: migrate old to new here
+
+    with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
+        batch_op.drop_column("geometry_file")
+    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
         # Remove geometry ID column
         batch_op.drop_column("geometry_file")
         batch_op.drop_column("geometry_hash")
