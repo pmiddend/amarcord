@@ -168,7 +168,7 @@ def upgrade() -> None:
     conn = op.get_bind()
     result = conn.execute(
         sa.text(
-            "SELECT I.id, I.geometry_file, I.generated_geometry_file, I.indexing_parameters_id FROM IndexingResult I"
+            "SELECT I.id, I.run_id, I.geometry_file, I.generated_geometry_file, I.indexing_parameters_id FROM IndexingResult I"
         )
     )
 
