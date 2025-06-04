@@ -137,7 +137,7 @@ def upgrade() -> None:
             sa.ForeignKey("Attributo.id", ondelete="cascade"),
             nullable=False,
         ),
-        sa.Column("replacement", sa.String, nullable=False),
+        sa.Column("replacement", sa.String(length=255), nullable=False),
     )
     with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
         batch_op.add_column(
