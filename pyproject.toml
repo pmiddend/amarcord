@@ -27,7 +27,7 @@ dependencies = [
     # For the Excel spreadsheet export
     "openpyxl==3.1.5",
     # For validating units
-    "pint==0.23",
+    "pint==0.24.4",
     # For the config file
     "pydantic==2.11.3",
     # asynchronous db client
