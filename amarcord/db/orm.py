@@ -410,7 +410,9 @@ class GeometryTemplateReplacement(Base):
     __tablename__ = "GeometryTemplateReplacement"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
-    indexing_result_id: Mapped[int] = mapped_column(ForeignKey("IndexingResult.id"))
+    indexing_result_id: Mapped[int] = mapped_column(
+        ForeignKey("IndexingResult.id"), init=False
+    )
     attributo_id: Mapped[int] = mapped_column(ForeignKey("Attributo.id"))
     replacement: Mapped[str] = mapped_column()
 

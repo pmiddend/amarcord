@@ -418,56 +418,17 @@ async def read_single_geometry_raw(
             await session.scalars(
                 select(orm.IndexingResult)
                 .where(orm.IndexingResult.id == indexingResultId)
-                .options(selectinload(orm.IndexingResult.run))
+                .options(
+                    selectinload(orm.IndexingResult.template_replacements).selectinload(
+                        orm.GeometryTemplateReplacement.attributo
+                    )
+                )
             )
         ).one()
 
-        attributo_values: dict[str, bool | str] = {}
-        for av in indexing_result.run.attributo_values:
-            attributo = await av.awaitable_attrs.attributo
-
-            attributo_type = schema_union_to_attributo_type(
-                parse_schema_type(attributo.json_schema)
-            )
-
-            match attributo_type:
-                case AttributoTypeInt():
-                    attributo_values[attributo.name] = (
-                        str(av.integer_value) if av.integer_value is not None else ""
-                    )
-                case AttributoTypeBoolean():
-                    attributo_values[attributo.name] = (
-                        av.bool_value if av.bool_value is not None else False
-                    )
-                case AttributoTypeString() | AttributoTypeChoice():
-                    attributo_values[attributo.name] = (
-                        av.string_value if av.string_value is not None else ""
-                    )
-                case AttributoTypeChemical():
-                    attributo_values[attributo.name] = (
-                        (await av.awaitable_attrs.chemical).name
-                        if av.chemical_value is not None
-                        else ""
-                    )
-                case AttributoTypeDecimal():
-                    attributo_values[attributo.name] = (
-                        str(av.float_value) if av.float_value is not None else ""
-                    )
-                case AttributoTypeDateTime():
-                    attributo_values[attributo.name] = (
-                        str(av.datetime_value) if av.datetime_value is not None else ""
-                    )
-                case AttributoTypeList():
-                    attributo_values[attributo.name] = (
-                        ",".join(
-                            str(v)
-                            for v in (
-                                av.list_value if av.list_value is not None else []
-                            )
-                        )
-                        if av.datetime_value is not None
-                        else ""
-                    )
+        attributo_values: dict[str, str] = {}
+        for r in indexing_result.template_replacements:
+            attributo_values[r.attributo.name] = r.replacement
 
         content = mstache.render(content, attributo_values)
 

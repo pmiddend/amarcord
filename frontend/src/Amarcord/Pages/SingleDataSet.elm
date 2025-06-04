@@ -13,7 +13,7 @@ import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescripti
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), GeometryMetadata, geometryIdToInt)
 import Amarcord.GeometryViewer as GeometryViewer
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
@@ -25,7 +25,7 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, label, li, nav, ol, small, span, sup, table, td, text, th, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, label, li, nav, ol, small, span, sup, table, td, text, th, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
@@ -777,7 +777,8 @@ viewIndexingResults now showErroneous parameters results =
                     , td [ colspan 5 ]
                         [ div_
                             [ span [ class "hstack gap-1" ]
-                                [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                [ strongText "Logs: "
+                                , a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
                                 , if hasError then
                                     a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
@@ -822,21 +823,21 @@ viewIndexingResults now showErroneous parameters results =
 
                           else
                             div_ [ strongText "CrystFEL version: ", text programVersion ]
-                        , div_
-                            [ strongText "Stream file: "
-                            , br_
-                            , span [ class "text-break" ] [ text streamFile ]
-                            , copyToClipboardButton (CopyToClipboard streamFile)
-                            ]
-                        , Html.map
-                            (GeometryViewerMsg
-                                (ResultPath
-                                    { parametersId = parameters.id
-                                    , resultIndex = id
-                                    }
-                                )
-                            )
-                            (div_ [ strongText "Generated geometry: ", GeometryViewer.view generatedGeometry ])
+                        , if String.isEmpty streamFile then
+                            text ""
+
+                          else
+                            div_
+                                [ strongText "Stream file: "
+                                , br_
+                                , span [ class "text-break" ] [ text streamFile ]
+                                , copyToClipboardButton (CopyToClipboard streamFile)
+                                ]
+                        , if Maybe.Extra.isJust (GeometryViewer.extractId generatedGeometry) then
+                            Html.map (GeometryViewerMsg (ResultPath { parametersId = parameters.id, resultIndex = id })) (div_ [ strongText "Generated geometry: ", GeometryViewer.view generatedGeometry ])
+
+                          else
+                            text ""
                         , if List.isEmpty templateReplacements then
                             text ""
 
@@ -847,26 +848,15 @@ viewIndexingResults now showErroneous parameters results =
 
                                 Just geometryId ->
                                     div_
-                                        [ div_
-                                            [ strongText "Geometry placeholders: "
-                                            , text
-                                                (String.join ","
-                                                    (List.map
-                                                        (\( attributoName, replacement ) ->
-                                                            attributoName ++ "→" ++ replacement
-                                                        )
-                                                        templateReplacements
-                                                    )
-                                                )
+                                        [ strongText "Geometry placeholders: "
+                                        , br_
+                                        , ul [ class "mb-0" ] (List.map (\( attributoName, replacement ) -> li_ [ text (attributoName ++ " → " ++ replacement) ]) templateReplacements)
+                                        , strongText "Final geometry: "
+                                        , a
+                                            [ href
+                                                (makeGeometryLink geometryId (Just id))
                                             ]
-                                        , div_
-                                            [ strongText "Geometry without placeholders: "
-                                            , a
-                                                [ href
-                                                    (makeGeometryLink geometryId (Just id))
-                                                ]
-                                                []
-                                            ]
+                                            [ icon { name = "link-45deg" }, text " View" ]
                                         ]
                         , case unitCellHistogramsFileId of
                             Nothing ->
