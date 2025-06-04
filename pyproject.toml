@@ -14,7 +14,7 @@ dependencies = [
     "aiohttp==3.9.5",
     # asynchronous db client
     "aiosqlite==0.20.0",
-    "alembic==1.13.1",
+    "alembic==1.16.1",
     # asynchronous db client
     "asyncpg==0.30.0",
     # for the webserver
@@ -37,7 +37,7 @@ dependencies = [
     # see https://fastapi.tiangolo.com/tutorial/request-files/
     "python-multipart==0.0.9",
     # for general DB access
-    "sqlalchemy==2.0.40",
+    "sqlalchemy==2.0.41",
     "structlog-overtime==1.0.1",
     "structlog==24.2.0",
     # For parsing the arguments for programs (always required basically)
