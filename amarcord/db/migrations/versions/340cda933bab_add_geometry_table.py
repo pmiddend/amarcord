@@ -196,7 +196,7 @@ def upgrade() -> None:
 
         geometry_name_in_db = generate_name(
             existing_names.get(beamtime_id, set()),
-            row.geometry_file,
+            Path(row.geometry_file),
         )
         if beamtime_id not in existing_names:
             existing_names[beamtime_id] = set()
@@ -226,7 +226,7 @@ def upgrade() -> None:
             existing_generated_geometry = geometries.get((beamtime_id, generated_hash))
             generated_geometry_name_in_db = generate_name(
                 existing_names.get(beamtime_id, set()),
-                row.generated_geometry_file,
+                Path(row.generated_geometry_file),
             )
             if beamtime_id not in existing_names:
                 existing_names[beamtime_id] = set()
