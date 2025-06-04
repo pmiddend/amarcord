@@ -251,7 +251,7 @@ def upgrade() -> None:
             GEOMETRY_TABLE.insert().values(
                 {
                     "beamtime_id": beamtime_id,
-                    "content": geometry,
+                    "content": geometry.content,
                     "hash": hash,
                     "name": geometry.filename,
                     "created": datetime.datetime.now(datetime.timezone.utc),
