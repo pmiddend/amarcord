@@ -652,7 +652,14 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path || contains "run-bulk-import-template" url.path then
+                    if
+                        contains "api/files/" url.path
+                            || contains "api/geometries/" url.path
+                            || endsWith "/log" url.path
+                            || endsWith "/errorlog" url.path
+                            || contains "spreadsheet.zip" url.path
+                            || contains "run-bulk-import-template" url.path
+                    then
                         ( model, Nav.load (URL.toString url) )
 
                     else

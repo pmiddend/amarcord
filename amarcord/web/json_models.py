@@ -420,6 +420,11 @@ class JsonAlignDetectorGroup(BaseModel):
     y_rotation_deg: None | float = None
 
 
+class JsonGeometryPlaceholderReplacement(BaseModel):
+    placeholder_name: str
+    placeholder_replacement: str
+
+
 class JsonIndexingResult(BaseModel):
     id: int
     created: int
@@ -442,6 +447,7 @@ class JsonIndexingResult(BaseModel):
     generated_geometry_id: None | int
     unit_cell_histograms_file_id: None | int = None
     has_error: bool
+    geometry_placeholder_replacements: list[JsonGeometryPlaceholderReplacement]
     # Commented out, we retrieve the log separately
     # latest_log: str
 

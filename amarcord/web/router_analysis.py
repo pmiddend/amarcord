@@ -364,6 +364,11 @@ async def read_single_data_set_results(
             .where(orm.Run.beamtime_id == beamtimeId)
             .options(selectinload(orm.IndexingResult.generated_geometry))
             .options(
+                selectinload(orm.IndexingResult.template_replacements).selectinload(
+                    orm.GeometryTemplateReplacement.attributo
+                )
+            )
+            .options(
                 selectinload(orm.IndexingResult.indexing_parameters).selectinload(
                     orm.IndexingParameters.geometry
                 )

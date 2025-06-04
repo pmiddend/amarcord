@@ -215,7 +215,7 @@ def upgrade() -> None:
             )
 
         if row.generated_geometry_file is not None:
-            generated_hash = geometry_hash(Path(row.geometry_file))
+            generated_hash = geometry_hash(Path(row.generated_geometry_file))
 
             if isinstance(generated_hash, ErrorMessage):
                 print(

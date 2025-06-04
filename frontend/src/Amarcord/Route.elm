@@ -1,9 +1,10 @@
 module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingResultId(..), MergeResultId, beamtimeIdToString)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingResultId(..), MergeResultId, beamtimeIdToString, indexingResultIdToString)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
+import Amarcord.GeometryMetadata exposing (GeometryId, geometryIdToString)
 import Dict
 import Maybe.Extra
 import Time exposing (millisToPosix, posixToMillis)
@@ -336,6 +337,16 @@ makeFilesLink id suggestedNameMaybe =
 
         Just suggestedName ->
             "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
+
+
+makeGeometryLink : GeometryId -> Maybe IndexingResultId -> String
+makeGeometryLink id indexingResultId =
+    case indexingResultId of
+        Nothing ->
+            "api/geometries/" ++ geometryIdToString id ++ "/raw"
+
+        Just indexingResultIdReal ->
+            "api/geometries/" ++ geometryIdToString id ++ "/raw?indexingResultId=" ++ indexingResultIdToString indexingResultIdReal
 
 
 makeIndexingIdLogLink : IndexingResultId -> String

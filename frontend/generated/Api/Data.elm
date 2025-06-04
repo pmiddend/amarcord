@@ -98,6 +98,7 @@ module Api.Data exposing
     , JsonGeometryCopyToBeamtime
     , JsonGeometryCreate
     , JsonGeometryMetadata
+    , JsonGeometryPlaceholderReplacement
     , JsonGeometryUpdate
     , JsonGeometryWithUsages
     , JsonGeometryWithoutContent
@@ -271,6 +272,7 @@ module Api.Data exposing
     , encodeJsonGeometryCopyToBeamtime
     , encodeJsonGeometryCreate
     , encodeJsonGeometryMetadata
+    , encodeJsonGeometryPlaceholderReplacement
     , encodeJsonGeometryUpdate
     , encodeJsonGeometryWithUsages
     , encodeJsonGeometryWithoutContent
@@ -452,6 +454,7 @@ module Api.Data exposing
     , jsonGeometryCopyToBeamtimeDecoder
     , jsonGeometryCreateDecoder
     , jsonGeometryMetadataDecoder
+    , jsonGeometryPlaceholderReplacementDecoder
     , jsonGeometryUpdateDecoder
     , jsonGeometryWithUsagesDecoder
     , jsonGeometryWithoutContentDecoder
@@ -1225,6 +1228,12 @@ type alias JsonGeometryMetadata =
     }
 
 
+type alias JsonGeometryPlaceholderReplacement =
+    { placeholderName : String
+    , placeholderReplacement : String
+    }
+
+
 type alias JsonGeometryUpdate =
     { content : String
     , name : String
@@ -1344,6 +1353,7 @@ type alias JsonIndexingResult =
     , generatedGeometryId : Maybe Int
     , unitCellHistogramsFileId : Maybe Int
     , hasError : Bool
+    , geometryPlaceholderReplacements : List JsonGeometryPlaceholderReplacement
     }
 
 
@@ -3920,6 +3930,27 @@ encodeJsonGeometryMetadataPairs model =
     pairs
 
 
+encodeJsonGeometryPlaceholderReplacement : JsonGeometryPlaceholderReplacement -> Json.Encode.Value
+encodeJsonGeometryPlaceholderReplacement =
+    encodeObject << encodeJsonGeometryPlaceholderReplacementPairs
+
+
+encodeJsonGeometryPlaceholderReplacementWithTag : ( String, String ) -> JsonGeometryPlaceholderReplacement -> Json.Encode.Value
+encodeJsonGeometryPlaceholderReplacementWithTag (tagField, tag) model =
+    encodeObject (encodeJsonGeometryPlaceholderReplacementPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonGeometryPlaceholderReplacementPairs : JsonGeometryPlaceholderReplacement -> List EncodedField
+encodeJsonGeometryPlaceholderReplacementPairs model =
+    let
+        pairs =
+            [ encode "placeholder_name" Json.Encode.string model.placeholderName
+            , encode "placeholder_replacement" Json.Encode.string model.placeholderReplacement
+            ]
+    in
+    pairs
+
+
 encodeJsonGeometryUpdate : JsonGeometryUpdate -> Json.Encode.Value
 encodeJsonGeometryUpdate =
     encodeObject << encodeJsonGeometryUpdatePairs
@@ -4202,6 +4233,7 @@ encodeJsonIndexingResultPairs model =
             , encodeNullable "generated_geometry_id" Json.Encode.int model.generatedGeometryId
             , maybeEncodeNullable "unit_cell_histograms_file_id" Json.Encode.int model.unitCellHistogramsFileId
             , encode "has_error" Json.Encode.bool model.hasError
+            , encode "geometry_placeholder_replacements" (Json.Encode.list encodeJsonGeometryPlaceholderReplacement) model.geometryPlaceholderReplacements
             ]
     in
     pairs
@@ -6819,6 +6851,13 @@ jsonGeometryMetadataDecoder =
         |> decode "name" Json.Decode.string 
 
 
+jsonGeometryPlaceholderReplacementDecoder : Json.Decode.Decoder JsonGeometryPlaceholderReplacement
+jsonGeometryPlaceholderReplacementDecoder =
+    Json.Decode.succeed JsonGeometryPlaceholderReplacement
+        |> decode "placeholder_name" Json.Decode.string 
+        |> decode "placeholder_replacement" Json.Decode.string 
+
+
 jsonGeometryUpdateDecoder : Json.Decode.Decoder JsonGeometryUpdate
 jsonGeometryUpdateDecoder =
     Json.Decode.succeed JsonGeometryUpdate
@@ -6950,6 +6989,7 @@ jsonIndexingResultDecoder =
         |> decodeNullable "generated_geometry_id" Json.Decode.int 
         |> maybeDecodeNullable "unit_cell_histograms_file_id" Json.Decode.int Nothing
         |> decode "has_error" Json.Decode.bool 
+        |> decode "geometry_placeholder_replacements" (Json.Decode.list jsonGeometryPlaceholderReplacementDecoder) 
 
 
 jsonIndexingResultFinishSuccessfullyDecoder : Json.Decode.Decoder JsonIndexingResultFinishSuccessfully

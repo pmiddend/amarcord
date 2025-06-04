@@ -1,35 +1,40 @@
 module Amarcord.GeometryViewer exposing (Model, Msg, extractId, init, update, view)
 
+import Amarcord.API.Requests exposing (IndexingResultId)
 import Amarcord.GeometryMetadata exposing (GeometryId, GeometryMetadata)
-import Html exposing (Html, span, text)
+import Amarcord.Route exposing (makeGeometryLink)
+import Html exposing (Html, a, span, text)
+import Html.Attributes exposing (href)
 
 
 type alias Model =
-    Maybe GeometryMetadata
+    { metadata : Maybe GeometryMetadata
+    , indexingResultId : Maybe IndexingResultId
+    }
 
 
 extractId : Model -> Maybe GeometryId
-extractId x =
-    x |> Maybe.map .id
+extractId { metadata } =
+    metadata |> Maybe.map .id
 
 
 type Msg
     = Nop
 
 
-init : Maybe GeometryMetadata -> Model
-init model =
-    model
+init : Maybe IndexingResultId -> Maybe GeometryMetadata -> Model
+init indexingResultId metadata =
+    { indexingResultId = indexingResultId, metadata = metadata }
 
 
 view : Model -> Html Msg
-view geom =
-    case geom of
+view { metadata, indexingResultId } =
+    case metadata of
         Nothing ->
             text ""
 
-        Just { name } ->
-            span [] [ text name ]
+        Just { id, name } ->
+            a [ href (makeGeometryLink id indexingResultId) ] [ text name ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

@@ -39,7 +39,10 @@ from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import create_intervals
 from amarcord.web.constants import DATE_FORMAT
-from amarcord.web.json_models import JsonAlignDetectorGroup
+from amarcord.web.json_models import (
+    JsonAlignDetectorGroup,
+    JsonGeometryPlaceholderReplacement,
+)
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonIndexingParameters
 from amarcord.web.json_models import JsonIndexingResult
@@ -650,4 +653,10 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             else None
         ),
         unit_cell_histograms_file_id=ir.unit_cell_histograms_file_id,
+        geometry_placeholder_replacements=[
+            JsonGeometryPlaceholderReplacement(
+                placeholder_name=r.attributo.name, placeholder_replacement=r.replacement
+            )
+            for r in ir.template_replacements
+        ],
     )

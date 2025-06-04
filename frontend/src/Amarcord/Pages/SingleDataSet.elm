@@ -16,7 +16,7 @@ import Amarcord.GeometryViewer as GeometryViewer
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
-import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
 import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributoOutput, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
@@ -150,6 +150,7 @@ type alias IndexingResult =
     , generatedGeometry : GeometryViewer.Model
     , unitCellHistogramsFileId : Maybe Int
     , hasError : Bool
+    , templateReplacements : List ( String, String )
     }
 
 
@@ -188,7 +189,7 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
                         , cellDescription = ip.cellDescription
                         , isOnline = ip.isOnline
                         , commandLine = ip.commandLine
-                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init Nothing
                         }
                     )
 
@@ -213,9 +214,10 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
             , indexedCrystals = ir.indexedCrystals
             , status = ir.status
             , alignDetectorGroups = ir.alignDetectorGroups
-            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init (Just (IndexingResultId ir.id))
             , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
             , hasError = ir.hasError
+            , templateReplacements = List.map (\{ placeholderName, placeholderReplacement } -> ( placeholderName, placeholderReplacement )) ir.geometryPlaceholderReplacements
             }
 
         convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults -> Maybe IndexingParametersWithResults
@@ -283,7 +285,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, g
                         , cellDescription = ip.cellDescription
                         , isOnline = ip.isOnline
                         , commandLine = ip.commandLine
-                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init Nothing
                         }
                     )
 
@@ -307,9 +309,10 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, g
             , indexedCrystals = ir.indexedCrystals
             , status = ir.status
             , alignDetectorGroups = ir.alignDetectorGroups
-            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init Nothing
             , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
             , hasError = ir.hasError
+            , templateReplacements = List.map (\{ placeholderName, placeholderReplacement } -> ( placeholderName, placeholderReplacement )) ir.geometryPlaceholderReplacements
             }
 
         convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults
@@ -689,7 +692,7 @@ viewIndexingResults now showErroneous parameters results =
             [ "IID", "Run", "Status", "Frames", "Hits", "Ixed" ]
 
         viewHistogram fileId =
-            div [ class "col" ]
+            div [ class "col w-75" ]
                 [ a
                     [ href (makeFilesLink fileId Nothing)
                     ]
@@ -717,7 +720,7 @@ viewIndexingResults now showErroneous parameters results =
                 )
 
         viewIndexingResultRow : IndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometry } =
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometry, templateReplacements } =
             if showErroneous || not hasError then
                 [ tr
                     [ class
@@ -833,14 +836,45 @@ viewIndexingResults now showErroneous parameters results =
                                     }
                                 )
                             )
-                            (GeometryViewer.view generatedGeometry)
+                            (div_ [ strongText "Generated geometry: ", GeometryViewer.view generatedGeometry ])
+                        , if List.isEmpty templateReplacements then
+                            text ""
+
+                          else
+                            case GeometryViewer.extractId parameters.geometry of
+                                Nothing ->
+                                    text ""
+
+                                Just geometryId ->
+                                    div_
+                                        [ div_
+                                            [ strongText "Geometry placeholders: "
+                                            , text
+                                                (String.join ","
+                                                    (List.map
+                                                        (\( attributoName, replacement ) ->
+                                                            attributoName ++ "→" ++ replacement
+                                                        )
+                                                        templateReplacements
+                                                    )
+                                                )
+                                            ]
+                                        , div_
+                                            [ strongText "Geometry without placeholders: "
+                                            , a
+                                                [ href
+                                                    (makeGeometryLink geometryId (Just id))
+                                                ]
+                                                []
+                                            ]
+                                        ]
                         , case unitCellHistogramsFileId of
                             Nothing ->
                                 text ""
 
                             Just ucFileId ->
                                 div_
-                                    [ strongText "Unit cell histograms"
+                                    [ strongText "Unit cell histograms: "
                                     , viewHistogram ucFileId
                                     ]
                         ]
@@ -1426,19 +1460,27 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
             , div [ class "form-text mb-3" ] [ small [] [ text "If you want to reprocess with slightly different parameters, instead of starting from scratch, this button is the right one for you." ] ]
             ]
         , h5_ [ text "Indexing Results per Run" ]
-        , div [ class "form-check" ]
-            [ input_
-                [ class "form-check-input"
-                , type_ "checkbox"
-                , id ("show-erroneous" ++ indexingParametersIdToString parameters.id)
-                , onClick (ToggleShowErroneous parameters.id)
+        , let
+            numberOfErroneous =
+                List.Extra.count (\ir -> ir.hasError) indexingResults
+          in
+          if numberOfErroneous == 0 then
+            text ""
+
+          else
+            div [ class "form-check" ]
+                [ input_
+                    [ class "form-check-input"
+                    , type_ "checkbox"
+                    , id ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                    , onClick (ToggleShowErroneous parameters.id)
+                    ]
+                , label
+                    [ for ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                    , class "form-check-label"
+                    ]
+                    [ text ("Show " ++ String.fromInt numberOfErroneous ++ " erroneous indexing job(s)") ]
                 ]
-            , label
-                [ for ("show-erroneous" ++ indexingParametersIdToString parameters.id)
-                , class "form-check-label"
-                ]
-                [ text "Show erroneous indexing jobs" ]
-            ]
         , viewIndexingResults
             model.hereAndNow.now
             (memberIndexingParametersIdSet parameters.id model.showErroneousIndexingJobs || List.all (\ir -> ir.hasError) indexingResults)
@@ -2057,13 +2099,18 @@ update msg model =
                     )
 
         Refresh posix ->
-            let
-                newHereAndNow =
-                    { now = posix, zone = model.hereAndNow.zone }
-            in
-            ( { model | hereAndNow = newHereAndNow }
-            , possiblyRefresh model
-            )
+            case model.analysisRequest of
+                Loading ->
+                    ( model, Cmd.none )
+
+                _ ->
+                    let
+                        newHereAndNow =
+                            { now = posix, zone = model.hereAndNow.zone }
+                    in
+                    ( { model | hereAndNow = newHereAndNow }
+                    , possiblyRefresh model
+                    )
 
         CrystFELMergeMessage cfMsg ->
             case model.activatedMergeForm of
