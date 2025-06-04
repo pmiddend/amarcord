@@ -175,14 +175,10 @@ def upgrade() -> None:
     geometries: dict[tuple[BeamtimeId, GeometryHash], Geometry] = {}
     existing_names: dict[BeamtimeId, set[str]] = {}
     for row in result:
-        beamtime_id = (
-            conn.execute(
-                sa.text("SELECT Run.beamtime_id FROM Run WHERE id = :r"),
-                {"r": row.run_id},
-            )
-            .scalar_one()
-            .beamtime_id
-        )
+        beamtime_id = conn.execute(
+            sa.text("SELECT Run.beamtime_id FROM Run WHERE id = :r"),
+            {"r": row.run_id},
+        ).scalar_one()
 
         if row.geometry_file is None:
             print("does not have a geometry set, skipping")
