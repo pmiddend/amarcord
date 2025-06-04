@@ -62,7 +62,7 @@ INDEXING_PARAMETERS_TABLE = sa.sql.table(
 )
 
 INDEXING_RESULTS_TABLE = sa.sql.table(
-    "IndexingResults",
+    "IndexingResult",
     sa.column("id", sa.Integer),
     sa.column("generated_geometry_id", sa.Integer),
 )
@@ -180,7 +180,7 @@ def upgrade() -> None:
             {"r": row.run_id},
         ).scalar_one()
 
-        if row.geometry_file is None:
+        if not row.geometry_file:
             print("does not have a geometry set, skipping")
             continue
 
