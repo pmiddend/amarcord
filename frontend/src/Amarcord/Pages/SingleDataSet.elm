@@ -11,7 +11,7 @@ import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseComman
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), GeometryMetadata, geometryIdToInt)
+import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryMetadata, geometryIdToInt)
 import Amarcord.GeometryViewer as GeometryViewer
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)

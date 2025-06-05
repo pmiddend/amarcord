@@ -11,7 +11,7 @@ import Api.Data exposing (JsonAttributoOutput, JsonGeometryWithoutContent, JsonR
 import Api.Request.Geometries exposing (copyToBeamtimeApiGeometryCopyToBeamtimePost, createGeometryApiGeometriesPost, deleteSingleGeometryApiGeometriesGeometryIdDelete, readGeometriesForAllBeamtimesApiAllGeometriesGet, readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet, readSingleGeometryApiGeometriesGeometryIdGet, updateGeometryApiGeometriesGeometryIdPatch)
 import Dict
 import Html exposing (..)
-import Html.Attributes as HtmlAttributes exposing (attribute, class, disabled, for, id, selected, style, type_, value)
+import Html.Attributes exposing (attribute, class, disabled, for, id, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, singleton, sortBy)
 import List.Extra
