@@ -11,10 +11,10 @@ import Api.Data exposing (JsonAttributoOutput, JsonGeometryWithoutContent, JsonR
 import Api.Request.Geometries exposing (copyToBeamtimeApiGeometryCopyToBeamtimePost, createGeometryApiGeometriesPost, deleteSingleGeometryApiGeometriesGeometryIdDelete, readGeometriesForAllBeamtimesApiAllGeometriesGet, readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet, readSingleGeometryApiGeometriesGeometryIdGet, updateGeometryApiGeometriesGeometryIdPatch)
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, disabled, for, id, selected, style, type_, value)
+import Html.Attributes as HtmlAttributes exposing (attribute, class, disabled, for, id, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List exposing (isEmpty, singleton)
-import List.Extra as ListExtra
+import List exposing (isEmpty, singleton, sortBy)
+import List.Extra
 import Maybe.Extra exposing (isNothing)
 import Mustache
 import RemoteData exposing (RemoteData(..), fromResult, isFailure, isLoading, isNotAsked)
@@ -287,17 +287,21 @@ viewGeometryTable attributi geometries usages =
 viewPriorGeometries : CopyPriorData -> Html Msg
 viewPriorGeometries { priorGeometries, selectedId, submitRequest } =
     let
+        groupedGeometriesByBeamtime : List ( JsonGeometryWithoutContent, List JsonGeometryWithoutContent )
+        groupedGeometriesByBeamtime =
+            List.Extra.groupWhile (\geomA geomB -> geomA.beamtimeId == geomB.beamtimeId) (List.reverse (sortBy (\geom -> geom.beamtimeId) priorGeometries.geometries))
+
         viewPriorGeometry { id, name, beamtimeId } =
             let
                 title =
-                    case ListExtra.find (\bt -> bt.id == beamtimeId) priorGeometries.beamtimes of
+                    case List.Extra.find (\bt -> bt.id == beamtimeId) priorGeometries.beamtimes of
                         Nothing ->
                             name
 
-                        Just { startLocal } ->
+                        Just bt ->
                             let
                                 startAsPosix =
-                                    millisToPosix startLocal
+                                    millisToPosix bt.startLocal
                             in
                             name
                                 ++ " / "
@@ -311,6 +315,32 @@ viewPriorGeometries { priorGeometries, selectedId, submitRequest } =
                 , selected (selectedId == Just (GeometryId id))
                 ]
                 [ text title ]
+
+        viewOptgroup : ( JsonGeometryWithoutContent, List JsonGeometryWithoutContent ) -> Html msg
+        viewOptgroup ( representative, elements ) =
+            let
+                beamtimeLabel : String
+                beamtimeLabel =
+                    case List.Extra.find (\bt -> bt.id == representative.beamtimeId) priorGeometries.beamtimes of
+                        Nothing ->
+                            ""
+
+                        Just bt ->
+                            let
+                                startAsPosix =
+                                    millisToPosix bt.startLocal
+                            in
+                            bt.title
+                                ++ " / "
+                                ++ String.fromInt
+                                    (toYear utc startAsPosix)
+                                ++ "-"
+                                ++ monthToNumericString (toMonth utc startAsPosix)
+            in
+            optgroup [ attribute "label" beamtimeLabel ]
+                (List.map viewPriorGeometry
+                    (List.reverse (List.sortBy (\geom -> geom.created) elements))
+                )
     in
     form_ <|
         [ h4_ [ icon { name = "terminal" }, text " Select geometry to copy" ]
@@ -325,7 +355,7 @@ viewPriorGeometries { priorGeometries, selectedId, submitRequest } =
                 , selected (isNothing selectedId)
                 ]
                 [ text "« choose a geometry »" ]
-                :: List.map viewPriorGeometry priorGeometries.geometries
+                :: List.map viewOptgroup groupedGeometriesByBeamtime
             )
         , div [ class "hstack gap-3 mb-3" ]
             [ button

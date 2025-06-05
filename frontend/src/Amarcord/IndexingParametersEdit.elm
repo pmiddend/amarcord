@@ -1008,10 +1008,6 @@ viewGeometry : Model -> Html Msg
 viewGeometry model =
     div [ class "mb-3" ]
         [ Html.map GeometryChange (GeometryEdit.view model.geometry)
-        , div
-            [ class "form-text"
-            ]
-            [ text "Either enter a path on the file system, or set to “Full” and enter the geometry file directly. Leave blank to autodetect the geometry file by going up the directory hierarchy of the beamtime." ]
         ]
 
 
