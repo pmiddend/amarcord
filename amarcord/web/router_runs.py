@@ -207,7 +207,7 @@ async def _create_data_set_for_run(
     session: AsyncSession,
     latest_config: orm.UserConfiguration,
     run: orm.Run,
-) -> None:
+) -> None | int:
     current_experiment_type = (
         await latest_config.awaitable_attrs.current_experiment_type
     )
@@ -251,6 +251,9 @@ async def _create_data_set_for_run(
             have_equal = True
     if not have_equal:
         session.add(new_data_set)
+        await session.flush()
+        return new_data_set.id
+    return None
 
 
 @router.post(
@@ -411,7 +414,11 @@ async def create_or_update_run(
                 run_in_db.stopped = utc_int_to_utc_datetime(input_.stopped)
 
         if input_.create_data_set:
-            await _create_data_set_for_run(session, latest_config, run_in_db)
+            new_data_set_id = await _create_data_set_for_run(
+                session, latest_config, run_in_db
+            )
+        else:
+            new_data_set_id = None
 
         async def _inner_create_new_event(text: str) -> None:
             run_logger.error(text)
@@ -511,6 +518,7 @@ async def create_or_update_run(
         error_message=None,
         run_internal_id=run_in_db.id,
         new_indexing_parameters_id=new_indexing_parameters_id,
+        new_data_set_id=new_data_set_id,
         files=[
             JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in run_in_db.files
         ],

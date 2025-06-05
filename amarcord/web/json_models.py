@@ -582,6 +582,7 @@ class JsonCreateOrUpdateRunOutput(BaseModel):
     run_created: bool
     indexing_result_id: None | int = None
     new_indexing_parameters_id: None | int = None
+    new_data_set_id: None | int = None
     error_message: None | str = None
     run_internal_id: None | RunInternalId = None
     files: list[JsonRunFile]

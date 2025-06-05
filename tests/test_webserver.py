@@ -2379,6 +2379,145 @@ def test_update_indexing_job(
     assert len(single_data_set_result.data_set.indexing_results) == 1
 
 
+def test_create_two_indexing_jobs_with_different_template_replacements(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id: int,
+    run_string_attributo_id: int,
+    lyso_chemical_id: int,
+    # important for this test: run string attributo in the geometry, which we will change during the course of the test
+    geometry_id_with_run_string_attributo: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    # Enable CrystFEL online so an indexing job will be created
+    enable_crystfel_online(client, beamtime_id, geometry_id_with_run_string_attributo)
+
+    external_run_id = 1000
+
+    # Create the run and check the result
+    run_string_attributo_initial_value = "initial value"
+    create_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                # Having files is important, indexing won't run if this is missing
+                files=[JsonRunFile(id=0, glob="/tmp/test-input-file", source="raw")],  # noqa: S108,
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                    # set the run string *initial* attributo value here
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str=run_string_attributo_initial_value,
+                    ),
+                ],
+                # And create a data set with the run, why not...
+                create_data_set=True,
+                started=1,
+                # Having a stopped run is important for indexing (it won't start for ongoing runs)
+                stopped=100,
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert create_run_response.run_internal_id is not None
+    assert (
+        create_run_response.indexing_result_id is not None
+        and create_run_response.indexing_result_id > 0
+    )
+    assert create_run_response.new_data_set_id is not None
+    assert create_run_response.new_data_set_id > 0
+
+    # Try to create a new indexing job, although nothing has changed.
+    # This should not fail yet, because we now have an online and an
+    # offline result.
+    create_indexing_response = client.post(
+        "/api/indexing",
+        json=JsonCreateIndexingForDataSetInput(
+            data_set_id=create_run_response.new_data_set_id,
+            is_online=False,
+            cell_description="",
+            geometry_id=geometry_id_with_run_string_attributo,
+            command_line="",
+            source="raw",
+        ).model_dump(),
+    )
+    assert create_indexing_response.status_code // 100 == 2
+
+    # Creating a second, identical indexing result should fail though (if nothing changed)
+    create_indexing_response = client.post(
+        "/api/indexing",
+        json=JsonCreateIndexingForDataSetInput(
+            data_set_id=create_run_response.new_data_set_id,
+            is_online=False,
+            cell_description="",
+            geometry_id=geometry_id_with_run_string_attributo,
+            command_line="",
+            source="raw",
+        ).model_dump(),
+    )
+    assert create_indexing_response.status_code // 100 == 4
+
+    # Change the run attributo now
+    update_response = JsonUpdateRunOutput(
+        **client.patch(
+            "/api/runs",
+            json=JsonUpdateRun(
+                id=create_run_response.run_internal_id,
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str=run_string_attributo_initial_value
+                        + "some string",
+                    ),
+                ],
+                # None meaning: don't update the files, keep them.
+                files=None,
+            ).model_dump(),
+        ).json(),
+    )
+    assert update_response.result
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+    print(read_runs_output.runs[0])
+
+    # And try to create a new indexing job (since stuff has changed now, after all).
+    create_indexing_response = client.post(
+        "/api/indexing",
+        json=JsonCreateIndexingForDataSetInput(
+            data_set_id=create_run_response.new_data_set_id,
+            is_online=False,
+            cell_description="",
+            geometry_id=geometry_id_with_run_string_attributo,
+            command_line="",
+            source="raw",
+        ).model_dump(),
+    )
+    if create_indexing_response.status_code // 100 != 2:
+        print("==============" + create_indexing_response.text)
+    assert create_indexing_response.status_code // 100 == 2
+    # create_indexing_response = JsonCreateIndexingForDataSetOutput(
+    #     **client.post(
+    #         "/api/indexing",
+    #         json=JsonCreateIndexingForDataSetInput(
+    #             data_set_id=create_run_response.new_data_set_id,
+    #             is_online=False,
+    #             cell_description="",
+    #             geometry_id=geometry_id_with_run_string_attributo,
+    #             command_line="",
+    #             source="raw",
+    #         ).model_dump(),
+    #     ).json(),
+    # )
+    # assert create_indexing_response.indexing_result_id > 0
+
+
 def test_indexing_result_with_two_equal_parameter(
     client: TestClient,
     beamtime_id: BeamtimeId,

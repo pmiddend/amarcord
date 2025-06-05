@@ -24,6 +24,7 @@ from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import add_geometry_template_replacements_to_ir
 from amarcord.db.orm_utils import all_geometry_metadatas
+from amarcord.db.orm_utils import generate_geometry_replacements
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
@@ -301,7 +302,8 @@ async def indexing_job_queue_for_data_set(
             await session.scalars(
                 select(orm.IndexingResult)
                 .where(orm.IndexingResult.run_id.in_([r.id for r in runs_in_data_set]))
-                .options(selectinload(orm.IndexingResult.indexing_parameters)),
+                .options(selectinload(orm.IndexingResult.indexing_parameters))
+                .options(selectinload(orm.IndexingResult.run)),
             )
         ).all(),
     )
@@ -324,12 +326,23 @@ async def indexing_job_queue_for_data_set(
         # Finished, but erroneous indexing results are no use, they should be redoable
         if ir.job_error is not None:
             continue
-        # Run doesn't need to be reprocessed, nice.
+        # Indexing parameters match? Good, but we might have different
+        # template replacements in the attached geometry! Check that
+        # as well.
         if orm.are_indexing_parameters_equal(ir.indexing_parameters, new_parameters):
             job_logger.info(
                 f"indexing parameters {ir.indexing_parameters.id} match {new_parameters}",
             )
-            run_ids_without_matching_indexing_results.remove(ir.run_id)
+            existing_replacements: dict[int, str] = {
+                r.attributo_id: r.replacement
+                for r in await ir.awaitable_attrs.template_replacements
+            }
+            new_replacements: dict[int, str] = {
+                gen.attributo_id: gen.replacement
+                async for gen in generate_geometry_replacements(ir.run, geometry)
+            }
+            if existing_replacements == new_replacements:
+                run_ids_without_matching_indexing_results.remove(ir.run_id)
 
     if not run_ids_without_matching_indexing_results:
         raise HTTPException(

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from typing import AsyncGenerator
 
 import magic
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -739,28 +740,31 @@ async def run_attributo_value_to_template_replacement(
             )
 
 
-async def add_geometry_template_replacements_to_ir(
-    ir: orm.IndexingResult, run: orm.Run, geometry: orm.Geometry
-) -> None:
+async def generate_geometry_replacements(
+    run: orm.Run, geometry: orm.Geometry
+) -> AsyncGenerator[orm.GeometryTemplateReplacement, None]:
     for attributo in await geometry.awaitable_attrs.attributi:
         replacement_found = False
         for run_attributo_value in run.attributo_values:
             if run_attributo_value.attributo_id == attributo.id:
-                ir.template_replacements.append(
-                    orm.GeometryTemplateReplacement(
-                        attributo_id=attributo.id,
-                        replacement=await run_attributo_value_to_template_replacement(
-                            attributo, run_attributo_value
-                        ),
-                    )
+                yield orm.GeometryTemplateReplacement(
+                    attributo_id=attributo.id,
+                    replacement=await run_attributo_value_to_template_replacement(
+                        attributo, run_attributo_value
+                    ),
                 )
                 replacement_found = True
                 break
         # This could happen if we have an Attributo in the geometry which is unset in the run.
         if not replacement_found:
-            ir.template_replacements.append(
-                orm.GeometryTemplateReplacement(
-                    attributo_id=attributo.id,
-                    replacement="",
-                )
+            yield orm.GeometryTemplateReplacement(
+                attributo_id=attributo.id,
+                replacement="",
             )
+
+
+async def add_geometry_template_replacements_to_ir(
+    ir: orm.IndexingResult, run: orm.Run, geometry: orm.Geometry
+) -> None:
+    async for replacement in generate_geometry_replacements(run, geometry):
+        ir.template_replacements.append(replacement)

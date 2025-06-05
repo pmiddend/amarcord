@@ -1032,6 +1032,7 @@ type alias JsonCreateOrUpdateRunOutput =
     { runCreated : Bool
     , indexingResultId : Maybe Int
     , newIndexingParametersId : Maybe Int
+    , newDataSetId : Maybe Int
     , errorMessage : Maybe String
     , runInternalId : Maybe Int
     , files : List JsonRunFile
@@ -3298,6 +3299,7 @@ encodeJsonCreateOrUpdateRunOutputPairs model =
             [ encode "run_created" Json.Encode.bool model.runCreated
             , maybeEncodeNullable "indexing_result_id" Json.Encode.int model.indexingResultId
             , maybeEncodeNullable "new_indexing_parameters_id" Json.Encode.int model.newIndexingParametersId
+            , maybeEncodeNullable "new_data_set_id" Json.Encode.int model.newDataSetId
             , maybeEncodeNullable "error_message" Json.Encode.string model.errorMessage
             , maybeEncodeNullable "run_internal_id" Json.Encode.int model.runInternalId
             , encode "files" (Json.Encode.list encodeJsonRunFile) model.files
@@ -6629,6 +6631,7 @@ jsonCreateOrUpdateRunOutputDecoder =
         |> decode "run_created" Json.Decode.bool 
         |> maybeDecodeNullable "indexing_result_id" Json.Decode.int Nothing
         |> maybeDecodeNullable "new_indexing_parameters_id" Json.Decode.int Nothing
+        |> maybeDecodeNullable "new_data_set_id" Json.Decode.int Nothing
         |> maybeDecodeNullable "error_message" Json.Decode.string Nothing
         |> maybeDecodeNullable "run_internal_id" Json.Decode.int Nothing
         |> decode "files" (Json.Decode.list jsonRunFileDecoder) 
