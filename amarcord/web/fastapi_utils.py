@@ -39,11 +39,9 @@ from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import create_intervals
 from amarcord.web.constants import DATE_FORMAT
-from amarcord.web.json_models import (
-    JsonAlignDetectorGroup,
-    JsonGeometryPlaceholderReplacement,
-)
+from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAttributoValue
+from amarcord.web.json_models import JsonGeometryPlaceholderReplacement
 from amarcord.web.json_models import JsonIndexingParameters
 from amarcord.web.json_models import JsonIndexingResult
 from amarcord.web.json_models import JsonMergeParameters

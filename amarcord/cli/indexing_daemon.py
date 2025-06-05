@@ -170,8 +170,6 @@ async def start_offline_indexing_job(
                 f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
             ) as response:
                 response_text = await response.text()
-                if response.status // 100 != 2:
-                    raise Exception(f"response code was {response.status}, response was: {response_text}")
                 job_environment[
                     amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
                 ] = response_text
@@ -208,7 +206,7 @@ async def start_offline_indexing_job(
             fom=empty_indexing_fom,
         )
     except JobStartError as e:
-        bound_logger.error(f"job start errored: {e}")
+        bound_logger.exception(f"job start errored: {e}")
         return DBIndexingResultDone(
             stream_file=stream_file,
             job_error=e.message,
@@ -289,13 +287,13 @@ async def start_online_indexing_job(
         }
         try:
             if indexing_result.geometry_id is None:
-                raise Exception(f"indexing result result {indexing_result.id} doesn't have a geometry ID set")
+                raise JobStartError(
+                    f"indexing result result {indexing_result.id} doesn't have a geometry ID set"
+                )
             async with session.get(
                 f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
             ) as response:
                 response_text = await response.text()
-                if response.status // 100 != 2:
-                    raise Exception(f"response code {response.status}, response was: {response_text}")
                 job_environment[
                     amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
                 ] = response_text
@@ -402,16 +400,23 @@ async def _start_new_jobs(
         assert new_status is not None
 
         if isinstance(new_status, DBIndexingResultDone):
-            async with session.post(
-                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
-                json=JsonIndexingResultFinishWithError(
-                    # If we start a job and it's immediately finished, then we must have an error
-                    error_message=cast(str, new_status.job_error),
-                    workload_manager_job_id=indexing_result.job_id,
-                    latest_log="",
-                ).model_dump(),
-            ) as update_response:
-                bound_logger.info(f"indexing job errored, result: {update_response}")
+            try:
+                async with session.post(
+                    f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+                    json=JsonIndexingResultFinishWithError(
+                        # If we start a job and it's immediately finished, then we must have an error
+                        error_message=cast(str, new_status.job_error),
+                        workload_manager_job_id=indexing_result.job_id,
+                        latest_log="",
+                    ).model_dump(),
+                ) as update_response:
+                    bound_logger.info(
+                        f"indexing job errored, result: {update_response}"
+                    )
+            except:
+                bound_logger.exception(
+                    'sending the "job finished with error" request failed'
+                )
         else:
             update_request = JsonIndexingResultStillRunning(
                 workload_manager_job_id=new_status.job_id,
@@ -427,18 +432,16 @@ async def _start_new_jobs(
                 latest_log="",
             )
 
-            async with session.post(
-                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
-                json=update_request.model_dump(),
-            ) as update_response:
-                if update_response.status // 200 != 1:
-                    bound_logger.error(
-                        f"didn't receive status 200 but {update_response.status}",
-                    )
-                else:
+            try:
+                async with session.post(
+                    f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
+                    json=update_request.model_dump(),
+                ) as update_response:
                     bound_logger.info(
                         f"new indexing job started, result: {update_response}",
                     )
+            except:
+                bound_logger.exception('sending the "job still running" request failed')
 
         bound_logger.info(
             f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break",
@@ -518,15 +521,20 @@ async def _update_jobs(
                 f"finished because {workload_manager.name()} job status is {workload_job.status}",
             )
 
-        async with session.post(
-            f"{amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
-            json=JsonIndexingResultFinishWithError(
-                error_message=job_error,
-                workload_manager_job_id=indexing_result.job_id,
-                latest_log="",
-            ).model_dump(),
-        ) as update_response:
-            bound_logger.info(f"indexing job finished, result: {update_response}")
+        try:
+            async with session.post(
+                f"{amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+                json=JsonIndexingResultFinishWithError(
+                    error_message=job_error,
+                    workload_manager_job_id=indexing_result.job_id,
+                    latest_log="",
+                ).model_dump(),
+            ) as update_response:
+                bound_logger.info(f"indexing job finished, result: {update_response}")
+        except:
+            bound_logger.exception(
+                'sending the "job finished with error" request failed'
+            )
 
     # this is usually too spammy
     # logger.info("indexing jobs stati updated, take a (longer) break")
@@ -577,7 +585,9 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
     #
     # We could also just create a session over and over, but this seems a bit more clean
     connector = aiohttp.TCPConnector(force_close=True)
-    async with aiohttp.ClientSession(connector=connector) as session:
+    async with aiohttp.ClientSession(
+        connector=connector, raise_for_status=True
+    ) as session:
         # This is the heart of the daemon: a simple loop that
         # interleaves two operations: starting new runs, and checking
         # if any of the existing runs changed their status. To

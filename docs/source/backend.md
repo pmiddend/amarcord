@@ -170,7 +170,7 @@ When an offline indexing job is created, using the HTTP API, AMARCORD looks at f
 
 As of 0.11.0, CrystFEL uses millepede to provide automated geometry. This is a two-step process: `indexamajig`, when passed `--mille`, will create special millepede files, which get used by a separate tool, `align_detector`, to produce statistics and create an updated `.geom` file.
 
-When instructed to do so, AMARCORD will both pass `--mille` as well as call `align_detector`. The path to the updated geometry will be stored in the database, in the **IndexingResult** table. So we have two geometries in the database: one in the **IndexingParameter** table, which is the input geometry, and a second, optional one in the results table (see the next section for a description of all tables involved).
+When instructed to do so, AMARCORD will both pass `--mille` as well as call `align_detector`. The updated geometry will be read in by AMARCORD's indexing job and the geometry will be stored in the **Geometry** table and linked in the **IndexingResult** table. So we have two geometries in the database: one in the **IndexingParameter** table, which is the input geometry, and a second, optional one in the results table (see the next section for a description of all tables involved).
 
 The output of `align_detector` will be parsed by the `crystfel_index.py` script, sent to AMARCORD via the HTTP API and then stored in the database. The shifts and rotations for online indexing are then plotted in the UI under "Analysis → Geometry". The numerical results are also displayed in the data set view.
 

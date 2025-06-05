@@ -6,11 +6,13 @@ Create Date: 2025-05-07 14:52:48.472891
 
 """
 
-from dataclasses import dataclass
 import datetime
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
+
 import sqlalchemy as sa
+import structlog
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -18,6 +20,8 @@ revision = "340cda933bab"
 down_revision = "bb5c96f181f3"
 branch_labels = None
 depends_on = None
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -181,18 +185,18 @@ def upgrade() -> None:
         ).scalar_one()
 
         if not row.geometry_file:
-            print("does not have a geometry set, skipping")
+            logger.info("does not have a geometry set, skipping")
             continue
 
-        hash = geometry_hash(Path(row.geometry_file))
+        hash_ = geometry_hash(Path(row.geometry_file))
 
-        if isinstance(hash, ErrorMessage):
-            print(
-                f"couldn't determine geometry hash {row.geometry_file}: {hash.message}"
+        if isinstance(hash_, ErrorMessage):
+            logger.info(
+                f"couldn't determine geometry hash {row.geometry_file}: {hash_.message}"
             )
             continue
 
-        existing_geometry = geometries.get((beamtime_id, hash))
+        existing_geometry = geometries.get((beamtime_id, hash_))
 
         geometry_name_in_db = generate_name(
             existing_names.get(beamtime_id, set()),
@@ -207,7 +211,7 @@ def upgrade() -> None:
         else:
             with Path(row.geometry_file).open("r", encoding="utf-8") as f:
                 content = f.read()
-            geometries[(beamtime_id, hash)] = Geometry(
+            geometries[(beamtime_id, hash_)] = Geometry(
                 indexing_parameters=[row.indexing_parameters_id],
                 indexing_results_generated_geometries=[],
                 filename=geometry_name_in_db,
@@ -218,7 +222,7 @@ def upgrade() -> None:
             generated_hash = geometry_hash(Path(row.generated_geometry_file))
 
             if isinstance(generated_hash, ErrorMessage):
-                print(
+                logger.info(
                     f"couldn't determine generated geometry hash {row.generated_geometry_file}: {generated_hash.message}"
                 )
                 continue
@@ -246,13 +250,13 @@ def upgrade() -> None:
                     content=content,
                 )
 
-    for (beamtime_id, hash), geometry in geometries.items():
+    for (beamtime_id, hash_), geometry in geometries.items():
         insert_result = conn.execute(
             GEOMETRY_TABLE.insert().values(
                 {
                     "beamtime_id": beamtime_id,
                     "content": geometry.content,
-                    "hash": hash,
+                    "hash": hash_,
                     "name": geometry.filename,
                     "created": datetime.datetime.now(datetime.timezone.utc),
                 }
@@ -261,7 +265,7 @@ def upgrade() -> None:
 
         # For some reason, at least for sqlite, this doesn't work. It returns an empty tuple.
         # online_parameters_id: int = prior_parameters_insert.inserted_primary_key[0]
-        # print(online_parameters_id)
+        # logger.info(online_parameters_id)
         # This works, but only for certain backends. But our backends are among it, so should be fine.
         new_geometry_id = insert_result.lastrowid
 
@@ -281,12 +285,12 @@ def upgrade() -> None:
             .values({"generated_geometry_id": new_geometry_id})
         )
 
-        print(f"beamtime: {beamtime_id}, geometry hash: {hash}")
-        print(
+        logger.info(f"beamtime: {beamtime_id}, geometry hash: {hash_}")
+        logger.info(
             "indexing parameters: "
             + ", ".join(str(s) for s in geometry.indexing_parameters)
         )
-        print(
+        logger.info(
             "generated results: "
             + ", ".join(str(s) for s in geometry.indexing_results_generated_geometries)
         )

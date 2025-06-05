@@ -152,6 +152,8 @@ from amarcord.web.json_models import JsonUpdateAttributoOutput
 from amarcord.web.json_models import JsonUpdateBeamtimeInput
 from amarcord.web.json_models import JsonUpdateBeamtimeScheduleInput
 from amarcord.web.json_models import JsonUpdateLiveStream
+from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersInput
+from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersOutput
 from amarcord.web.json_models import JsonUpdateRun
 from amarcord.web.json_models import JsonUpdateRunOutput
 from amarcord.web.json_models import JsonUpdateRunsBulkInput
@@ -1729,11 +1731,23 @@ def set_auto_pilot(client: TestClient, beamtime_id: BeamtimeId, enabled: bool) -
     assert option_set_result.value_bool == enabled
 
 
-def enable_crystfel_online(client: TestClient, beamtime_id: BeamtimeId) -> None:
+def enable_crystfel_online(
+    client: TestClient, beamtime_id: BeamtimeId, geometry_id: int
+) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
         **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json(),
     )
 
+    set_geometry_result = JsonUpdateOnlineIndexingParametersOutput(
+        **client.patch(
+            f"/api/user-config/{beamtime_id}/online-indexing-parameters",
+            json=JsonUpdateOnlineIndexingParametersInput(
+                command_line="--multi", geometry_id=geometry_id, source=""
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert set_geometry_result.success
     assert option_set_result.value_bool
 
 
@@ -1895,10 +1909,11 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2020,10 +2035,11 @@ def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2216,11 +2232,12 @@ def test_update_indexing_job(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2697,11 +2714,12 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2731,6 +2749,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
         create_run_response.indexing_result_id is not None
         and create_run_response.indexing_result_id > 0
     )
+    assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
         **client.post(
@@ -2795,7 +2814,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                 strict_mode=False,
                 data_set_id=create_data_set_response.data_set_id,
                 # Literally random stuff here, doesn't matter.
-                indexing_parameters_id=1,
+                indexing_parameters_id=create_run_response.new_indexing_parameters_id,
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     # Deliberately left blank
@@ -2845,11 +2864,12 @@ def test_queue_then_start_then_finish_merge_job(
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
     test_file: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2879,6 +2899,7 @@ def test_queue_then_start_then_finish_merge_job(
         create_run_response.indexing_result_id is not None
         and create_run_response.indexing_result_id > 0
     )
+    assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
         **client.post(
@@ -2942,8 +2963,7 @@ def test_queue_then_start_then_finish_merge_job(
             json=JsonQueueMergeJobInput(
                 strict_mode=False,
                 data_set_id=create_data_set_response.data_set_id,
-                # Literally random stuff here, doesn't matter.
-                indexing_parameters_id=1,
+                indexing_parameters_id=create_run_response.new_indexing_parameters_id,
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,

@@ -14,7 +14,9 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
+from amarcord.db.attributi import parse_schema_type
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.attributi import utc_datetime_to_local_int
 from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_type import AttributoType
@@ -24,6 +26,7 @@ from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
@@ -700,3 +703,64 @@ async def all_geometry_metadatas(
             select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
         )
     ]
+
+
+async def run_attributo_value_to_template_replacement(
+    attributo: orm.Attributo, av: orm.RunHasAttributoValue
+) -> str:
+    attributo_type = schema_union_to_attributo_type(
+        parse_schema_type(attributo.json_schema)
+    )
+
+    match attributo_type:
+        case AttributoTypeInt():
+            return str(av.integer_value) if av.integer_value is not None else ""
+        case AttributoTypeBoolean():
+            return "true" if av.bool_value is not None else "false"
+        case AttributoTypeString() | AttributoTypeChoice():
+            return av.string_value if av.string_value is not None else ""
+        case AttributoTypeChemical():
+            return (
+                (await av.awaitable_attrs.chemical).name
+                if av.chemical_value is not None
+                else ""
+            )
+        case AttributoTypeDecimal():
+            return str(av.float_value) if av.float_value is not None else ""
+        case AttributoTypeDateTime():
+            return str(av.datetime_value) if av.datetime_value is not None else ""
+        case AttributoTypeList():
+            return (
+                ",".join(
+                    str(v) for v in (av.list_value if av.list_value is not None else [])
+                )
+                if av.datetime_value is not None
+                else ""
+            )
+
+
+async def add_geometry_template_replacements_to_ir(
+    ir: orm.IndexingResult, run: orm.Run, geometry: orm.Geometry
+) -> None:
+    for attributo in await geometry.awaitable_attrs.attributi:
+        replacement_found = False
+        for run_attributo_value in run.attributo_values:
+            if run_attributo_value.attributo_id == attributo.id:
+                ir.template_replacements.append(
+                    orm.GeometryTemplateReplacement(
+                        attributo_id=attributo.id,
+                        replacement=await run_attributo_value_to_template_replacement(
+                            attributo, run_attributo_value
+                        ),
+                    )
+                )
+                replacement_found = True
+                break
+        # This could happen if we have an Attributo in the geometry which is unset in the run.
+        if not replacement_found:
+            ir.template_replacements.append(
+                orm.GeometryTemplateReplacement(
+                    attributo_id=attributo.id,
+                    replacement="",
+                )
+            )

@@ -16,18 +16,8 @@ from sqlalchemy.sql import select
 
 from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db import orm
-from amarcord.db.attributi import parse_schema_type
-from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.attributi import utc_datetime_to_local_int
 from amarcord.db.attributi import utc_datetime_to_utc_int
-from amarcord.db.attributo_type import AttributoTypeBoolean
-from amarcord.db.attributo_type import AttributoTypeChemical
-from amarcord.db.attributo_type import AttributoTypeChoice
-from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeDecimal
-from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.orm_utils import encode_beamtime
 from amarcord.web.fastapi_utils import get_orm_db

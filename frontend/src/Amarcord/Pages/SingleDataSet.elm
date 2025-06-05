@@ -13,7 +13,7 @@ import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescripti
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), GeometryMetadata, geometryIdToInt)
 import Amarcord.GeometryViewer as GeometryViewer
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
@@ -53,12 +53,13 @@ type alias ProcessingParametersInput =
     }
 
 
-type GeometryViewerPath
-    = ParameterPath IndexingParametersId
-    | ResultPath
-        { parametersId : IndexingParametersId
-        , resultIndex : IndexingResultId
-        }
+
+-- type GeometryViewerPath
+--     = ParameterPath IndexingParametersId
+--     | ResultPath
+--         { parametersId : IndexingParametersId
+--         , resultIndex : IndexingResultId
+--         }
 
 
 type Msg
@@ -83,7 +84,10 @@ type Msg
     | OpenProcessingForm Int
     | CancelProcessing
     | ToggleShowErroneous IndexingParametersId
-    | GeometryViewerMsg GeometryViewerPath GeometryViewer.Msg
+
+
+
+-- | GeometryViewerMsg GeometryViewerPath GeometryViewer.Msg
 
 
 type SelectedMergeResult
@@ -172,15 +176,17 @@ type alias DataSetWithIndexingResults =
     }
 
 
-convertAnalysisResultsWithPrevious : JsonReadSingleDataSetResults -> SingleDataSetResults -> SingleDataSetResults
-convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType, dataSet, geometries } prior =
+convertAnalysisResultsWithPrevious : JsonReadSingleDataSetResults -> SingleDataSetResults
+convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType, dataSet, geometries } =
     let
         geometryIdToMetadata : Dict Int GeometryMetadata
         geometryIdToMetadata =
             List.foldr (\geom -> Dict.insert geom.id (GeometryMetadata.fromJson geom)) Dict.empty geometries
 
-        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData -> Maybe IndexingParametersData
-        convertIndexingParameters ip priorParameters =
+        -- convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData -> Maybe IndexingParametersData
+        -- convertIndexingParameters ip priorParameters =
+        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData
+        convertIndexingParameters ip =
             -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
             ip.id
                 |> Maybe.map
@@ -193,8 +199,10 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
                         }
                     )
 
-        convertIndexingResult : JsonIndexingResult -> Maybe IndexingResult -> IndexingResult
-        convertIndexingResult ir priorResult =
+        -- convertIndexingResult : JsonIndexingResult -> Maybe IndexingResult -> IndexingResult
+        -- convertIndexingResult ir priorResult =
+        convertIndexingResult : JsonIndexingResult -> IndexingResult
+        convertIndexingResult ir =
             -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
             { id = IndexingResultId ir.id
             , created = ir.created
@@ -220,21 +228,24 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
             , templateReplacements = List.map (\{ placeholderName, placeholderReplacement } -> ( placeholderName, placeholderReplacement )) ir.geometryPlaceholderReplacements
             }
 
-        convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults -> Maybe IndexingParametersWithResults
-        convertIndexingParametersWithResults ipr iprPriorMaybe =
-            convertIndexingParameters ipr.parameters (iprPriorMaybe |> Maybe.map .parameters)
+        -- convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults -> Maybe IndexingParametersWithResults
+        -- convertIndexingParametersWithResults ipr iprPriorMaybe =
+        convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults
+        convertIndexingParametersWithResults ipr =
+            -- convertIndexingParameters ipr.parameters (iprPriorMaybe |> Maybe.map .parameters)
+            convertIndexingParameters ipr.parameters
                 |> Maybe.map
                     (\parameters ->
                         { parameters = parameters
                         , indexingResults =
                             List.map
-                                (\ir ->
-                                    convertIndexingResult
-                                        ir
-                                        (iprPriorMaybe
-                                            |> Maybe.andThen
-                                                (\iprPrior -> List.Extra.find (\irPrior -> irPrior.id == IndexingResultId ir.id) iprPrior.indexingResults)
-                                        )
+                                (convertIndexingResult
+                                 -- convertIndexingResult
+                                 --     ir
+                                 --     (iprPriorMaybe
+                                 --         |> Maybe.andThen
+                                 --             (\iprPrior -> List.Extra.find (\irPrior -> irPrior.id == IndexingResultId ir.id) iprPrior.indexingResults)
+                                 --     )
                                 )
                                 ipr.indexingResults
                         , mergeResults = ipr.mergeResults
@@ -251,12 +262,12 @@ convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType
             , cellDescription = ds.cellDescription
             , indexingResults =
                 List.filterMap
-                    (\ir ->
-                        convertIndexingParametersWithResults ir
-                            (List.Extra.find
-                                (\priorIr -> Just priorIr.parameters.id == Maybe.map IndexingParametersId ir.parameters.id)
-                                prior.dataSet.indexingResults
-                            )
+                    (convertIndexingParametersWithResults
+                     -- convertIndexingParametersWithResults ir
+                     --     (List.Extra.find
+                     --         (\priorIr -> Just priorIr.parameters.id == Maybe.map IndexingParametersId ir.parameters.id)
+                     --         prior.dataSet.indexingResults
+                     --     )
                     )
                     ds.indexingResults
             }
@@ -775,89 +786,112 @@ viewIndexingResults now showErroneous parameters results =
                     ]
                     [ td_ []
                     , td [ colspan 5 ]
-                        [ div_
-                            [ span [ class "hstack gap-1" ]
-                                [ strongText "Logs: "
-                                , a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
-                                , if hasError then
-                                    a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
+                        [ table [ class "table table-sm table-borderless" ]
+                            [ let
+                                logsRow =
+                                    tr_
+                                        [ td_ [ strongText "Logs" ]
+                                        , td_
+                                            [ span [ class "hstack gap-1" ]
+                                                [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                                , if hasError then
+                                                    a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
-                                  else
-                                    text ""
-                                ]
-                            ]
-                        , div_ <|
-                            List.map
-                                (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
-                                    div_
-                                        [ strongText "Detector shift: "
-                                        , text
-                                            (formatFloatHumanFriendly xTranslationMm
-                                                ++ "mm, "
-                                                ++ formatFloatHumanFriendly yTranslationMm
-                                                ++ "mm"
-                                                ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
-                                            )
-                                        ]
-                                )
-                                alignDetectorGroups
-                        , case
-                            List.head
-                                (List.filterMap
-                                    (\{ xRotationDeg, yRotationDeg } ->
-                                        Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg
-                                    )
-                                    alignDetectorGroups
-                                )
-                          of
-                            Nothing ->
-                                text ""
-
-                            Just ( x, y ) ->
-                                div_
-                                    [ strongText "Detector rotation: "
-                                    , text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°")
-                                    ]
-                        , if String.isEmpty programVersion then
-                            text ""
-
-                          else
-                            div_ [ strongText "CrystFEL version: ", text programVersion ]
-                        , if String.isEmpty streamFile then
-                            text ""
-
-                          else
-                            div_
-                                [ strongText "Stream file: "
-                                , br_
-                                , span [ class "text-break" ] [ text streamFile ]
-                                , copyToClipboardButton (CopyToClipboard streamFile)
-                                ]
-                        , if Maybe.Extra.isJust (GeometryViewer.extractId generatedGeometry) then
-                            Html.map (GeometryViewerMsg (ResultPath { parametersId = parameters.id, resultIndex = id })) (div_ [ strongText "Generated geometry: ", GeometryViewer.view generatedGeometry ])
-
-                          else
-                            text ""
-                        , if List.isEmpty templateReplacements then
-                            text ""
-
-                          else
-                            case GeometryViewer.extractId parameters.geometry of
-                                Nothing ->
-                                    text ""
-
-                                Just geometryId ->
-                                    div_
-                                        [ strongText "Geometry placeholders: "
-                                        , br_
-                                        , ul [ class "mb-0" ] (List.map (\( attributoName, replacement ) -> li_ [ text (attributoName ++ " → " ++ replacement) ]) templateReplacements)
-                                        , strongText "Final geometry: "
-                                        , a
-                                            [ href
-                                                (makeGeometryLink geometryId (Just id))
+                                                  else
+                                                    text ""
+                                                ]
                                             ]
-                                            [ icon { name = "link-45deg" }, text " View" ]
                                         ]
+
+                                geometryParameterRows =
+                                    if List.isEmpty templateReplacements then
+                                        []
+
+                                    else
+                                        case GeometryViewer.extractId parameters.geometry of
+                                            Nothing ->
+                                                []
+
+                                            Just geometryId ->
+                                                [ tr_
+                                                    [ td_ [ strongText "Geometry placeholders" ]
+                                                    , td_
+                                                        [ ul [ class "mb-0" ] (List.map (\( attributoName, replacement ) -> li_ [ text (attributoName ++ " → " ++ replacement) ]) templateReplacements)
+                                                        ]
+                                                    ]
+                                                , tr_
+                                                    [ td_ [ strongText "Final geometry" ]
+                                                    , td_
+                                                        [ a
+                                                            [ href
+                                                                (makeGeometryLink geometryId (Just id))
+                                                            ]
+                                                            [ icon { name = "link-45deg" }, text " View" ]
+                                                        ]
+                                                    ]
+                                                ]
+
+                                shiftsRows =
+                                    List.map
+                                        (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
+                                            tr_
+                                                [ td_ [ strongText "Detector shift" ]
+                                                , td_
+                                                    [ text
+                                                        (formatFloatHumanFriendly xTranslationMm
+                                                            ++ "mm, "
+                                                            ++ formatFloatHumanFriendly yTranslationMm
+                                                            ++ "mm"
+                                                            ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
+                                                        )
+                                                    ]
+                                                ]
+                                        )
+                                        alignDetectorGroups
+
+                                rotationRows =
+                                    case List.head (List.filterMap (\{ xRotationDeg, yRotationDeg } -> Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg) alignDetectorGroups) of
+                                        Nothing ->
+                                            []
+
+                                        Just ( x, y ) ->
+                                            [ tr_
+                                                [ td_ [ strongText "Detector rotation" ]
+                                                , td_ [ text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°") ]
+                                                ]
+                                            ]
+
+                                programVersionRow =
+                                    if String.isEmpty programVersion then
+                                        []
+
+                                    else
+                                        [ tr_ [ td_ [ strongText "CrystFEL version" ], td_ [ text programVersion ] ] ]
+
+                                streamFileRow =
+                                    if String.isEmpty streamFile then
+                                        []
+
+                                    else
+                                        [ tr_
+                                            [ td_ [ strongText "Stream file" ]
+                                            , td_
+                                                [ span [ class "text-break" ] [ text streamFile ]
+                                                , copyToClipboardButton (CopyToClipboard streamFile)
+                                                ]
+                                            ]
+                                        ]
+
+                                generatedGeometryRow =
+                                    if Maybe.Extra.isJust (GeometryViewer.extractId generatedGeometry) then
+                                        -- [ Html.map (GeometryViewerMsg (ResultPath { parametersId = parameters.id, resultIndex = id })) (tr_ [ td_ [ strongText "Generated geometry" ], td_ [ GeometryViewer.view generatedGeometry ] ]) ]
+                                        [ tr_ [ td_ [ strongText "Generated geometry" ], td_ [ GeometryViewer.view generatedGeometry ] ] ]
+
+                                    else
+                                        []
+                              in
+                              tbody_ (logsRow :: geometryParameterRows ++ shiftsRows ++ rotationRows ++ programVersionRow ++ streamFileRow ++ generatedGeometryRow)
+                            ]
                         , case unitCellHistogramsFileId of
                             Nothing ->
                                 text ""
@@ -1428,9 +1462,11 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                 ]
             , dt [ class "col-3" ] [ text "Geometry" ]
             , dd [ class "col-9" ]
-                [ Html.map
-                    (GeometryViewerMsg (ParameterPath parameters.id))
-                    (GeometryViewer.view parameters.geometry)
+                -- [ Html.map
+                --     (GeometryViewerMsg (ParameterPath parameters.id))
+                --     (GeometryViewer.view parameters.geometry)
+                -- ]
+                [ GeometryViewer.view parameters.geometry
                 ]
             ]
         , p_
@@ -1730,85 +1766,70 @@ possiblyRefresh model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GeometryViewerMsg path subMsg ->
-            case model.analysisRequest of
-                Success analysisRequestSuccess ->
-                    case path of
-                        ParameterPath parameterId ->
-                            let
-                                changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
-                                changeIndexingParamsAndResult ir =
-                                    if ir.parameters.id == parameterId then
-                                        let
-                                            ( newViewer, viewerCmds ) =
-                                                GeometryViewer.update subMsg ir.parameters.geometry
-
-                                            oldParameters =
-                                                ir.parameters
-
-                                            newParameters =
-                                                { oldParameters | geometry = newViewer }
-                                        in
-                                        ( { ir | parameters = newParameters }, Cmd.map (GeometryViewerMsg path) viewerCmds )
-
-                                    else
-                                        ( ir, Cmd.none )
-
-                                newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
-                                newParamsAndIndexingResults =
-                                    List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
-
-                                oldDataSet =
-                                    analysisRequestSuccess.dataSet
-
-                                newRequest : SingleDataSetResults
-                                newRequest =
-                                    { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
-                            in
-                            ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
-
-                        ResultPath { parametersId, resultIndex } ->
-                            let
-                                changeIndexingResult : IndexingResult -> ( IndexingResult, Cmd Msg )
-                                changeIndexingResult ir =
-                                    if ir.id == resultIndex then
-                                        let
-                                            ( newViewer, cmds ) =
-                                                GeometryViewer.update subMsg ir.generatedGeometry
-                                        in
-                                        ( { ir | generatedGeometry = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
-
-                                    else
-                                        ( ir, Cmd.none )
-
-                                changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
-                                changeIndexingParamsAndResult ir =
-                                    if ir.parameters.id == parametersId then
-                                        let
-                                            newResultsAndCmds =
-                                                List.map changeIndexingResult ir.indexingResults
-                                        in
-                                        ( { ir | indexingResults = List.map Tuple.first newResultsAndCmds }, Cmd.batch (List.map Tuple.second newResultsAndCmds) )
-
-                                    else
-                                        ( ir, Cmd.none )
-
-                                newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
-                                newParamsAndIndexingResults =
-                                    List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
-
-                                oldDataSet =
-                                    analysisRequestSuccess.dataSet
-
-                                newRequest : SingleDataSetResults
-                                newRequest =
-                                    { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
-                            in
-                            ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
-
-                _ ->
-                    ( model, Cmd.none )
-
+        -- GeometryViewerMsg path subMsg ->
+        --     case model.analysisRequest of
+        --         Success analysisRequestSuccess ->
+        --             case path of
+        --                 ParameterPath parameterId ->
+        --                     let
+        --                         changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
+        --                         changeIndexingParamsAndResult ir =
+        --                             if ir.parameters.id == parameterId then
+        --                                 let
+        --                                     ( newViewer, viewerCmds ) =
+        --                                         GeometryViewer.update subMsg ir.parameters.geometry
+        --                                     oldParameters =
+        --                                         ir.parameters
+        --                                     newParameters =
+        --                                         { oldParameters | geometry = newViewer }
+        --                                 in
+        --                                 ( { ir | parameters = newParameters }, Cmd.map (GeometryViewerMsg path) viewerCmds )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
+        --                         newParamsAndIndexingResults =
+        --                             List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
+        --                         oldDataSet =
+        --                             analysisRequestSuccess.dataSet
+        --                         newRequest : SingleDataSetResults
+        --                         newRequest =
+        --                             { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
+        --                     in
+        --                     ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
+        --                 ResultPath { parametersId, resultIndex } ->
+        --                     let
+        --                         changeIndexingResult : IndexingResult -> ( IndexingResult, Cmd Msg )
+        --                         changeIndexingResult ir =
+        --                             if ir.id == resultIndex then
+        --                                 let
+        --                                     ( newViewer, cmds ) =
+        --                                         GeometryViewer.update subMsg ir.generatedGeometry
+        --                                 in
+        --                                 ( { ir | generatedGeometry = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
+        --                         changeIndexingParamsAndResult ir =
+        --                             if ir.parameters.id == parametersId then
+        --                                 let
+        --                                     newResultsAndCmds =
+        --                                         List.map changeIndexingResult ir.indexingResults
+        --                                 in
+        --                                 ( { ir | indexingResults = List.map Tuple.first newResultsAndCmds }, Cmd.batch (List.map Tuple.second newResultsAndCmds) )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
+        --                         newParamsAndIndexingResults =
+        --                             List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
+        --                         oldDataSet =
+        --                             analysisRequestSuccess.dataSet
+        --                         newRequest : SingleDataSetResults
+        --                         newRequest =
+        --                             { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
+        --                     in
+        --                     ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
+        --         _ ->
+        --             ( model, Cmd.none )
         ToggleShowErroneous pid ->
             ( { model
                 | showErroneousIndexingJobs =
@@ -2017,13 +2038,13 @@ update msg model =
             let
                 newModel =
                     case model.analysisRequest of
-                        Success priorAnalysisResult ->
+                        Success _ ->
                             let
                                 newAnalysisRequest : RemoteData HttpError SingleDataSetResults
                                 newAnalysisRequest =
                                     case analysisResults of
                                         Ok jsonResults ->
-                                            Success (convertAnalysisResultsWithPrevious jsonResults priorAnalysisResult)
+                                            Success (convertAnalysisResultsWithPrevious jsonResults)
 
                                         _ ->
                                             fromResult (Result.map convertAnalysisResults analysisResults)

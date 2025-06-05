@@ -437,6 +437,7 @@ async def queue_merge_job(
                 status_code=400,
                 detail=f"Indexing parameters with ID {input_.indexing_parameters_id} not found!",
             )
+        logger.info("================ starting comparison")
         indexing_results_matching_params: list[orm.IndexingResult] = [
             ir
             for ir in await session.scalars(
@@ -451,6 +452,7 @@ async def queue_merge_job(
             and ir.job_status == DBJobStatus.DONE
             and ir.job_error is None
         ]
+        logger.info("================ end comparison")
         if not indexing_results_matching_params:
             raise HTTPException(
                 status_code=400,

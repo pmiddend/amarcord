@@ -1,9 +1,10 @@
-module Amarcord.GeometryViewer exposing (Model, Msg, extractId, init, update, view)
+module Amarcord.GeometryViewer exposing (Model, extractId, init, view)
 
 import Amarcord.API.Requests exposing (IndexingResultId)
+import Amarcord.Bootstrap exposing (icon)
 import Amarcord.GeometryMetadata exposing (GeometryId, GeometryMetadata)
 import Amarcord.Route exposing (makeGeometryLink)
-import Html exposing (Html, a, span, text)
+import Html exposing (Html, a, text)
 import Html.Attributes exposing (href)
 
 
@@ -18,8 +19,9 @@ extractId { metadata } =
     metadata |> Maybe.map .id
 
 
-type Msg
-    = Nop
+
+-- type Msg
+--     = Nop
 
 
 init : Maybe IndexingResultId -> Maybe GeometryMetadata -> Model
@@ -27,19 +29,14 @@ init indexingResultId metadata =
     { indexingResultId = indexingResultId, metadata = metadata }
 
 
-view : Model -> Html Msg
+view : Model -> Html msg
 view { metadata, indexingResultId } =
     case metadata of
         Nothing ->
             text ""
 
         Just { id, name } ->
-            a [ href (makeGeometryLink id indexingResultId) ] [ text name ]
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    ( model, Cmd.none )
+            a [ href (makeGeometryLink id indexingResultId) ] [ icon { name = "link-45deg" }, text (" " ++ name) ]
 
 
 

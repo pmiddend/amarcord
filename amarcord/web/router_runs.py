@@ -2,14 +2,6 @@ import datetime
 import re
 from dataclasses import dataclass
 from io import BytesIO
-from amarcord.db.attributo_type import AttributoTypeBoolean
-from amarcord.db.attributo_type import AttributoTypeChemical
-from amarcord.db.attributo_type import AttributoTypeChoice
-from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeDecimal
-from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeString
 from typing import Annotated
 from typing import Any
 from typing import Generator
@@ -34,11 +26,7 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import coparse_cell_description
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import (
-    local_int_to_utc_datetime,
-    parse_schema_type,
-    schema_union_to_attributo_type,
-)
+from amarcord.db.attributi import local_int_to_utc_datetime
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributi import utc_datetime_to_local_int
@@ -58,6 +46,7 @@ from amarcord.db.excel_import import parse_run_spreadsheet_workbook
 from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import add_geometry_template_replacements_to_ir
 from amarcord.db.orm_utils import data_sets_are_equal
 from amarcord.db.orm_utils import default_online_indexing_parameters
 from amarcord.db.orm_utils import determine_run_indexing_metadata
@@ -264,67 +253,6 @@ async def _create_data_set_for_run(
         session.add(new_data_set)
 
 
-async def _run_attributo_value_to_template_replacement(
-    attributo: orm.Attributo, av: orm.RunHasAttributoValue
-) -> str:
-    attributo_type = schema_union_to_attributo_type(
-        parse_schema_type(attributo.json_schema)
-    )
-
-    match attributo_type:
-        case AttributoTypeInt():
-            return str(av.integer_value) if av.integer_value is not None else ""
-        case AttributoTypeBoolean():
-            return "true" if av.bool_value is not None else "false"
-        case AttributoTypeString() | AttributoTypeChoice():
-            return av.string_value if av.string_value is not None else ""
-        case AttributoTypeChemical():
-            return (
-                (await av.awaitable_attrs.chemical).name
-                if av.chemical_value is not None
-                else ""
-            )
-        case AttributoTypeDecimal():
-            return str(av.float_value) if av.float_value is not None else ""
-        case AttributoTypeDateTime():
-            return str(av.datetime_value) if av.datetime_value is not None else ""
-        case AttributoTypeList():
-            return (
-                ",".join(
-                    str(v) for v in (av.list_value if av.list_value is not None else [])
-                )
-                if av.datetime_value is not None
-                else ""
-            )
-
-
-async def _add_geometry_template_replacements_to_ir(
-    ir: orm.IndexingResult, run: orm.Run, geometry: orm.Geometry
-) -> None:
-    for attributo in await geometry.awaitable_attrs.attributi:
-        replacement_found = False
-        for run_attributo_value in run.attributo_values:
-            if run_attributo_value.attributo_id == attributo.id:
-                ir.template_replacements.append(
-                    orm.GeometryTemplateReplacement(
-                        attributo_id=attributo.id,
-                        replacement=await _run_attributo_value_to_template_replacement(
-                            attributo, run_attributo_value
-                        ),
-                    )
-                )
-                replacement_found = True
-                break
-        # This could happen if we have an Attributo in the geometry which is unset in the run.
-        if not replacement_found:
-            ir.template_replacements.append(
-                orm.GeometryTemplateReplacement(
-                    attributo_id=attributo.id,
-                    replacement="",
-                )
-            )
-
-
 @router.post(
     "/api/runs/{runExternalId}",
     tags=["runs"],
@@ -496,6 +424,7 @@ async def create_or_update_run(
                 "API",
             )
 
+        new_indexing_parameters_id: int | None = None
         if not run_was_created:
             run_logger.info("CrystFEL online not needed, run is updated, not created")
             indexing_result_id = None
@@ -565,10 +494,11 @@ async def create_or_update_run(
                 job_stopped=None,
                 indexing_parameters_id=new_indexing_result_parameters.id,
             )
+            new_indexing_parameters_id = new_indexing_result_parameters.id
             current_online_indexing_geometry = (
                 await current_online_indexing_parameters.awaitable_attrs.geometry
             )
-            await _add_geometry_template_replacements_to_ir(
+            await add_geometry_template_replacements_to_ir(
                 new_indexing_result, run_in_db, current_online_indexing_geometry
             )
             session.add(new_indexing_result)
@@ -580,6 +510,7 @@ async def create_or_update_run(
         indexing_result_id=indexing_result_id,
         error_message=None,
         run_internal_id=run_in_db.id,
+        new_indexing_parameters_id=new_indexing_parameters_id,
         files=[
             JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in run_in_db.files
         ],

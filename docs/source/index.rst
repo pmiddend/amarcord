@@ -14,6 +14,7 @@ Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn
    intro
    quickstart
    directories
+   user_guide
    executables
    database
    pythonsetup

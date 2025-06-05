@@ -22,6 +22,7 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.orm_utils import add_geometry_template_replacements_to_ir
 from amarcord.db.orm_utils import all_geometry_metadatas
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
@@ -249,6 +250,7 @@ async def import_finished_indexing_job(
                 y_rotation_deg=g.y_rotation_deg,
             )
         )
+    await add_geometry_template_replacements_to_ir(new_indexing_result, run, geometry)
     session.add(new_indexing_result)
     await session.commit()
     return JsonImportFinishedIndexingJobOutput(
@@ -313,6 +315,11 @@ async def indexing_job_queue_for_data_set(
         geometry_id=input_.geometry_id,
         source=input_.source.strip(),
     )
+    geometry = (
+        await session.scalars(
+            select(orm.Geometry).where(orm.Geometry.id == input_.geometry_id)
+        )
+    ).one()
     for ir in existing_indexing_results:
         # Finished, but erroneous indexing results are no use, they should be redoable
         if ir.job_error is not None:
@@ -343,7 +350,7 @@ async def indexing_job_queue_for_data_set(
         if run.id not in run_ids_without_matching_indexing_results:
             continue
         job_logger.info(
-            f"starting indexing job for run {run.id} (external ID {run.external_id})",
+            f"creating indexing result for run {run.id} (external ID {run.external_id})",
         )
         indexing_result = orm.IndexingResult(
             created=datetime.datetime.now(datetime.timezone.utc),
@@ -364,6 +371,7 @@ async def indexing_job_queue_for_data_set(
             job_latest_log="",
             indexing_parameters_id=new_parameters.id,
         )
+        await add_geometry_template_replacements_to_ir(indexing_result, run, geometry)
         session.add(indexing_result)
 
     await session.commit()
