@@ -178,7 +178,10 @@ def upgrade() -> None:
 
     geometries: dict[tuple[BeamtimeId, GeometryHash], Geometry] = {}
     existing_names: dict[BeamtimeId, set[str]] = {}
-    for row in result:
+    # no cover, because how are we going to test this, in all honesty?
+    # There would be so much setup involved that we might as well
+    # forego it for the one-time effort of migrating geometries
+    for row in result:  # pragma: no cover
         beamtime_id = conn.execute(
             sa.text("SELECT Run.beamtime_id FROM Run WHERE id = :r"),
             {"r": row.run_id},
