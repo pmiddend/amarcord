@@ -285,7 +285,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, g
     let
         geometryIdToMetadata : Dict Int GeometryMetadata
         geometryIdToMetadata =
-            List.foldr (\geom -> Dict.insert geom.id { id = GeometryId geom.id, name = geom.name }) Dict.empty geometries
+            List.foldr (\geom -> Dict.insert geom.id (GeometryMetadata.fromJson geom)) Dict.empty geometries
 
         convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData
         convertIndexingParameters ip =
@@ -352,7 +352,7 @@ convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, g
     , chemicalIdToName = chemicalIdToName
     , experimentType = experimentType
     , dataSet = convertDataSet dataSet
-    , geometries = List.map (\{ id, name } -> { id = GeometryId id, name = name }) geometries
+    , geometries = List.map GeometryMetadata.fromJson geometries
     }
 
 

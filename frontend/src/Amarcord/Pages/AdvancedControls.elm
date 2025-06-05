@@ -14,7 +14,7 @@ import Amarcord.API.Requests
         )
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
-import Amarcord.GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
+import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
 import Amarcord.Html exposing (div_, input_, onIntInput, p_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
@@ -219,7 +219,7 @@ update msg model =
                             (IndexingParametersEdit.init []
                                 ""
                                 (parameters.geometryId |> Maybe.map GeometryId)
-                                (List.map (\{ id, name } -> { id = GeometryId id, name = name }) geometries)
+                                (List.map GeometryMetadata.fromJson geometries)
                                 False
                             )
                             parameters.commandLine

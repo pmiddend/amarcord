@@ -1227,6 +1227,7 @@ type alias JsonGeometryCreate =
 type alias JsonGeometryMetadata =
     { id : Int
     , name : String
+    , createdLocal : Int
     }
 
 
@@ -3929,6 +3930,7 @@ encodeJsonGeometryMetadataPairs model =
         pairs =
             [ encode "id" Json.Encode.int model.id
             , encode "name" Json.Encode.string model.name
+            , encode "created_local" Json.Encode.int model.createdLocal
             ]
     in
     pairs
@@ -6855,6 +6857,7 @@ jsonGeometryMetadataDecoder =
     Json.Decode.succeed JsonGeometryMetadata
         |> decode "id" Json.Decode.int 
         |> decode "name" Json.Decode.string 
+        |> decode "created_local" Json.Decode.int 
 
 
 jsonGeometryPlaceholderReplacementDecoder : Json.Decode.Decoder JsonGeometryPlaceholderReplacement

@@ -485,6 +485,7 @@ class JsonImportFinishedIndexingJobOutput(BaseModel):
 class JsonGeometryMetadata(BaseModel):
     id: int
     name: str
+    created_local: int
 
 
 class JsonReadIndexingParametersOutput(BaseModel):

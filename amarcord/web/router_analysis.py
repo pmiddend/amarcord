@@ -388,7 +388,7 @@ async def read_single_data_set_results(
     # that).
     main_indexing_parameter_id: dict[int, int] = {}
 
-    geometry_id_to_name: dict[int, str] = {}
+    geometry_id_to_name_and_created: dict[int, tuple[str, int]] = {}
 
     # In this dict, we store, for each main indexing parameter object,
     # all corresponding indexing results.
@@ -402,10 +402,16 @@ async def read_single_data_set_results(
         new_ip = ir.indexing_parameters
 
         if new_ip.geometry is not None:
-            geometry_id_to_name[new_ip.geometry.id] = new_ip.geometry.name
+            geometry_id_to_name_and_created[new_ip.geometry.id] = (
+                new_ip.geometry.name,
+                utc_datetime_to_local_int(new_ip.geometry.created),
+            )
 
         if ir.generated_geometry is not None:
-            geometry_id_to_name[ir.generated_geometry.id] = ir.generated_geometry.name
+            geometry_id_to_name_and_created[ir.generated_geometry.id] = (
+                ir.generated_geometry.name,
+                utc_datetime_to_local_int(ir.generated_geometry.created),
+            )
 
         # We either have a new indexing parmeter object, or this one
         # is equivalent to one of the previously selected "main" ones.
@@ -519,8 +525,8 @@ async def read_single_data_set_results(
         ),
         data_set=_build_data_set_result(data_set),
         geometries=[
-            JsonGeometryMetadata(id=gid, name=gname)
-            for gid, gname in geometry_id_to_name.items()
+            JsonGeometryMetadata(id=gid, name=gname, created_local=created)
+            for gid, (gname, created) in geometry_id_to_name_and_created.items()
         ],
     )
 

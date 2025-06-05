@@ -1,6 +1,8 @@
 module Amarcord.GeometryMetadata exposing (GeometryId(..), GeometryMetadata, fromJson, geometryIdToInt, geometryIdToString)
 
 import Api.Data exposing (JsonGeometryMetadata)
+import Api.Time exposing (Posix)
+import Time exposing (millisToPosix)
 
 
 type GeometryId
@@ -8,8 +10,11 @@ type GeometryId
 
 
 fromJson : JsonGeometryMetadata -> GeometryMetadata
-fromJson { id, name } =
-    { id = GeometryId id, name = name }
+fromJson { id, name, createdLocal } =
+    { id = GeometryId id
+    , name = name
+    , createdLocal = millisToPosix createdLocal
+    }
 
 
 geometryIdToString : GeometryId -> String
@@ -25,4 +30,5 @@ geometryIdToInt (GeometryId gid) =
 type alias GeometryMetadata =
     { id : GeometryId
     , name : String
+    , createdLocal : Posix
     }

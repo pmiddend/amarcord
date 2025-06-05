@@ -5,6 +5,7 @@ import Amarcord.Html exposing (div_, onIntInput)
 import Html exposing (Html, option, select, text)
 import Html.Attributes exposing (class, selected, value)
 import Maybe.Extra exposing (isNothing)
+import Time exposing (posixToMillis)
 
 
 type alias Model =
@@ -20,7 +21,7 @@ extractCurrentId { selectedGeometryId } =
 
 init : Maybe GeometryId -> List GeometryMetadata -> Model
 init selectedGeometryId geometries =
-    { selectedGeometryId = selectedGeometryId, geometries = geometries }
+    { selectedGeometryId = selectedGeometryId, geometries = List.reverse (List.sortBy (\geom -> posixToMillis geom.createdLocal) geometries) }
 
 
 type Msg

@@ -699,6 +699,7 @@ async def all_geometry_metadatas(
         JsonGeometryMetadata(
             id=geom.id,
             name=geom.name,
+            created_local=utc_datetime_to_local_int(geom.created),
         )
         for geom in await session.scalars(
             select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
