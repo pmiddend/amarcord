@@ -593,8 +593,6 @@ class JsonIndexingResultStillRunning(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
     geometry_file: str
     geometry_hash: str
     # can be missing, in case we don't have that information but still want to signal progress

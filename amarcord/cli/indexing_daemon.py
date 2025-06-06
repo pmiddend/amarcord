@@ -399,8 +399,6 @@ async def _start_new_jobs(
                 frames=0,
                 indexed_frames=0,
                 indexed_crystals=0,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
                 geometry_file="",
                 geometry_hash="",
                 job_started=utc_datetime_to_utc_int(

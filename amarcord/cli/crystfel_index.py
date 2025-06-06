@@ -433,17 +433,6 @@ def write_status_still_running(
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "align_detector_groups": [
-            {
-                "group": align_group.group,
-                "x_translation_mm": align_group.x_translation_mm,
-                "y_translation_mm": align_group.y_translation_mm,
-                "z_translation_mm": align_group.z_translation_mm,
-                "x_rotation_deg": align_group.x_rotation_deg,
-                "y_rotation_deg": align_group.y_rotation_deg,
-            }
-            for align_group in line.align_detector_groups.values()
-        ],
         "geometry_file": str(args.geometry_file) if args.geometry_file else None,
         "geometry_hash": geometry_hash,
         "latest_log": "\n".join(log_list),

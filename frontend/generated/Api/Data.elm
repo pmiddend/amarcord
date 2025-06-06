@@ -1309,8 +1309,6 @@ type alias JsonIndexingResultStillRunning =
     , hits : Int
     , indexedFrames : Int
     , indexedCrystals : Int
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
     , geometryFile : String
     , geometryHash : String
     , jobStarted : Maybe Int
@@ -4062,8 +4060,6 @@ encodeJsonIndexingResultStillRunningPairs model =
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
-            , maybeEncodeNullable "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
-            , maybeEncodeNullable "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
             , encode "geometry_file" Json.Encode.string model.geometryFile
             , encode "geometry_hash" Json.Encode.string model.geometryHash
             , maybeEncodeNullable "job_started" Json.Encode.int model.jobStarted
@@ -6642,8 +6638,6 @@ jsonIndexingResultStillRunningDecoder =
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
-        |> maybeDecodeNullable "detector_shift_x_mm" Json.Decode.float Nothing
-        |> maybeDecodeNullable "detector_shift_y_mm" Json.Decode.float Nothing
         |> decode "geometry_file" Json.Decode.string 
         |> decode "geometry_hash" Json.Decode.string 
         |> maybeDecodeNullable "job_started" Json.Decode.int Nothing
