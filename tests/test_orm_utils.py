@@ -1,17 +1,17 @@
 import datetime
+
 import pytest
+
+from amarcord.db import orm
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeBoolean,
-    AttributoTypeChemical,
-    AttributoTypeChoice,
-    AttributoTypeDateTime,
-    AttributoTypeDecimal,
-    AttributoTypeInt,
-    AttributoTypeString,
-)
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.orm_utils import update_orm_entity_has_attributo_value
-import amarcord.db.orm as orm
 
 
 def test_update_orm_entity_has_attributo_value_int() -> None:
@@ -45,7 +45,7 @@ def test_update_orm_entity_has_attributo_value_bool() -> None:
     update_orm_entity_has_attributo_value(
         result,
         AttributoTypeBoolean(),
-        True,
+        v=True,
     )
     assert result.bool_value
 

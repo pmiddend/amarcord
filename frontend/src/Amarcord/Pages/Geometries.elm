@@ -161,7 +161,7 @@ viewEditForm geometries usages editingGeometry templateErrors =
                     div [ class "invalid-feedback" ] [ text "Name already used" ]
 
                 else
-                    text ""
+                    div [ class "form-text" ] [ text "Has to be unique inside this beamtime." ]
 
               else
                 div [ class "invalid-feedback" ] [ text "Name is mandatory" ]
@@ -240,7 +240,7 @@ viewGeometryRow usages attributiById geometry =
     in
     [ tr_
         [ td_
-            [ div [ class "hstack gap-1" ]
+            [ div [ class "btn-group" ]
                 [ button [ class "btn btn-sm btn-outline-secondary text-nowrap", onClick (InitiateEdit geometry) ]
                     [ icon { name = "pencil-square" }
                     , text " Edit"
@@ -418,7 +418,10 @@ viewInner model =
 
                                 _ ->
                                     div [ class "hstack gap-3" ]
-                                        [ button [ class "btn btn-primary", onClick AddGeometry ] [ text " Add geometry" ]
+                                        [ button [ class "btn btn-primary", onClick AddGeometry ]
+                                            [ icon { name = "grid" }
+                                            , text " Add geometry"
+                                            ]
                                         , div [ class "vr" ] []
                                         , button [ class "btn btn-primary", onClick InitiateCopyFromPreviousBeamtime ] [ icon { name = "terminal" }, text " Copy from prior beamtime" ]
                                         ]
