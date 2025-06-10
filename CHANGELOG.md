@@ -6,6 +6,20 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 ## Features
 
+### Geometries as first-class citizens ([\#445](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/445))
+
+Previously, CrystFEL geometry content was not not stored in the database. Instead, we stored a *path* to a geometry file, as well as a *hash* of the contents, so we could do an "is same" check on geometries safely and thus compare indexing parameters.
+
+This worked, but not having the geometry inside the database meant we couldn't *synthesize* geometry files for ourselves. However, one of the advantages of a central database system is that it logs parameters such as the detector distance and the X-ray energy, and it would be nice if we could "copy" that to the geometry.
+
+So now, geometry files are a first-class citizen, meaning you can create, update, inspect and delete geometries from AMARCORD's user interface. And of course, use geometries in your CrystFEL indexing jobs. Also, geometries can have *placeholders* for Run Attributi, so you can insert the run's detector distance directly into the geometry. See the new "user guide" for more information.
+
+<figure>
+![Geometry page](changelog-assets/455-add-geometry.png){width=622 height=510px}
+<figcaption>The "Add new geometry" form, showing (off) a `detector_distance` placeholder.</figcaption>
+</figure>
+
+
 ### Indexing: New geometry refinement parameters ([\#472](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/472))
 
 Since 0.12.0, CrystFEL supports refining the Z shift (i.e. the camera length), and also panel rotations and tilts. AMARCORD will call `align_detector` with the accompanying parameters and parse its output, storing the result in the database.

@@ -78,4 +78,12 @@ Note that *editing* and *deleting* geometries is only possible if it is not in u
 
 ### Using geometries
 
+Geometries are needed during indexing, so if you start a new indexing job, you will see a drop-down menu with the available geometries:
+
+```{figure} geometry-selection.png
+Upon starting a new indexing job, we're greeted by this drop-down. Note that here, `geometry-v3.geom` is a geometry we uploaded manually, whereas the other ones are *generated* (see below).
+```
+
+Just select a geometry and submit the job. It will start an indexing job for each run, and use an adapted geometry for each one.
+
 
