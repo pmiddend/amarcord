@@ -310,7 +310,7 @@ async def start_online_indexing_job(
         )
 
 
-async def _start_new_jobs(
+async def indexing_daemon_start_new_jobs(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     online_workload_manager: None | WorkloadManager,
@@ -438,7 +438,7 @@ async def _start_new_jobs(
         await asyncio.sleep(_long_break_duration_seconds())
 
 
-async def _update_jobs(
+async def indexing_daemon_update_jobs(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     online_workload_manager: None | WorkloadManager,
@@ -514,26 +514,34 @@ async def _update_jobs(
     await asyncio.sleep(_long_break_duration_seconds())
 
 
-async def indexing_loop_iteration(
+async def indexing_start_loop(
     workload_manager: WorkloadManager,
     online_workload_manager: None | WorkloadManager,
     session: aiohttp.ClientSession,
     args: Arguments,
-    start_new_jobs: bool,
 ) -> None:
-    # This is weird, I know, but it stems from the fact that the DESY Maxwell REST API has rate limiting included,
-    # so we cannot just do two REST API requests back to back. Instead, we have this weird counter.
-    if start_new_jobs:
-        await _start_new_jobs(session, workload_manager, online_workload_manager, args)
+    while True:
+        await indexing_daemon_start_new_jobs(
+            session, workload_manager, online_workload_manager, args
+        )
+        await asyncio.sleep(1)
 
-    else:
-        await _update_jobs(
+
+async def indexing_update_loop(
+    workload_manager: WorkloadManager,
+    online_workload_manager: None | WorkloadManager,
+    session: aiohttp.ClientSession,
+    args: Arguments,
+) -> None:
+    while True:
+        await indexing_daemon_update_jobs(
             session,
             workload_manager,
             online_workload_manager,
             amarcord_url=args.amarcord_url,
             beamtime_id=BeamtimeId(args.beamtime_id) if args.beamtime_id else None,
         )
+        await asyncio.sleep(20)
 
 
 # We can't really test this code, it's pure glue
@@ -558,23 +566,23 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
     #
     # We could also just create a session over and over, but this seems a bit more clean
     connector = aiohttp.TCPConnector(force_close=True)
-    async with aiohttp.ClientSession(connector=connector) as session:
-        # This is the heart of the daemon: a simple loop that
-        # interleaves two operations: starting new runs, and checking
-        # if any of the existing runs changed their status. To
-        # implement these two operations, we have an infinite ocunter
-        # and check the modulus.
-        counter = 0
-        while True:
-            await indexing_loop_iteration(
-                workload_manager,
-                online_workload_manager,
-                session,
-                args,
-                counter % 10 != 0,
+    # A TaskGroup is a Python 3.11 feature that offers a way to do
+    # structured concurrency. In our case it's a lazy way of
+    # starting two tasks and waiting for the results.
+    async with (
+        aiohttp.ClientSession(connector=connector) as session,
+        asyncio.TaskGroup() as tg,
+    ):
+        _ = tg.create_task(
+            indexing_start_loop(
+                workload_manager, online_workload_manager, session, args
             )
-
-            counter += 1
+        )
+        _ = tg.create_task(
+            indexing_update_loop(
+                workload_manager, online_workload_manager, session, args
+            )
+        )
 
 
 def main() -> None:  # pragma: no cover

@@ -201,7 +201,7 @@ reportUninitializedInstanceVariable = false
 reportUnnecessaryTypeIgnoreComment = false
 # Sensible, but false positive waaaaaay to often
 reportUnusedCallResult = false
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 stubPath = "stubs"
 
 [tool.coverage.run]

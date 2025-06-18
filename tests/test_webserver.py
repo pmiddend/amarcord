@@ -32,7 +32,8 @@ from amarcord.cli import merge_daemon
 from amarcord.cli.indexing_daemon import (
     INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR,
 )
-from amarcord.cli.indexing_daemon import indexing_loop_iteration
+from amarcord.cli.indexing_daemon import indexing_daemon_start_new_jobs
+from amarcord.cli.indexing_daemon import indexing_daemon_update_jobs
 from amarcord.cli.merge_daemon import MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR
 from amarcord.cli.merge_daemon import MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR
 from amarcord.cli.merge_daemon import merging_loop_iteration
@@ -3986,23 +3987,22 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
         JobStartResult(job_id=1337, metadata=JobMetadata({})),
     )
     # start the job
-    await indexing_loop_iteration(
+    await indexing_daemon_start_new_jobs(
         workload_manager=workload_manager,
         session=daemon_session,
         args=args,
-        start_new_jobs=True,
         online_workload_manager=None,
     )
 
     # Remove the job from the workload manager
     workload_manager.jobs.clear()
 
-    await indexing_loop_iteration(
+    await indexing_daemon_update_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
-        args=args,
-        start_new_jobs=False,
+        amarcord_url="",
+        beamtime_id=None,
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed
@@ -4046,12 +4046,11 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
     )
 
     # Now start jobs
-    await indexing_loop_iteration(
+    await indexing_daemon_start_new_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
         args=args,
-        start_new_jobs=True,
     )
 
     assert not workload_manager.job_starts
@@ -4270,12 +4269,12 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     args.crystfel_path = Path("/usr/bin")
 
     # One iteration without starting jobs => shouldn't start jobs!
-    await indexing_loop_iteration(
+    await indexing_daemon_update_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
-        args=args,
-        start_new_jobs=False,
+        amarcord_url="",
+        beamtime_id=None,
     )
 
     print(
@@ -4298,12 +4297,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     print("second iteration, should start a job now")
 
     # Now start jobs
-    await indexing_loop_iteration(
+    await indexing_daemon_start_new_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
         args=args,
-        start_new_jobs=True,
     )
 
     assert len(workload_manager.job_starts) == 1
@@ -4322,24 +4320,22 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     print("third iteration, should _not_ start a job again")
 
     # To be sure: another start iteration shouldn't do anything now
-    await indexing_loop_iteration(
+    await indexing_daemon_start_new_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
         args=args,
-        start_new_jobs=True,
     )
 
     assert not workload_manager.job_starts
     assert len(list(await workload_manager.list_jobs())) == 1
 
     # Again, to be sure: another update shouldn't do anything
-    await indexing_loop_iteration(
+    await indexing_daemon_start_new_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
         args=args,
-        start_new_jobs=True,
     )
 
     # Now we just assume the job we just started failed on the workload manager (i.e. SLURM)
@@ -4353,12 +4349,12 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
         "fourth iteration, job should be marked as failed, because it quit unexpectedly",
     )
 
-    await indexing_loop_iteration(
+    await indexing_daemon_update_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
-        args=args,
-        start_new_jobs=False,
+        amarcord_url="",
+        beamtime_id=None,
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed
