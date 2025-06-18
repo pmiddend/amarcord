@@ -15,7 +15,7 @@ import Html.Events exposing (onClick, onInput)
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
-import Time exposing (Zone, millisToPosix, posixToMillis, utc)
+import Time exposing (millisToPosix, posixToMillis, utc)
 
 
 type alias Model =
@@ -120,11 +120,11 @@ update msg model =
                         body =
                             { beamline = bt.beamline
                             , comment = bt.comment
-                            , endLocal = bt.end
+                            , endLocal = bt.endLocal
                             , externalId = bt.externalId
                             , id = bt.id
                             , proposal = bt.proposal
-                            , startLocal = bt.start
+                            , startLocal = bt.startLocal
                             , title = bt.title
                             , analysisOutputPath = bt.analysisOutputPath
                             }
@@ -199,8 +199,8 @@ viewBeamtimes beamtimes =
         ]
 
 
-viewEditForm : Zone -> JsonBeamtimeOutput -> Html Msg
-viewEditForm zone bt =
+viewEditForm : JsonBeamtimeOutput -> Html Msg
+viewEditForm bt =
     let
         addOrEditHeadline =
             h4_
@@ -243,15 +243,15 @@ viewEditForm zone bt =
                 , class "form-control"
 
                 -- note here and below: local time zone!
-                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.start))
+                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.startLocal))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
                             (\bt2 ->
                                 ResultExtra.unwrap
                                     bt2
-                                    (\newParsed -> { bt2 | start = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix zone newValue)
+                                    (\newParsed -> { bt2 | startLocal = posixToMillis newParsed })
+                                    (localDateTimeStringToPosix utc newValue)
                             )
                     )
                 ]
@@ -265,15 +265,15 @@ viewEditForm zone bt =
                 , class "form-control"
 
                 -- note here and below: local time zone!
-                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.end))
+                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.endLocal))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
                             (\bt2 ->
                                 ResultExtra.unwrap
                                     bt2
-                                    (\newParsed -> { bt2 | end = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix zone newValue)
+                                    (\newParsed -> { bt2 | endLocal = posixToMillis newParsed })
+                                    (localDateTimeStringToPosix utc newValue)
                             )
                     )
                 ]
@@ -345,7 +345,7 @@ view model =
 
             Just beamtime ->
                 div_
-                    [ viewEditForm model.hereAndNow.zone beamtime
+                    [ viewEditForm beamtime
                     ]
         , case model.modifyRequest of
             NotAsked ->
