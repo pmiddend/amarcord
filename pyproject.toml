@@ -1,6 +1,6 @@
 [project]
 name = "amarcord"
-version = "1.3"
+version = "1.4"
 description = "A ModulAR CollectOR of metaData - serial edition"
 readme = "README.md"
 requires-python = ">=3.12"
