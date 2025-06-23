@@ -1,8 +1,9 @@
 If this document renders weirdly, it’s because it uses [GitLab flavored markdown](https://docs.gitlab.com/user/markdown/#table-of-contents) and some elements might not be supported by your viewer.
 
 [TOC]
+# 🚧 v1.4 - Q3 2025
 
-# 🚧 v1.3 - Q2 2025
+# v1.3 - Q2 2025
 
 ## Features
 
