@@ -13,16 +13,18 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
-from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
-from amarcord.web.json_models import JsonBeamtime
+from amarcord.web.json_models import JsonAlignDetectorGroup
+from amarcord.web.json_models import JsonBeamtimeOutput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetInput
 from amarcord.web.json_models import JsonCreateIndexingForDataSetOutput
 from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
@@ -61,15 +63,17 @@ async def json_indexing_job_from_orm(
         geometry_file_output=ij.geometry_file if ij.geometry_file is not None else "",
         run_external_id=ij.run.external_id,
         run_internal_id=ij.run.id,
-        beamtime=JsonBeamtime(
+        beamtime=JsonBeamtimeOutput(
             id=bt.id,
             external_id=bt.external_id,
             proposal=bt.proposal,
             beamline=bt.beamline,
             title=bt.title,
             comment=bt.comment,
-            start=datetime_to_attributo_int(bt.start),
-            end=datetime_to_attributo_int(bt.end),
+            start=utc_datetime_to_utc_int(bt.start),
+            start_local=utc_datetime_to_local_int(bt.start),
+            end=utc_datetime_to_utc_int(bt.end),
+            end_local=utc_datetime_to_local_int(bt.end),
             chemical_names=[],
             analysis_output_path=bt.analysis_output_path,
         ),
@@ -84,52 +88,68 @@ async def json_indexing_job_from_orm(
         ),
         command_line=ij.indexing_parameters.command_line,
         started=(
-            datetime_to_attributo_int(ij.job_started)
+            utc_datetime_to_utc_int(ij.job_started)
+            if ij.job_started is not None
+            else None
+        ),
+        started_local=(
+            utc_datetime_to_local_int(ij.job_started)
             if ij.job_started is not None
             else None
         ),
         stopped=(
-            datetime_to_attributo_int(ij.job_stopped)
+            utc_datetime_to_utc_int(ij.job_stopped)
+            if ij.job_stopped is not None
+            else None
+        ),
+        stopped_local=(
+            utc_datetime_to_local_int(ij.job_stopped)
             if ij.job_stopped is not None
             else None
         ),
     )
 
 
-def encode_indexing_fom_to_json(summary: DBIndexingFOM) -> JsonIndexingFom:
+def encode_indexing_fom_to_json(summary: IndexingResultSummary) -> JsonIndexingFom:
     return JsonIndexingFom(
         hit_rate=summary.hit_rate,
         indexing_rate=summary.indexing_rate,
         indexed_frames=summary.indexed_frames,
-        detector_shift_x_mm=summary.detector_shift_x_mm,
-        detector_shift_y_mm=summary.detector_shift_y_mm,
+        align_detector_groups=summary.align_detector_groups,
     )
 
 
-def fom_for_indexing_result(jr: orm.IndexingResult) -> DBIndexingFOM:
+def fom_for_indexing_result(jr: orm.IndexingResult) -> IndexingResultSummary:
     assert jr.hits is not None
     assert jr.frames is not None
     assert jr.indexed_frames is not None
-    return DBIndexingFOM(
+    return IndexingResultSummary(
         hit_rate=jr.hits / jr.frames * 100.0 if jr.frames > 0 else 0.0,
         indexing_rate=jr.indexed_frames / jr.hits * 100.0 if jr.hits > 0 else 0.0,
         indexed_frames=jr.indexed_frames,
-        detector_shift_x_mm=jr.detector_shift_x_mm,
-        detector_shift_y_mm=jr.detector_shift_y_mm,
+        align_detector_groups=[
+            JsonAlignDetectorGroup(
+                group=g.group,
+                x_translation_mm=g.x_translation_mm,
+                y_translation_mm=g.y_translation_mm,
+                z_translation_mm=g.z_translation_mm,
+                x_rotation_deg=g.x_rotation_deg,
+                y_rotation_deg=g.y_rotation_deg,
+            )
+            for g in jr.align_detector_groups
+        ],
     )
 
 
-def summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
+def summary_from_foms(ir: list[IndexingResultSummary]) -> IndexingResultSummary:
     if not ir:
         return empty_indexing_fom
-    shifts_x = [e.detector_shift_x_mm for e in ir if e.detector_shift_x_mm is not None]
-    shifts_y = [e.detector_shift_y_mm for e in ir if e.detector_shift_y_mm is not None]
-    return DBIndexingFOM(
+    return IndexingResultSummary(
         hit_rate=mean(x.hit_rate for x in ir),
         indexing_rate=mean(x.indexing_rate for x in ir),
         indexed_frames=sum(x.indexed_frames for x in ir),
-        detector_shift_x_mm=mean(shifts_x) if shifts_x else None,
-        detector_shift_y_mm=mean(shifts_y) if shifts_y else None,
+        # For now, we don't summarize detector shifts. We could, but we're not sure it makes actual sense
+        align_detector_groups=[],
     )
 
 
@@ -178,8 +198,6 @@ async def import_finished_indexing_job(
         frames=input_.frames,
         hits=input_.hits,
         indexed_frames=input_.indexed_frames,
-        detector_shift_x_mm=input_.detector_shift_x_mm,
-        detector_shift_y_mm=input_.detector_shift_y_mm,
         geometry_file=input_.geometry_file,
         geometry_hash=input_.geometry_hash,
         generated_geometry_file=input_.generated_geometry_file,
@@ -192,6 +210,17 @@ async def import_finished_indexing_job(
         job_stopped=None,
         indexing_parameters_id=new_indexing_parameters.id,
     )
+    for g in input_.align_detector_groups:
+        new_indexing_result.align_detector_groups.append(
+            orm.AlignDetectorGroup(
+                group=g.group,
+                x_translation_mm=g.x_translation_mm,
+                y_translation_mm=g.y_translation_mm,
+                z_translation_mm=g.z_translation_mm,
+                x_rotation_deg=g.x_rotation_deg,
+                y_rotation_deg=g.y_rotation_deg,
+            )
+        )
     session.add(new_indexing_result)
     await session.commit()
     return JsonImportFinishedIndexingJobOutput(
@@ -295,8 +324,6 @@ async def indexing_job_queue_for_data_set(
             frames=0,
             hits=0,
             indexed_frames=0,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
             # initialize geometry in result with empty string (for "not found")
             geometry_file="",
             geometry_hash="",
@@ -455,11 +482,9 @@ async def indexing_job_still_running(
         current_indexing_result.indexed_frames = jr.indexed_frames
         # job started can be missing, in case we don't have that information
         if jr.job_started is not None:
-            current_indexing_result.job_started = datetime_from_attributo_int(
+            current_indexing_result.job_started = utc_int_to_utc_datetime(
                 jr.job_started,
             )
-        current_indexing_result.detector_shift_x_mm = jr.detector_shift_x_mm
-        current_indexing_result.detector_shift_y_mm = jr.detector_shift_y_mm
         if json_result.latest_log is not None:
             current_indexing_result.job_latest_log = json_result.latest_log
         session.add(
@@ -526,12 +551,21 @@ async def indexing_job_finish_successfully(
         if current_indexing_result.job_started is None:
             current_indexing_result.job_started = current_indexing_result.job_stopped
         current_indexing_result.indexed_frames = jr.indexed_frames
-        current_indexing_result.detector_shift_x_mm = jr.detector_shift_x_mm
-        current_indexing_result.detector_shift_y_mm = jr.detector_shift_y_mm
         if jr.generated_geometry_file:
             current_indexing_result.generated_geometry_file = jr.generated_geometry_file
         if json_result.latest_log is not None:
             current_indexing_result.job_latest_log = json_result.latest_log
+        for g in json_result.align_detector_groups:
+            current_indexing_result.align_detector_groups.append(
+                orm.AlignDetectorGroup(
+                    group=g.group,
+                    x_translation_mm=g.x_translation_mm,
+                    y_translation_mm=g.y_translation_mm,
+                    z_translation_mm=g.z_translation_mm,
+                    x_rotation_deg=g.x_rotation_deg,
+                    y_rotation_deg=g.y_rotation_deg,
+                )
+            )
 
         await session.commit()
     return JsonIndexingJobUpdateOutput(result=True)

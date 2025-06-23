@@ -29,7 +29,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import coparse_cell_file
 from amarcord.cli.crystfel_index import parse_cell_description
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.merge_result import JsonMergeJobFinishedInput
 from amarcord.db.merge_result import JsonMergeJobStartedInput
@@ -235,6 +235,23 @@ async def start_merge_job(
                     cell_file_id
                 ),
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_POINT_GROUP: merge_result.point_group,
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_GET_HKL_ADDITIONAL: " ".join(
+                    (
+                        [f"--lowres={merge_result.parameters.cutoff_lowres}"]
+                        if merge_result.parameters.cutoff_lowres is not None
+                        else []
+                    )
+                    + (
+                        [
+                            "--cutoff-angstroms="
+                            + ",".join(
+                                str(s) for s in merge_result.parameters.cutoff_highres
+                            )
+                        ]
+                        if merge_result.parameters.cutoff_highres is not None
+                        else []
+                    )
+                ),
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_PARTIALATOR_ADDITIONAL: shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),
@@ -331,8 +348,8 @@ async def _start_new_jobs(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/start",
                 json=JsonMergeJobStartedInput(
                     job_id=start_result.job_id,
-                    time=datetime_to_attributo_int(start_result.time),
-                ).dict(),
+                    time=utc_datetime_to_utc_int(start_result.time),
+                ).model_dump(),
             ) as start_response:
                 if start_response.status // 200 != 1:
                     bound_logger.error(
@@ -347,7 +364,7 @@ async def _start_new_jobs(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
                     error=start_result.job_error, result=None, latest_log=None
-                ).dict(),
+                ).model_dump(),
             ) as update_response:
                 if update_response.status // 200 != 1:
                     bound_logger.error(
@@ -419,7 +436,7 @@ async def _update_jobs(
             f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
             json=JsonMergeJobFinishedInput(
                 error=job_error, result=None, latest_log=None
-            ).dict(),
+            ).model_dump(),
         ) as finish_request:
             if finish_request.status // 200 != 1:
                 bound_logger.info(

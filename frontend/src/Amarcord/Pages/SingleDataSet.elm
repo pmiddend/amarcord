@@ -11,7 +11,7 @@ import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseComman
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
@@ -23,8 +23,8 @@ import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPos
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, small, span, sup, table, td, text, th, tr)
-import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, label, li, nav, ol, small, span, sup, table, td, text, th, tr)
+import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import Maybe
@@ -75,6 +75,7 @@ type Msg
     | ToggleAccordionShowModelParameters MergeResultId
     | OpenProcessingForm Int
     | CancelProcessing
+    | ToggleShowErroneous Int
 
 
 type SelectedMergeResult
@@ -115,6 +116,7 @@ type alias Model =
     , dataSetId : DataSetId
     , currentProcessingParameters : Maybe ProcessingParametersInput
     , expandedIndexingParameterIds : Set Int
+    , showErroneousIndexingJobs : Set Int
     }
 
 
@@ -143,6 +145,7 @@ init navKey hereAndNow beamtimeId dataSetId =
       , beamtimeId = beamtimeId
       , currentProcessingParameters = Nothing
       , expandedIndexingParameterIds = Set.empty
+      , showErroneousIndexingJobs = Set.empty
       }
     , send AnalysisResultsReceived (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId dataSetId)
     )
@@ -189,7 +192,7 @@ scaleIntensitiesToString x =
 
 
 viewMergeParameters : String -> JsonMergeParameters -> Html msg
-viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine } =
+viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, pointGroup, spaceGroup, cellDescription, ambigatorCommandLine, cutoffLowres, cutoffHighres } =
     let
         boolDtDl header b =
             [ tr_
@@ -268,6 +271,8 @@ viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iter
             ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
             ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
             ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
+            ++ maybeDtDl "Low resolution cutoff" (Maybe.map (text << String.fromFloat) cutoffLowres)
+            ++ maybeDtDl "High resolution cutoff" (Maybe.map (text << String.join ", " << List.map String.fromFloat) cutoffHighres)
 
 
 viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)
@@ -334,7 +339,11 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                                 ]
 
                             Just (MergeResultStateError { error }) ->
-                                [ td [ colspan remainingHeaders ] [ p_ [ text <| "Error: " ++ error ], a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ] ] ]
+                                [ td [ colspan remainingHeaders ]
+                                    [ p_ [ text <| "Error: " ++ error ]
+                                    , a [ href (makeMergeIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                    ]
+                                ]
 
                             Just (MergeResultStateDone { started, stopped, result }) ->
                                 let
@@ -432,8 +441,8 @@ viewRate part total =
         ]
 
 
-viewIndexingResults : Posix -> List JsonIndexingResult -> Html Msg
-viewIndexingResults now results =
+viewIndexingResults : Posix -> Bool -> List JsonIndexingResult -> Html Msg
+viewIndexingResults now showErroneous results =
     let
         tableHeaders : List String
         tableHeaders =
@@ -468,113 +477,139 @@ viewIndexingResults now results =
                 )
 
         viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, detectorShiftXMm, detectorShiftYMm, unitCellHistogramsFileId, generatedGeometryFile } =
-            [ tr
-                [ class
-                    (if hasError then
-                        "table-secondary"
-
-                     else
-                        ""
-                    )
-                ]
-                [ td_ [ text (String.fromInt id) ]
-                , td_ [ text (String.fromInt runExternalId) ]
-                , td [ class "text-nowrap" ]
-                    (viewJobStatus hasError status
-                        :: viewJobDuration started stopped
-                    )
-                , td_
-                    [ text
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometryFile } =
+            if showErroneous || not hasError then
+                [ tr
+                    [ class
                         (if hasError then
-                            ""
+                            "table-secondary"
 
                          else
-                            formatIntHumanFriendly frames
+                            ""
                         )
                     ]
-                , td_
-                    (if hasError then
-                        [ text "" ]
+                    [ td_ [ text (String.fromInt id) ]
+                    , td_ [ text (String.fromInt runExternalId) ]
+                    , td [ class "text-nowrap" ]
+                        (viewJobStatus hasError status
+                            :: viewJobDuration started stopped
+                        )
+                    , td_
+                        [ text
+                            (if hasError then
+                                ""
 
-                     else
-                        [ text (formatIntHumanFriendly hits), br_, viewRate hits frames ]
-                    )
-                , td_
-                    (if hasError then
-                        [ text "" ]
-
-                     else
-                        [ text (formatIntHumanFriendly indexedFrames)
-                        , br_
-                        , viewRate indexedFrames frames
-                        ]
-                    )
-                ]
-            , tr
-                [ class
-                    (if hasError then
-                        "table-secondary"
-
-                     else
-                        ""
-                    )
-                ]
-                [ td_ []
-                , td [ colspan 5 ]
-                    [ div_
-                        [ span [ class "hstack gap-1" ]
-                            [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
-                            , if hasError then
-                                a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
-
-                              else
-                                text ""
-                            ]
-                        ]
-                    , Maybe.withDefault (text "") <|
-                        Maybe.map2
-                            (\x y ->
-                                div_
-                                    [ strongText "Detector shift: "
-                                    , text (formatFloatHumanFriendly x ++ "mm, " ++ formatFloatHumanFriendly y ++ "mm")
-                                    ]
+                             else
+                                formatIntHumanFriendly frames
                             )
-                            detectorShiftXMm
-                            detectorShiftYMm
-                    , if String.isEmpty programVersion then
-                        text ""
-
-                      else
-                        div_ [ strongText "CrystFEL version: ", text programVersion ]
-                    , div_
-                        [ strongText "Stream file: "
-                        , br_
-                        , span [ class "text-break" ] [ text streamFile ]
-                        , copyToClipboardButton (CopyToClipboard streamFile)
                         ]
-                    , if String.isEmpty generatedGeometryFile then
-                        text ""
+                    , td_
+                        (if hasError then
+                            [ text "" ]
 
-                      else
-                        div_
-                            [ strongText "Geometry file: "
+                         else
+                            [ text (formatIntHumanFriendly hits), br_, viewRate hits frames ]
+                        )
+                    , td_
+                        (if hasError then
+                            [ text "" ]
+
+                         else
+                            [ text (formatIntHumanFriendly indexedFrames)
                             , br_
-                            , span [ class "text-break" ] [ text generatedGeometryFile ]
-                            , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
+                            , viewRate indexedFrames frames
                             ]
-                    , case unitCellHistogramsFileId of
-                        Nothing ->
+                        )
+                    ]
+                , tr
+                    [ class
+                        (if hasError then
+                            "table-secondary"
+
+                         else
+                            ""
+                        )
+                    ]
+                    [ td_ []
+                    , td [ colspan 5 ]
+                        [ div_
+                            [ span [ class "hstack gap-1" ]
+                                [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                , if hasError then
+                                    a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
+
+                                  else
+                                    text ""
+                                ]
+                            ]
+                        , div_ <|
+                            List.map
+                                (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
+                                    div_
+                                        [ strongText "Detector shift: "
+                                        , text
+                                            (formatFloatHumanFriendly xTranslationMm
+                                                ++ "mm, "
+                                                ++ formatFloatHumanFriendly yTranslationMm
+                                                ++ "mm"
+                                                ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
+                                            )
+                                        ]
+                                )
+                                alignDetectorGroups
+                        , case
+                            List.head
+                                (List.filterMap
+                                    (\{ xRotationDeg, yRotationDeg } ->
+                                        Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg
+                                    )
+                                    alignDetectorGroups
+                                )
+                          of
+                            Nothing ->
+                                text ""
+
+                            Just ( x, y ) ->
+                                div_
+                                    [ strongText "Detector rotation: "
+                                    , text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°")
+                                    ]
+                        , if String.isEmpty programVersion then
                             text ""
 
-                        Just ucFileId ->
+                          else
+                            div_ [ strongText "CrystFEL version: ", text programVersion ]
+                        , div_
+                            [ strongText "Stream file: "
+                            , br_
+                            , span [ class "text-break" ] [ text streamFile ]
+                            , copyToClipboardButton (CopyToClipboard streamFile)
+                            ]
+                        , if String.isEmpty generatedGeometryFile then
+                            text ""
+
+                          else
                             div_
-                                [ strongText "Unit cell histograms"
-                                , viewHistogram ucFileId
+                                [ strongText "Geometry file: "
+                                , br_
+                                , span [ class "text-break" ] [ text generatedGeometryFile ]
+                                , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
                                 ]
+                        , case unitCellHistogramsFileId of
+                            Nothing ->
+                                text ""
+
+                            Just ucFileId ->
+                                div_
+                                    [ strongText "Unit cell histograms"
+                                    , viewHistogram ucFileId
+                                    ]
+                        ]
                     ]
                 ]
-            ]
+
+            else
+                []
     in
     table [ class "table table-sm  table-borderless" ]
         [ thead_ [ tr_ (List.map (th_ << List.singleton << text) tableHeaders) ]
@@ -1165,7 +1200,23 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
             , div [ class "form-text mb-3" ] [ small [] [ text "If you want to reprocess with slightly different parameters, instead of starting from scratch, this button is the right one for you." ] ]
             ]
         , h5_ [ text "Indexing Results per Run" ]
-        , viewIndexingResults model.hereAndNow.now indexingResults
+        , div [ class "form-check" ]
+            [ input_
+                [ class "form-check-input"
+                , type_ "checkbox"
+                , id ("show-erroneous" ++ String.fromInt (Maybe.withDefault 0 parameters.id))
+                , onClick (ToggleShowErroneous (Maybe.withDefault 0 parameters.id))
+                ]
+            , label
+                [ for ("show-erroneous" ++ String.fromInt (Maybe.withDefault 0 parameters.id))
+                , class "form-check-label"
+                ]
+                [ text "Show erroneous indexing jobs" ]
+            ]
+        , viewIndexingResults
+            model.hereAndNow.now
+            (Set.member (Maybe.withDefault 0 parameters.id) model.showErroneousIndexingJobs || List.all (\ir -> ir.hasError) indexingResults)
+            indexingResults
         ]
 
 
@@ -1296,7 +1347,6 @@ viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, in
         [ div [ class "col-6" ]
             [ viewDataSetTable
                 attributi
-                model.hereAndNow.zone
                 chemicalIdsToName
                 (convertAttributoMapFromApi dataSet.attributi)
                 False
@@ -1410,6 +1460,21 @@ possiblyRefresh model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleShowErroneous pid ->
+            ( { model
+                | showErroneousIndexingJobs =
+                    (if Set.member pid model.showErroneousIndexingJobs then
+                        Set.remove
+
+                     else
+                        Set.insert
+                    )
+                        pid
+                        model.showErroneousIndexingJobs
+              }
+            , Cmd.none
+            )
+
         CopyToClipboard s ->
             ( model, copyToClipboard s )
 

@@ -23,7 +23,7 @@ import RemoteData exposing (RemoteData(..), fromResult)
 import Scroll exposing (scrollY)
 import String exposing (toLower)
 import Task
-import Time exposing (Posix, millisToPosix, posixToMillis)
+import Time exposing (Posix, millisToPosix, posixToMillis, utc)
 
 
 subscriptions : Model -> List (Sub Msg)
@@ -250,7 +250,8 @@ viewDropdownForAttributoValues chemicalIdsToName selectedValues { attributo, val
                     compare (Maybe.withDefault "" (Dict.get i chemicalIdsToName)) (Maybe.withDefault "" (Dict.get j chemicalIdsToName))
 
                 ( ValueDateTime i, ValueDateTime j ) ->
-                    compare (posixToMillis i) (posixToMillis j)
+                    -- Comparing using UTC is enough - we also just deserialize UTC in the filter string
+                    compare (posixToMillis i.datetimeUtc) (posixToMillis j.datetimeUtc)
 
                 ( ValueString i, ValueString j ) ->
                     compare i j
@@ -296,18 +297,17 @@ viewDropdownForAttributoValues chemicalIdsToName selectedValues { attributo, val
 
 
 viewDataSet :
-    Model
-    -> List (Attributo AttributoType)
+    List (Attributo AttributoType)
     -> ChemicalNameDict
     -> JsonDataSet
     -> Maybe JsonDataSetStatistics
     -> List (Html Msg)
-viewDataSet model attributi chemicalIdsToName dataSet dataSetStatistics =
+viewDataSet attributi chemicalIdsToName dataSet dataSetStatistics =
     [ tr_
         [ td_ [ text (String.fromInt dataSet.id) ]
         , td_
-            [ viewDataSetTable attributi
-                model.hereAndNow.zone
+            [ viewDataSetTable
+                attributi
                 chemicalIdsToName
                 (convertAttributoMapFromApi dataSet.attributi)
                 False
@@ -476,8 +476,8 @@ viewFilterForm searchAcrossBeamtimes mergeFilter attributoValueFilters request =
         ]
 
 
-viewDataSetForExperimentType : Model -> JsonReadNewAnalysisOutput -> JsonExperimentTypeWithBeamtimeInformation -> Dict Int JsonDataSetStatistics -> AssocSet.Set JsonDataSet -> List (Html Msg)
-viewDataSetForExperimentType model analysisResults et dsStatistics dataSets =
+viewDataSetForExperimentType : JsonReadNewAnalysisOutput -> JsonExperimentTypeWithBeamtimeInformation -> Dict Int JsonDataSetStatistics -> AssocSet.Set JsonDataSet -> List (Html Msg)
+viewDataSetForExperimentType analysisResults et dsStatistics dataSets =
     if AssocSet.isEmpty dataSets then
         []
 
@@ -486,7 +486,7 @@ viewDataSetForExperimentType model analysisResults et dsStatistics dataSets =
             [ td [ colspan 2 ]
                 [ h4 [ id ("et-" ++ String.fromInt et.experimentType.id) ] [ text et.experimentType.name ]
                 , div [ class "form-text" ]
-                    [ text (formatPosixHumanFriendly model.hereAndNow.zone (millisToPosix et.beamtime.start))
+                    [ text (formatPosixHumanFriendly utc (millisToPosix et.beamtime.startLocal))
                     , text (" - " ++ et.beamtime.title)
                     ]
                 ]
@@ -494,7 +494,6 @@ viewDataSetForExperimentType model analysisResults et dsStatistics dataSets =
             :: List.concatMap
                 (\ds ->
                     viewDataSet
-                        model
                         (List.map convertAttributoFromApi analysisResults.attributi)
                         (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name)
                             Dict.empty
@@ -506,8 +505,8 @@ viewDataSetForExperimentType model analysisResults et dsStatistics dataSets =
                 (AssocSet.toList dataSets)
 
 
-viewDataSets : Model -> JsonReadNewAnalysisOutput -> Dict Int JsonDataSetStatistics -> MultiDict Int JsonDataSet -> Html Msg
-viewDataSets model analysisResults dsStatistics byExperimentType =
+viewDataSets : JsonReadNewAnalysisOutput -> Dict Int JsonDataSetStatistics -> MultiDict Int JsonDataSet -> Html Msg
+viewDataSets analysisResults dsStatistics byExperimentType =
     if List.isEmpty analysisResults.filteredDataSets then
         div [ class "alert alert-info mt-3" ] [ text "No results yet. Please select filters and press “Update”." ]
 
@@ -525,7 +524,6 @@ viewDataSets model analysisResults dsStatistics byExperimentType =
                 List.concatMap
                     (\et ->
                         viewDataSetForExperimentType
-                            model
                             analysisResults
                             et
                             dsStatistics
@@ -536,7 +534,7 @@ viewDataSets model analysisResults dsStatistics byExperimentType =
 
 
 viewResults : Model -> JsonReadNewAnalysisOutput -> Html Msg
-viewResults ({ attributoValueFilters, searchAcrossBeamtimes, mergeFilter } as model) analysisResults =
+viewResults { attributoValueFilters, searchAcrossBeamtimes, mergeFilter } analysisResults =
     let
         byExperimentType : MultiDict Int JsonDataSet
         byExperimentType =
@@ -554,7 +552,7 @@ viewResults ({ attributoValueFilters, searchAcrossBeamtimes, mergeFilter } as mo
                     [ ul [ class "nav nav-pills flex-column" ] (List.map (viewExperimentTypeHeading byExperimentType) analysisResults.experimentTypes) ]
                 ]
             , div [ class "col-8" ]
-                [ viewDataSets model analysisResults dsStatistics byExperimentType
+                [ viewDataSets analysisResults dsStatistics byExperimentType
                 ]
             ]
         ]

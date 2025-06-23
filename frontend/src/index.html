@@ -29,6 +29,13 @@
         flags: typeof currentLocalStorage !== "undefined" ? currentLocalStorage : null
     });
 
+  app.ports.changeTitle.subscribe(
+      function (newTitle) {
+	  console.log("changing window title to "+newTitle)
+	  document.title = newTitle;
+      }
+  );
+
     app.ports.storeLocalStorage.subscribe(function (localStorageStr) {
         localStorage.setItem('local-storage', localStorageStr);
     });

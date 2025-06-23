@@ -48,6 +48,7 @@ class SlurmRestWorkloadManagerConfig:
     explicit_node: None | str
     token: None | str
     portal_token: None | str
+    api_version: str
     user: str
     url: str
 
@@ -100,6 +101,11 @@ def parse_workload_manager_config(
                     'invalid scheme for SLURM REST: "partition" is mandatory',
                 )
             user = jcc.string_parameter("user")
+            api_version = jcc.string_parameter("api-version")
+            if api_version is None:
+                raise Exception(
+                    'invalid scheme for SLURM REST: "api-version" is mandatory; format: something like "v0.0.40"',
+                )
             return SlurmRestWorkloadManagerConfig(
                 partition=partition,
                 reservation=jcc.string_parameter("reservation"),
@@ -107,7 +113,8 @@ def parse_workload_manager_config(
                 token=jcc.string_parameter("token"),
                 portal_token=jcc.string_parameter("portal-token"),
                 user=user if user is not None else getuser(),
-                url=MAXWELL_SLURM_URL,
+                api_version=api_version,
+                url=f"{MAXWELL_SLURM_URL}/{api_version}",
             )
         case "slurm-rest":
             output_scheme = "http" if jcc.bool_parameter("use-http") else "https"
@@ -119,6 +126,11 @@ def parse_workload_manager_config(
             host = jcc.string_parameter("host")
             if host is None:
                 raise Exception('invalid scheme for SLURM REST: "host" is mandatory')
+            api_version = jcc.string_parameter("api-version")
+            if api_version is None:
+                raise Exception(
+                    'invalid scheme for SLURM REST: "api-version" is mandatory'
+                )
             port = jcc.string_parameter("port")
             path = jcc.string_parameter("path")
             user = jcc.string_parameter("user")
@@ -132,6 +144,7 @@ def parse_workload_manager_config(
                 url=f"{output_scheme}://{host}"
                 + (f":{port}" if port is not None else "")
                 + (path if path is not None else ""),
+                api_version=api_version,
             )
         case _:
             raise Exception(
@@ -177,6 +190,7 @@ def create_workload_manager(
             url=rest_url,
             user=user,
             explicit_node=explicit_node,
+            api_version=api_version,
         ):
             token_retriever: TokenRetriever
             if config.token is not None:
@@ -201,4 +215,5 @@ def create_workload_manager(
                 request_wrapper=SlurmRequestsHttpWrapper(),
                 rest_url=rest_url,
                 rest_user=user,
+                api_version=api_version,
             )

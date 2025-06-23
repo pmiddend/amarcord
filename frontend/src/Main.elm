@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Geometry as Geometry
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.Import as Import
 import Amarcord.Pages.MergeResult as MergeResult
@@ -28,12 +29,13 @@ import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (amarcordClientVersion)
-import Api.Data exposing (JsonBeamtime)
+import Api.Data exposing (JsonBeamtimeOutput)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Ports exposing (changeTitle)
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains, endsWith)
 import Task
@@ -85,6 +87,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | GeometryPageMsg Geometry.Msg
     | ImportPageMsg Import.Msg
     | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
@@ -99,7 +102,7 @@ type Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
     | HereAndNowReceived HereAndNow
-    | BeamtimeReceived (Result HttpError JsonBeamtime)
+    | BeamtimeReceived (Result HttpError JsonBeamtimeOutput)
 
 
 type Page
@@ -108,6 +111,7 @@ type Page
     | ChemicalsPage Chemicals.Model
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
+    | GeometryPage Geometry.Model
     | RunsPage Runs.Model
     | ImportPage Import.Model
     | AdvancedControlsPage AdvancedControls.Model
@@ -131,7 +135,7 @@ type alias Model =
 
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
-    , beamtimeRequest : RemoteData HttpError JsonBeamtime
+    , beamtimeRequest : RemoteData HttpError JsonBeamtimeOutput
     , localStorage : Maybe LocalStorage
     }
 
@@ -194,6 +198,9 @@ buildTitleForPage page =
 
         RunOverviewPage model ->
             RunOverview.pageTitle model
+
+        GeometryPage model ->
+            Geometry.pageTitle model
 
         ImportPage model ->
             Import.pageTitle model
@@ -387,6 +394,12 @@ currentView model =
                     |> Html.map RunAnalysisPageMsg
                 ]
 
+        GeometryPage pageModel ->
+            div []
+                [ Geometry.view pageModel
+                    |> Html.map GeometryPageMsg
+                ]
+
         DataSetsPage dataSetModel ->
             div []
                 [ DataSets.view dataSetModel
@@ -530,9 +543,15 @@ updateInner hereAndNow msg model =
             let
                 ( updatedPageModel, updatedCmd ) =
                     RunOverview.update subMsg pageModel
+
+                updatedModel =
+                    { model | page = RunOverviewPage updatedPageModel }
             in
-            ( { model | page = RunOverviewPage updatedPageModel }
-            , Cmd.map RunOverviewPageMsg updatedCmd
+            ( updatedModel
+            , Cmd.batch
+                [ Cmd.map RunOverviewPageMsg updatedCmd
+                , changeTitle (buildTitle updatedModel)
+                ]
             )
 
         ( ImportPageMsg subMsg, ImportPage pageModel ) ->
@@ -596,6 +615,15 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = RunAnalysisPage updatedPageModel }
             , Cmd.map RunAnalysisPageMsg updatedCmd
+            )
+
+        ( GeometryPageMsg subMsg, GeometryPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Geometry.update subMsg pageModel
+            in
+            ( { model | page = GeometryPage updatedPageModel }
+            , Cmd.map GeometryPageMsg updatedCmd
             )
 
         ( LinkClicked urlRequest, _ ) ->
@@ -703,7 +731,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Chemicals beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Chemicals.init hereAndNow beamtimeId
+                            Chemicals.init beamtimeId
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
@@ -727,6 +755,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             RunOverview.init hereAndNow localStorage beamtimeId
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
+
+                Route.Geometry beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Geometry.init beamtimeId
+                    in
+                    ( GeometryPage pageModel, Cmd.map GeometryPageMsg pageCmds )
 
                 Route.Import beamtimeId step ->
                     let
@@ -752,14 +787,14 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.RunAnalysis beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunAnalysis.init hereAndNow beamtimeId
+                            RunAnalysis.init beamtimeId
                     in
                     ( RunAnalysisPage pageModel, Cmd.map RunAnalysisPageMsg pageCmds )
 
                 Route.DataSets beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            DataSets.initDataSet hereAndNow beamtimeId
+                            DataSets.initDataSet beamtimeId
                     in
                     ( DataSetsPage pageModel, Cmd.map DataSetsMsg pageCmds )
 

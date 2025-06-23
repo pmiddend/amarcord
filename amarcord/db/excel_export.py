@@ -18,7 +18,7 @@ from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
-from amarcord.util import datetime_to_local
+from amarcord.util import utc_datetime_to_local
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ def attributo_value_to_spreadsheet_cell(
             f"invalid chemical ID {attributo_value}",
         )
     if isinstance(attributo_value, datetime.datetime):
-        return datetime_to_local(attributo_value)
+        return utc_datetime_to_local(attributo_value)
     if isinstance(attributo_value, str | int | float | bool):
         return attributo_value
     assert isinstance(attributo_value, list)
@@ -146,7 +146,8 @@ async def create_workbook(
         await session.scalars(
             select(orm.Chemical)
             .where(orm.Chemical.beamtime_id == beamtime_id)
-            .options(selectinload(orm.Chemical.attributo_values)),
+            .options(selectinload(orm.Chemical.attributo_values))
+            .options(selectinload(orm.Chemical.files)),
         )
     ).all()
     for chemical_row_idx, chemical in enumerate(chemicals, start=2):
@@ -245,12 +246,14 @@ async def create_workbook(
         runs_sheet.cell(
             row=run_row_idx,
             column=2,
-            value=run.started,
+            value=utc_datetime_to_local(run.started),
         )
         runs_sheet.cell(
             row=run_row_idx,
             column=3,
-            value=run.stopped,
+            value=utc_datetime_to_local(run.stopped)
+            if run.stopped is not None
+            else None,
         )
         for run_column_idx, run_attributo in enumerate(run_attributi, start=4):
             runs_sheet.cell(

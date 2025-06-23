@@ -8,7 +8,7 @@ import Amarcord.Chemical exposing (chemicalTypeFromApi, chemicalTypeToString)
 import Amarcord.Html exposing (br_, div_, form_, h1_, h4_, h5_, input_, li_, onIntInput, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (forgetMsgInput, monthToNumericString)
-import Api.Data exposing (AssociatedTable(..), ChemicalType(..), JsonAttributiIdAndRole, JsonBeamtime, JsonCopyExperimentTypesOutput, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadBeamtime, JsonReadExperimentTypes)
+import Api.Data exposing (AssociatedTable(..), ChemicalType(..), JsonAttributiIdAndRole, JsonBeamtimeOutput, JsonCopyExperimentTypesOutput, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadBeamtime, JsonReadExperimentTypes)
 import Api.Request.Beamtimes exposing (readBeamtimesApiBeamtimesGet)
 import Api.Request.Experimenttypes exposing (copyExperimentTypesApiCopyExperimentTypesPost, createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
 import Html exposing (Html, button, div, h4, input, label, option, select, table, td, text)
@@ -19,14 +19,13 @@ import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Set exposing (Set)
 import String
-import Time exposing (Zone, millisToPosix, toMonth, toYear)
+import Time exposing (Zone, millisToPosix, toMonth, toYear, utc)
 
 
 type alias CopyFromOtherBeamtimeModel =
     { beamtimeRequest : RemoteData HttpError JsonReadBeamtime
     , copyRequest : RemoteData HttpError JsonCopyExperimentTypesOutput
     , selectedBeamtime : Maybe BeamtimeId
-    , zone : Zone
     , beamtimeId : BeamtimeId
     }
 
@@ -39,12 +38,11 @@ type CopyFromOtherBeamtimeMsg
     | CancelCopy
 
 
-copyFromOtherBeamtimeInit : Zone -> BeamtimeId -> ( CopyFromOtherBeamtimeModel, Cmd CopyFromOtherBeamtimeMsg )
-copyFromOtherBeamtimeInit zone beamtimeId =
+copyFromOtherBeamtimeInit : BeamtimeId -> ( CopyFromOtherBeamtimeModel, Cmd CopyFromOtherBeamtimeMsg )
+copyFromOtherBeamtimeInit beamtimeId =
     ( { beamtimeRequest = Loading
       , copyRequest = NotAsked
       , selectedBeamtime = Nothing
-      , zone = zone
       , beamtimeId = beamtimeId
       }
     , send BeamtimesReceived readBeamtimesApiBeamtimesGet
@@ -52,13 +50,13 @@ copyFromOtherBeamtimeInit zone beamtimeId =
 
 
 copyFromOtherBeamtimeView : CopyFromOtherBeamtimeModel -> Html CopyFromOtherBeamtimeMsg
-copyFromOtherBeamtimeView { zone, beamtimeRequest, copyRequest, selectedBeamtime } =
+copyFromOtherBeamtimeView { beamtimeRequest, copyRequest, selectedBeamtime } =
     let
-        viewBeamtime : JsonBeamtime -> Html CopyFromOtherBeamtimeMsg
-        viewBeamtime { id, title, start } =
+        viewBeamtime : JsonBeamtimeOutput -> Html CopyFromOtherBeamtimeMsg
+        viewBeamtime { id, title, startLocal } =
             let
                 startAsPosix =
-                    millisToPosix start
+                    millisToPosix startLocal
             in
             option
                 [ value (String.fromInt id)
@@ -68,9 +66,9 @@ copyFromOtherBeamtimeView { zone, beamtimeRequest, copyRequest, selectedBeamtime
                     title
                         ++ " / "
                         ++ String.fromInt
-                            (toYear zone startAsPosix)
+                            (toYear utc startAsPosix)
                         ++ "-"
-                        ++ monthToNumericString (toMonth zone startAsPosix)
+                        ++ monthToNumericString (toMonth utc startAsPosix)
                 ]
     in
     case beamtimeRequest of
@@ -240,7 +238,7 @@ update msg model =
         InitCopyFromOtherBeamtime ->
             let
                 ( newModel, cmds ) =
-                    copyFromOtherBeamtimeInit model.zone model.beamtimeId
+                    copyFromOtherBeamtimeInit model.beamtimeId
             in
             ( { model | copyFromOtherBeamtime = Just newModel }, Cmd.map CopyFromOtherBeamtimeMessage cmds )
 

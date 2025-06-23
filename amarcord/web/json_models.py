@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Annotated
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -11,6 +12,7 @@ from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.merge_result import JsonMergeResultInternal
+from amarcord.db.orm import AlignDetectorGroup
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.json_schema import JSONSchemaArray
@@ -29,16 +31,24 @@ class JsonUpdateBeamtimeInput(BaseModel):
     proposal: str
     title: str
     comment: str
-    start: int
-    end: int
+    start_local: int
+    end_local: int
+    analysis_output_path: str
+
+
+class JsonBeamtimeInput(BaseModel):
+    id: BeamtimeId
+    external_id: str
+    proposal: str
+    beamline: str
+    title: str
+    comment: str
+    start_local: int
+    end_local: int
     analysis_output_path: str
 
 
 class JsonBeamtimeOutput(BaseModel):
-    id: int
-
-
-class JsonBeamtime(BaseModel):
     id: BeamtimeId
     external_id: str
     proposal: str
@@ -46,13 +56,15 @@ class JsonBeamtime(BaseModel):
     title: str
     comment: str
     start: int
+    start_local: int
     end: int
+    end_local: int
     chemical_names: list[str]
     analysis_output_path: str
 
 
 class JsonReadBeamtime(BaseModel):
-    beamtimes: list[JsonBeamtime]
+    beamtimes: list[JsonBeamtimeOutput]
 
 
 class JsonEventInput(BaseModel):
@@ -66,9 +78,10 @@ class JsonFileOutput(BaseModel):
     id: int
     description: str
     type_: str
-    original_path: None | str
+    original_path: None | str = None
     file_name: str
     size_in_bytes: int
+    size_in_bytes_compressed: None | int = None
 
 
 class JsonEvent(BaseModel):
@@ -76,6 +89,7 @@ class JsonEvent(BaseModel):
     source: str
     text: str
     created: int
+    created_local: int
     level: str
     files: list[JsonFileOutput]
 
@@ -97,6 +111,7 @@ class JsonAttributoValue(BaseModel):
     attributo_value_int: None | int = None
     attributo_value_chemical: None | int = None
     attributo_value_datetime: None | int = None
+    attributo_value_datetime_local: None | int = None
     attributo_value_float: None | float = None
     attributo_value_bool: None | bool = None
     attributo_value_list_str: None | list[str] = None
@@ -202,20 +217,25 @@ class JsonMergeResultStateQueued(BaseModel):
 
 class JsonMergeResultStateError(BaseModel):
     started: int
+    started_local: int
     stopped: int
+    stopped_local: int
     error: str
     latest_log: str
 
 
 class JsonMergeResultStateRunning(BaseModel):
     started: int
+    started_local: int
     job_id: int
     latest_log: str
 
 
 class JsonMergeResultStateDone(BaseModel):
     started: int
+    started_local: int
     stopped: int
+    stopped_local: int
     result: JsonMergeResultInternal
 
 
@@ -230,41 +250,46 @@ class JsonMergeParameters(BaseModel):
     #
     # We could have made this "None | str" but that complicates things. For now, do it this way.
     point_group: str
-    space_group: None | str
+    space_group: None | str = None
     # Same as point_group comment above.
     cell_description: str
-    negative_handling: None | MergeNegativeHandling
+    negative_handling: None | MergeNegativeHandling = None
     merge_model: MergeModel
     scale_intensities: ScaleIntensities
     post_refinement: bool
     iterations: int
-    polarisation: None | JsonPolarisation
-    start_after: None | int
-    stop_after: None | int
+    polarisation: None | JsonPolarisation = None
+    start_after: None | int = None
+    stop_after: None | int = None
     rel_b: float
     no_pr: bool
-    force_bandwidth: None | float
-    force_radius: None | float
-    force_lambda: None | float
+    force_bandwidth: None | float = None
+    force_radius: None | float = None
+    force_lambda: None | float = None
     no_delta_cc_half: bool
-    max_adu: None | float
+    max_adu: None | float = None
     min_measurements: int
     logs: bool
-    min_res: None | float
-    push_res: None | float
-    w: None | str
+    min_res: None | float = None
+    push_res: None | float = None
+    w: None | str = None
     ambigator_command_line: str
+    cutoff_lowres: None | float = None
+    cutoff_highres: Annotated[None | list[float], Field(min_length=1, max_length=3)] = (
+        None
+    )
 
 
 class JsonMergeResult(BaseModel):
     id: int
     created: int
+    created_local: int
     runs: list[str]
     indexing_result_ids: list[int]
-    state_queued: None | JsonMergeResultStateQueued
-    state_error: None | JsonMergeResultStateError
-    state_running: None | JsonMergeResultStateRunning
-    state_done: None | JsonMergeResultStateDone
+    state_queued: None | JsonMergeResultStateQueued = None
+    state_error: None | JsonMergeResultStateError = None
+    state_running: None | JsonMergeResultStateRunning = None
+    state_done: None | JsonMergeResultStateDone = None
     parameters: JsonMergeParameters
     refinement_results: list[JsonRefinementResult]
 
@@ -294,7 +319,7 @@ class JsonAttributoWithName(BaseModel):
 
 class JsonReadAllChemicals(BaseModel):
     chemicals: list[JsonChemical]
-    beamtimes: list[JsonBeamtime]
+    beamtimes: list[JsonBeamtimeOutput]
     attributi_names: list[JsonAttributoWithName]
 
 
@@ -309,8 +334,8 @@ class JsonCopyChemicalOutput(BaseModel):
 
 
 class JsonIndexingParameters(BaseModel):
-    id: None | int
-    cell_description: None | str
+    id: None | int = None
+    cell_description: None | str = None
     is_online: bool
     command_line: str
     geometry_file: str
@@ -326,11 +351,23 @@ class JsonUpdateOnlineIndexingParametersOutput(BaseModel):
     success: bool
 
 
+class JsonAlignDetectorGroup(BaseModel):
+    group: str
+    x_translation_mm: float
+    y_translation_mm: float
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
+
+
 class JsonIndexingResult(BaseModel):
     id: int
     created: int
-    started: None | int
-    stopped: None | int
+    created_local: int
+    started: None | int = None
+    started_local: None | int = None
+    stopped: None | int = None
+    stopped_local: None | int = None
     parameters: JsonIndexingParameters
     stream_file: str
     program_version: str
@@ -341,12 +378,11 @@ class JsonIndexingResult(BaseModel):
     indexed_frames: int
     indexed_crystals: int
     status: DBJobStatus
-    detector_shift_x_mm: None | float
-    detector_shift_y_mm: None | float
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
     generated_geometry_file: str
-    unit_cell_histograms_file_id: None | int
+    unit_cell_histograms_file_id: None | int = None
     has_error: bool
     # Commented out, we retrieve the log separately
     # latest_log: str
@@ -372,11 +408,10 @@ class JsonImportFinishedIndexingJobInput(BaseModel):
     frames: int
     hits: int
     indexed_frames: int
-    detector_shift_x_mm: None | float
-    detector_shift_y_mm: None | float
+    align_detector_groups: list[AlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
-    generated_geometry_file: None | str
+    generated_geometry_file: None | str = None
     job_log: str
 
 
@@ -415,15 +450,14 @@ class JsonIndexingResultFinishSuccessfully(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float
-    detector_shift_y_mm: None | float
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_file: str
     geometry_hash: str
     generated_geometry_file: str
-    unit_cell_histograms_id: None | int
+    unit_cell_histograms_id: None | int = None
 
     # None, in this case, means "don't change/append to the log"
-    latest_log: None | str
+    latest_log: None | str = None
 
 
 class JsonIndexingResultFinishWithError(BaseModel):
@@ -431,7 +465,7 @@ class JsonIndexingResultFinishWithError(BaseModel):
     latest_log: str
     # The job might fail even before it gets to the workload manager (Slurm), in which case
     # we have no job ID.
-    workload_manager_job_id: None | int
+    workload_manager_job_id: None | int = None
 
 
 class JsonIndexingJobUpdateOutput(BaseModel):
@@ -470,17 +504,18 @@ class JsonRunFile(BaseModel):
 class JsonCreateOrUpdateRun(BaseModel):
     beamtime_id: BeamtimeId
     attributi: list[JsonAttributoValue]
-    files: None | list[JsonRunFile]
+    files: None | list[JsonRunFile] = None
     started: None | int = None
     stopped: None | int = None
+    is_utc: bool = True
     create_data_set: bool = False
 
 
 class JsonCreateOrUpdateRunOutput(BaseModel):
     run_created: bool
-    indexing_result_id: None | int
-    error_message: None | str
-    run_internal_id: None | RunInternalId
+    indexing_result_id: None | int = None
+    error_message: None | str = None
+    run_internal_id: None | RunInternalId = None
     files: list[JsonRunFile]
 
 
@@ -488,7 +523,7 @@ class JsonUpdateRun(BaseModel):
     id: RunInternalId
     experiment_type_id: int
     attributi: list[JsonAttributoValue]
-    files: None | list[JsonRunFile]
+    files: None | list[JsonRunFile] = None
 
 
 class JsonUpdateRunOutput(BaseModel):
@@ -529,7 +564,7 @@ class JsonUpdateRunsBulkInput(BaseModel):
     beamtime_id: BeamtimeId
     external_run_ids: list[int]
     attributi: list[JsonAttributoValue]
-    new_experiment_type_id: None | int
+    new_experiment_type_id: None | int = None
 
 
 class JsonUpdateRunsBulkOutput(BaseModel):
@@ -539,6 +574,7 @@ class JsonUpdateRunsBulkOutput(BaseModel):
 class JsonAnalysisRun(BaseModel):
     id: int
     external_id: int
+    data_set_id: None | int
     attributi: list[JsonAttributoValue]
     file_paths: list[JsonRunFile]
 
@@ -547,8 +583,7 @@ class JsonIndexingFom(BaseModel):
     hit_rate: float
     indexing_rate: float
     indexed_frames: int
-    detector_shift_x_mm: None | float
-    detector_shift_y_mm: None | float
+    align_detector_groups: list[JsonAlignDetectorGroup]
 
 
 class JsonIndexingResultStillRunning(BaseModel):
@@ -558,14 +593,12 @@ class JsonIndexingResultStillRunning(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float
-    detector_shift_y_mm: None | float
     geometry_file: str
     geometry_hash: str
     # can be missing, in case we don't have that information but still want to signal progress
-    job_started: None | int
+    job_started: None | int = None
     # None, in this case, means "don't change/append to the log"
-    latest_log: None | str
+    latest_log: None | str = None
 
 
 class JsonIndexingStatistic(BaseModel):
@@ -577,20 +610,22 @@ class JsonIndexingStatistic(BaseModel):
 
 
 class JsonRunAnalysisIndexingResult(BaseModel):
+    indexing_result_id: int
     run_id: int
     foms: JsonIndexingFom
     indexing_statistics: list[JsonIndexingStatistic]
     running: bool
-    frames: None | int
-    total_frames: None | int
+    frames: None | int = None
+    total_frames: None | int = None
 
 
 class JsonDetectorShift(BaseModel):
     run_external_id: int
     run_start: int
-    run_end: None | int
-    shift_x_mm: float
-    shift_y_mm: float
+    run_start_local: int
+    run_end: None | int = None
+    run_end_local: None | int = None
+    align_detector_groups: list[JsonAlignDetectorGroup]
     geometry_hash: str
 
 
@@ -606,7 +641,7 @@ class JsonRunId(BaseModel):
 class JsonReadRunAnalysis(BaseModel):
     chemicals: list[JsonChemical]
     attributi: list[JsonAttributo]
-    run: None | JsonAnalysisRun
+    run: None | JsonAnalysisRun = None
     run_ids: list[JsonRunId]
     indexing_results: list[JsonRunAnalysisIndexingResult]
 
@@ -646,7 +681,9 @@ class JsonRun(BaseModel):
     external_id: int
     attributi: list[JsonAttributoValue]
     started: int
-    stopped: None | int
+    started_local: int
+    stopped: None | int = None
+    stopped_local: None | int = None
     files: list[JsonRunFile]
     summary: JsonIndexingFom
     experiment_type_id: int
@@ -655,13 +692,14 @@ class JsonRun(BaseModel):
 class JsonUserConfig(BaseModel):
     online_crystfel: bool
     auto_pilot: bool
-    current_experiment_type_id: None | int
-    current_online_indexing_parameters_id: None | int
+    current_experiment_type_id: None | int = None
+    current_online_indexing_parameters_id: None | int = None
 
 
 class JsonLiveStream(BaseModel):
     file_id: int
     modified: int
+    modified_local: int
 
 
 class JsonDataSetWithFom(BaseModel):
@@ -679,17 +717,17 @@ class JsonReadRuns(BaseModel):
 
 
 class JsonReadRunsOverview(BaseModel):
-    live_stream: None | JsonLiveStream
+    live_stream: None | JsonLiveStream = None
     attributi: list[JsonAttributo]
-    latest_indexing_result: None | JsonRunAnalysisIndexingResult
-    latest_run: None | JsonRun
-    foms_for_this_data_set: None | JsonDataSetWithFom
+    latest_indexing_result: None | JsonRunAnalysisIndexingResult = None
+    latest_run: None | JsonRun = None
+    foms_for_this_data_set: None | JsonDataSetWithFom = None
     # for the "choose ET" dropdown
     experiment_types: list[JsonExperimentType]
     events: list[JsonEvent]
     chemicals: list[JsonChemical]
     user_config: JsonUserConfig
-    current_beamtime_user: None | str
+    current_beamtime_user: None | str = None
 
 
 class JsonCreateFileOutput(BaseModel):
@@ -698,12 +736,13 @@ class JsonCreateFileOutput(BaseModel):
     description: str
     type_: str
     size_in_bytes: int
-    original_path: None | str
+    size_in_bytes_compressed: None | int
+    original_path: None | str = None
 
 
 class JsonUserConfigurationSingleOutput(BaseModel):
-    value_bool: None | bool
-    value_int: None | int
+    value_bool: None | bool = None
+    value_int: None | int = None
 
 
 class JsonCreateExperimentTypeInput(BaseModel):
@@ -718,7 +757,7 @@ class JsonCreateExperimentTypeOutput(BaseModel):
 
 class JsonChangeRunExperimentType(BaseModel):
     run_internal_id: int
-    experiment_type_id: None | int
+    experiment_type_id: None | int = None
 
 
 class JsonChangeRunExperimentTypeOutput(BaseModel):
@@ -735,7 +774,7 @@ class JsonReadExperimentTypes(BaseModel):
     experiment_types: list[JsonExperimentType]
     attributi: list[JsonAttributo]
     experiment_type_id_to_run: list[JsonExperimentTypeAndRuns]
-    current_experiment_type_id: None | int
+    current_experiment_type_id: None | int = None
 
 
 class JsonDeleteExperimentType(BaseModel):
@@ -746,28 +785,35 @@ class JsonDeleteExperimentTypeOutput(BaseModel):
     result: bool
 
 
-class JsonBeamtimeScheduleRow(BaseModel):
+class JsonBeamtimeScheduleRowInput(BaseModel):
     users: str
     date: str
     shift: str
     comment: str
     td_support: str
     chemicals: list[int]
-    start_posix: int
-    stop_posix: int
 
 
-class JsonBeamtimeSchedule(BaseModel):
-    schedule: list[JsonBeamtimeScheduleRow]
+class JsonBeamtimeScheduleRowOutput(BaseModel):
+    users: str
+    date: str
+    shift: str
+    comment: str
+    td_support: str
+    chemicals: list[int]
+    start: int
+    start_local: int
+    stop: int
+    stop_local: int
 
 
 class JsonUpdateBeamtimeScheduleInput(BaseModel):
     beamtime_id: BeamtimeId
-    schedule: list[JsonBeamtimeScheduleRow]
+    schedule: list[JsonBeamtimeScheduleRowInput]
 
 
 class JsonBeamtimeScheduleOutput(BaseModel):
-    schedule: list[JsonBeamtimeScheduleRow]
+    schedule: list[JsonBeamtimeScheduleRowOutput]
 
 
 class JsonUpdateLiveStream(BaseModel):
@@ -904,8 +950,8 @@ class JsonCheckStandardUnitInput(BaseModel):
 
 class JsonCheckStandardUnitOutput(BaseModel):
     input: str
-    error: None | str
-    normalized: None | str
+    error: None | str = None
+    normalized: None | str = None
 
 
 class JsonIndexingParametersWithResults(BaseModel):
@@ -954,13 +1000,13 @@ class JsonMergeStatus(str, Enum):
 
 class JsonReadNewAnalysisInput(BaseModel):
     attributi_filter: list[JsonAttributoValue]
-    beamtime_id: None | int
+    beamtime_id: None | int = None
     merge_status: JsonMergeStatus
 
 
 class JsonExperimentTypeWithBeamtimeInformation(BaseModel):
     experiment_type: JsonExperimentType
-    beamtime: JsonBeamtime
+    beamtime: JsonBeamtimeOutput
 
 
 class JsonReadNewAnalysisOutput(BaseModel):
@@ -984,7 +1030,7 @@ class JsonCreateLiveStreamSnapshotOutput(BaseModel):
     description: str
     type_: str
     size_in_bytes: int
-    original_path: None | str
+    original_path: None | str = None
 
 
 # In principle, we should have one structure: indexing result. Now we
@@ -992,20 +1038,22 @@ class JsonCreateLiveStreamSnapshotOutput(BaseModel):
 # "job" part (with job ID etc.). We have to refactor this at some point.
 class JsonIndexingJob(BaseModel):
     id: int
-    job_id: None | int
+    job_id: None | int = None
     job_status: DBJobStatus
-    started: None | int
-    stopped: None | int
+    started: None | int = None
+    started_local: None | int = None
+    stopped: None | int = None
+    stopped_local: None | int = None
     is_online: bool
-    stream_file: None | str
+    stream_file: None | str = None
     source: str
-    cell_description: None | str
+    cell_description: None | str = None
     geometry_file_input: str
     geometry_file_output: str
     command_line: str
     run_internal_id: int
     run_external_id: int
-    beamtime: JsonBeamtime
+    beamtime: JsonBeamtimeOutput
     input_file_globs: list[str]
 
 
@@ -1015,7 +1063,7 @@ class JsonReadIndexingResultsOutput(BaseModel):
 
 class JsonMergeJob(BaseModel):
     id: int
-    job_id: None | int
+    job_id: None | int = None
     job_status: DBJobStatus
     parameters: JsonMergeParameters
     indexing_results: list[JsonIndexingJob]

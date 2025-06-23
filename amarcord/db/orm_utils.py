@@ -1,5 +1,7 @@
 import datetime
+import zlib
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +14,9 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -31,7 +34,7 @@ from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
 from amarcord.web.json_models import JsonAttributoValue
-from amarcord.web.json_models import JsonBeamtime
+from amarcord.web.json_models import JsonBeamtimeOutput
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
 
@@ -105,15 +108,35 @@ async def retrieve_latest_run(
     ).first()
 
 
-def update_file_with_contents(f: orm.File, temp_file: Any) -> None:
+class CompressionMode(Enum):
+    COMPRESS_AUTO = "auto"
+    COMPRESS_ON = "on"
+    COMPRESS_OFF = "off"
+
+
+def update_file_with_contents(
+    f: orm.File, temp_file: Any, compress: CompressionMode
+) -> None:
     file_path = Path(temp_file.name)
     f.sha256 = sha256_file(file_path)
 
     mime = magic.from_file(str(file_path), mime=True)  # type: ignore
     assert isinstance(mime, str), f"mime type is not a string: {mime}"
     f.type = mime
-    f.size_in_bytes = file_path.stat().st_size
-    f.contents = temp_file.read()  # type: ignore
+
+    file_size = file_path.stat().st_size
+    f.size_in_bytes = file_size
+
+    do_compress = (
+        compress == CompressionMode.COMPRESS_AUTO and file_size >= 1000
+    ) or CompressionMode.COMPRESS_ON
+
+    if do_compress:
+        new_contents = zlib.compress(temp_file.read())
+        f.contents = new_contents
+        f.size_in_bytes_compressed = len(new_contents)
+    else:
+        f.contents = temp_file.read()
     f.modified = datetime.datetime.now(datetime.timezone.utc)
 
 
@@ -122,10 +145,12 @@ def create_file_in_db(
     temp_file: Any,
     external_file_name: str,
     description: str,
+    compression_mode: CompressionMode,
 ) -> orm.File:
     result = orm.File(
         type="placeholder",
         size_in_bytes=0,
+        size_in_bytes_compressed=None,
         modified=datetime.datetime.now(datetime.timezone.utc),
         file_name=external_file_name,
         original_path=None,
@@ -133,7 +158,7 @@ def create_file_in_db(
         sha256="",
         contents=b"",
     )
-    update_file_with_contents(result, temp_file)
+    update_file_with_contents(result, temp_file, compression_mode)
     return result
 
 
@@ -155,6 +180,7 @@ async def duplicate_file(f: orm.File, new_file_name: str) -> orm.File:
         type=f.type,
         file_name=new_file_name,
         size_in_bytes=f.size_in_bytes,
+        size_in_bytes_compressed=f.size_in_bytes_compressed,
         original_path=f.original_path,
         sha256=f.sha256,
         modified=datetime.datetime.now(datetime.timezone.utc),
@@ -490,16 +516,18 @@ async def determine_run_indexing_metadata(
     )
 
 
-def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:  # noqa: FBT002
-    return JsonBeamtime(
+def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool) -> JsonBeamtimeOutput:
+    return JsonBeamtimeOutput(
         id=bt.id,
         external_id=bt.external_id,
         proposal=bt.proposal,
         beamline=bt.beamline,
         title=bt.title,
         comment=bt.comment,
-        start=datetime_to_attributo_int(bt.start),
-        end=datetime_to_attributo_int(bt.end),
+        start=utc_datetime_to_utc_int(bt.start),
+        start_local=utc_datetime_to_local_int(bt.start),
+        end=utc_datetime_to_utc_int(bt.end),
+        end_local=utc_datetime_to_local_int(bt.end),
         chemical_names=(
             [chemical.name for chemical in bt.chemicals] if with_chemicals else []
         ),

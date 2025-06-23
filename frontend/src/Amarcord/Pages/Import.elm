@@ -238,7 +238,6 @@ viewUploadResult model { runAttributi, chemicals } uploadResult =
                                     (\ds ->
                                         viewDataSetTable
                                             (List.map convertAttributoFromApi runAttributi)
-                                            model.hereAndNow.zone
                                             (chemicalIdDict (List.map convertChemicalFromApi chemicals))
                                             (convertAttributoMapFromApi ds.attributi)
                                             True

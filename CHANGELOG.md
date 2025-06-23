@@ -1,6 +1,56 @@
 If this document renders weirdly, it’s because it uses [GitLab flavored markdown](https://docs.gitlab.com/user/markdown/#table-of-contents) and some elements might not be supported by your viewer.
 
 [TOC]
+# 🚧 v1.4 - Q3 2025
+
+# v1.3 - Q2 2025
+
+## Features
+
+### Indexing: New geometry refinement parameters ([\#472](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/472))
+
+Since 0.12.0, CrystFEL supports refining the Z shift (i.e. the camera length), and also panel rotations and tilts. AMARCORD will call `align_detector` with the accompanying parameters and parse its output, storing the result in the database.
+
+<figure>
+![Geometry page](changelog-assets/472-shifts.png){width=465 height=510px}
+<figcaption>The adapted "Geometry" page showing a beamtime's worth of runs and detector shifts and rotations. There were no geometry changes in this beam time.</figcaption>
+</figure>
+
+Note that the page "Analysis → By Run" has been split into "Analysis → Geometry" and "Analysis → By Run".
+
+### Merging: Cutoffs ([\#469](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/469))
+
+When merging, instead of just calling CrystFEL's `get_hkl` without any user input, you can now specify resolution cutoffs which are passed down to `get_hkl` in the end. For the high resolution cutoff, you can even specify three different cutoffs in order to do anisotropic cuts:
+<figure>
+![Last step in the import](changelog-assets/469-cutoffs.png){width=825 height=238px}
+<figcaption>At the very end of the merge options, you can now set the cutoffs used.</figcaption>
+</figure>
+
+### Miscellaneous features
+
+- Indexing: jobs now give more meaningful error messages in case there are files missing for runs. Instead of just `input file list empty - maybe the run has the wrong files entered?`, you now also get `I've searched the following patterns for files:  ...` ([\#462](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/462))
+- Indexing: in a similar vein to the above, you now get a better error message when the geometry file is missing; this previously complained about `cannot resolve geometry hash`, which is true, but unhelpful. Now you see `cannot find the given geometry file ..., check that it exists and is readable`
+- Indexing: now, also an error in `list_events` will be reported properly
+- SLURM REST interface: you now need to explicitly specify an `api-version` parameter (since the version changes frequently and it shouldn't be hard-coded) ([\#467](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/455))
+- Indexing results: failed results are now hidden, and can be shown with a check-box ([\#468](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/468))
+- Files are now compressed if they are too big. There is a parameter in the API to force this on or off, too ([\#429](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/429)). Nothing changes for the normal user.
+- The "All runs" table now has a date columns for "started" and "stopped". Previously we only displayed the time, which was useless in multi-day beamtimes ([\#466](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/466)):
+<figure>
+![Runs table with the new columns](changelog-assets/runs-table-date-column.png){width=944 height=267px}
+</figure>
+
+
+## Fixes
+
+- Run Overview: The browser tab title now changes even if the tab is in the background ([\#460](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/460))
+- Merging: Error output from partialator was omitted from job log ([\#461](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/461))
+- Export: Fixed error message if there were chemicals with files in it.
+
+## Development changes
+
+- Upgraded the pydantic serialization/deserialization framework to version 2 now, resulting in increased performance ([\#463](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/463))
+- Remove `python-dateutil` and `pytz`, both superseded by Python 3.9's [ZoneInfo](https://docs.python.org/3.9/library/zoneinfo.html) (and `python-dateutil` had a Python 3.12 [deprecation warning](https://github.com/dateutil/dateutil/issues/1284)). In the light of that, rework all of the frontend and backend to have a consistent time zone usage. This doesn't affect the user and is documented in the official documentation. ([\#465](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/465))
+
 
 # v1.2 - Q1 2025
 
@@ -36,7 +86,7 @@ Now, the Data Set view shows which parameters have changed since the previous in
 
 As you can see, for the geometry file, we only get “changed” for now. In the future we might be more specific.
 
-### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435), [#452](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/452))
+### Cell description edit interface ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/431),  [\#435](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/435), [\#452](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/452))
 
 Editing a unit cell (UC) description was a purely text-based affair previously. You had an input field and had to fill it correctly. There was no feedback on whether what you typed was actually a valid unit cell!
 
@@ -112,7 +162,7 @@ If you do, then the “Details” view contains the fg-graph plot and can tell y
 
 ![ambigator output graph](changelog-assets/ambigator-output.png){width=650 height=510px}
 
-### Event log: Date filter ([#456](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/456))
+### Event log: Date filter ([\#456](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/456))
 The under-used “Events” view (accessible via the menu “Admin” → “Event Log”) now has a date filter just like the run table:
 
 <figure>
@@ -131,8 +181,8 @@ This view now also sorts events in reverse chronological order.
 - Merging now also outputs a log file ([\#437](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/437), [\#438](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/438))
 - Indexing jobs will now output a nicer error message if things go “expectedly” wrong ([\#431](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/merge_requests/431))
 - Indexing jobs now show the resulting `.stream` file ([\#444](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/444))
-- API: When creating (or updating) a run, you can instruct it to create a Data Set for the run as well ([#457](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/457))
-- API: You can now create a finished indexing result ([#458](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/458))
+- API: When creating (or updating) a run, you can instruct it to create a Data Set for the run as well ([\#457](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/457))
+- API: You can now create a finished indexing result ([\#458](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/458))
 
 ## Fixes
 

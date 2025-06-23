@@ -6,11 +6,11 @@ from pydantic import BaseModel
 
 class OnlineAnalysis(BaseModel):
     reservedNodes: list[str]  # noqa: N815
-    slurmPartition: str | None  # noqa: N815
-    slurmReservation: str | None  # noqa: N815
-    sshPrivateKeyPath: Path | None  # noqa: N815
-    sshPublicKeyPath: Path | None  # noqa: N815
-    userAccount: str | None  # noqa: N815
+    slurmPartition: str | None = None  # noqa: N815
+    slurmReservation: str | None = None  # noqa: N815
+    sshPrivateKeyPath: Path | None = None  # noqa: N815
+    sshPublicKeyPath: Path | None = None  # noqa: N815
+    userAccount: str | None = None  # noqa: N815
 
 
 class BeamlineMetadata(BaseModel):
@@ -37,7 +37,7 @@ def locate_beamtime_metadata(
 
 
 def _make_paths_absolute(p: Path, m: BeamlineMetadata) -> BeamlineMetadata:
-    result = m.copy()
+    result = m.model_copy()
     if result.onlineAnalysis.sshPrivateKeyPath is not None:
         result.onlineAnalysis.sshPrivateKeyPath = (
             p / result.onlineAnalysis.sshPrivateKeyPath

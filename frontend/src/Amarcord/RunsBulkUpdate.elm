@@ -259,7 +259,7 @@ update model msg =
         SubmitBulkChange ->
             case ( parseRunIds model.runsInputField, model.runsBulkGetRequest ) of
                 ( Just runIds, Success { selectedExperimentType, actualEditableAttributi } ) ->
-                    case convertEditValues model.hereAndNow.zone actualEditableAttributi of
+                    case convertEditValues actualEditableAttributi of
                         Err errorList ->
                             ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
@@ -294,7 +294,6 @@ update model msg =
                     let
                         editableAttributi =
                             createEditableAttributi
-                                model.hereAndNow.zone
                                 (List.map convertAttributoFromApi bulkResponse.attributi)
                                 (buildAttributoMap <| Dict.fromList <| List.map (\{ attributoId, values } -> ( attributoId, List.map convertAttributoValueFromApi values )) <| bulkResponse.attributiValues)
                     in

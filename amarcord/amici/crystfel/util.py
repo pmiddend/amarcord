@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.web.json_models import JsonBeamtime
+from amarcord.db.attributi import local_int_to_utc_datetime
+from amarcord.web.json_models import JsonBeamtimeOutput
 
 
 def determine_output_directory(
-    beamtime: JsonBeamtime,
+    beamtime: JsonBeamtimeOutput,
     additional_replacements: dict[str, str],
 ) -> Path:
     # This is a gratuitous selection of beamtime metadata. Please add necessary fields if you need them.
@@ -16,7 +16,7 @@ def determine_output_directory(
         )
         .replace(
             "{beamtime.year}",
-            str(datetime_from_attributo_int(beamtime.start).year),
+            str(local_int_to_utc_datetime(beamtime.start_local).year),
         )
         .replace("{beamtime.beamline}", beamtime.beamline)
         .replace("{beamtime.beamline_lowercase}", beamtime.beamline.lower())

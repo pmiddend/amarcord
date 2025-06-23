@@ -7,7 +7,7 @@ import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixDateTimeCompatible, formatPosixHumanFriendly, localDateTimeStringToPosix, scrollToTop)
-import Api.Data exposing (JsonBeamtime, JsonReadBeamtime)
+import Api.Data exposing (JsonBeamtimeInput, JsonBeamtimeOutput, JsonReadBeamtime)
 import Api.Request.Beamtimes exposing (createBeamtimeApiBeamtimesPost, readBeamtimesApiBeamtimesGet, updateBeamtimeApiBeamtimesPatch)
 import Html exposing (Html, a, button, div, input, label, li, p, span, table, tbody, td, text, textarea, th, thead, tr, ul)
 import Html.Attributes as Attrs exposing (attribute, class, for, href, id, style, type_, value)
@@ -15,12 +15,12 @@ import Html.Events exposing (onClick, onInput)
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
-import Time exposing (Zone, millisToPosix, posixToMillis)
+import Time exposing (millisToPosix, posixToMillis, utc)
 
 
 type alias Model =
-    { beamtimeResult : RemoteData HttpError (List JsonBeamtime)
-    , beamtimeEdit : Maybe JsonBeamtime
+    { beamtimeResult : RemoteData HttpError (List JsonBeamtimeOutput)
+    , beamtimeEdit : Maybe JsonBeamtimeOutput
     , modifyRequest : RemoteData HttpError ()
     , hereAndNow : HereAndNow
     }
@@ -35,9 +35,9 @@ type Msg
     = BeamtimesReceived (Result HttpError JsonReadBeamtime)
     | AddBeamtime
     | Nop
-    | EditBeamtimeStart JsonBeamtime
+    | EditBeamtimeStart JsonBeamtimeOutput
     | EditBeamtimeSubmit
-    | ChangeEditBeamtime (JsonBeamtime -> JsonBeamtime)
+    | ChangeEditBeamtime (JsonBeamtimeOutput -> JsonBeamtimeOutput)
     | EditBeamtimeCancel
     | EditBeamtimeFinished (Result HttpError {})
 
@@ -53,12 +53,14 @@ init hereAndNow =
     )
 
 
-emptyBeamtime : HereAndNow -> JsonBeamtime
+emptyBeamtime : HereAndNow -> JsonBeamtimeOutput
 emptyBeamtime hereAndNow =
     { beamline = ""
     , comment = ""
     , start = posixToMillis hereAndNow.now
+    , startLocal = posixToMillis hereAndNow.now
     , end = posixToMillis hereAndNow.now
+    , endLocal = posixToMillis hereAndNow.now
     , externalId = ""
     , id = invalidBeamtimeId
     , proposal = ""
@@ -114,14 +116,15 @@ update msg model =
 
                 Just bt ->
                     let
+                        body : JsonBeamtimeInput
                         body =
                             { beamline = bt.beamline
                             , comment = bt.comment
-                            , end = bt.end
+                            , endLocal = bt.endLocal
                             , externalId = bt.externalId
                             , id = bt.id
                             , proposal = bt.proposal
-                            , start = bt.start
+                            , startLocal = bt.startLocal
                             , title = bt.title
                             , analysisOutputPath = bt.analysisOutputPath
                             }
@@ -135,8 +138,8 @@ update msg model =
                     )
 
 
-viewBeamtimeTableRow : Zone -> JsonBeamtime -> Html Msg
-viewBeamtimeTableRow zone ({ beamline, comment, start, end, externalId, id, proposal, title, chemicalNames } as bt) =
+viewBeamtimeTableRow : JsonBeamtimeOutput -> Html Msg
+viewBeamtimeTableRow ({ beamline, comment, startLocal, endLocal, externalId, id, proposal, title, chemicalNames } as bt) =
     tr []
         [ td []
             [ button
@@ -148,8 +151,8 @@ viewBeamtimeTableRow zone ({ beamline, comment, start, end, externalId, id, prop
         , td [] [ a [ href (makeLink (RunOverview id)) ] [ text title ] ]
         , td [] [ text beamline ]
         , td [ class "text-nowrap" ] [ text proposal ]
-        , td [] [ text (formatPosixHumanFriendly zone (millisToPosix start)) ]
-        , td [] [ text (formatPosixHumanFriendly zone (millisToPosix end)) ]
+        , td [] [ text (formatPosixHumanFriendly utc (millisToPosix startLocal)) ]
+        , td [] [ text (formatPosixHumanFriendly utc (millisToPosix endLocal)) ]
         , td [] [ markupWithoutErrors comment ]
         , td []
             [ span [ class "accordion accordion-flush" ]
@@ -175,8 +178,8 @@ viewBeamtimeTableRow zone ({ beamline, comment, start, end, externalId, id, prop
         ]
 
 
-viewBeamtimes : Zone -> List JsonBeamtime -> Html Msg
-viewBeamtimes zone beamtimes =
+viewBeamtimes : List JsonBeamtimeOutput -> Html Msg
+viewBeamtimes beamtimes =
     table [ class "table table-striped", id "beamtime-table" ]
         [ thead []
             [ tr []
@@ -192,12 +195,12 @@ viewBeamtimes zone beamtimes =
                 , th [] [ text "Chemicals" ]
                 ]
             ]
-        , tbody [] (List.map (viewBeamtimeTableRow zone) beamtimes)
+        , tbody [] (List.map viewBeamtimeTableRow beamtimes)
         ]
 
 
-viewEditForm : Zone -> JsonBeamtime -> Html Msg
-viewEditForm zone bt =
+viewEditForm : JsonBeamtimeOutput -> Html Msg
+viewEditForm bt =
     let
         addOrEditHeadline =
             h4_
@@ -240,15 +243,15 @@ viewEditForm zone bt =
                 , class "form-control"
 
                 -- note here and below: local time zone!
-                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.start))
+                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.startLocal))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
                             (\bt2 ->
                                 ResultExtra.unwrap
                                     bt2
-                                    (\newParsed -> { bt2 | start = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix zone newValue)
+                                    (\newParsed -> { bt2 | startLocal = posixToMillis newParsed })
+                                    (localDateTimeStringToPosix utc newValue)
                             )
                     )
                 ]
@@ -262,15 +265,15 @@ viewEditForm zone bt =
                 , class "form-control"
 
                 -- note here and below: local time zone!
-                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.end))
+                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.endLocal))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
                             (\bt2 ->
                                 ResultExtra.unwrap
                                     bt2
-                                    (\newParsed -> { bt2 | end = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix zone newValue)
+                                    (\newParsed -> { bt2 | endLocal = posixToMillis newParsed })
+                                    (localDateTimeStringToPosix utc newValue)
                             )
                     )
                 ]
@@ -342,7 +345,7 @@ view model =
 
             Just beamtime ->
                 div_
-                    [ viewEditForm model.hereAndNow.zone beamtime
+                    [ viewEditForm beamtime
                     ]
         , case model.modifyRequest of
             NotAsked ->
@@ -360,7 +363,7 @@ view model =
                     ]
         , case model.beamtimeResult of
             Success beamtimes ->
-                viewBeamtimes model.hereAndNow.zone beamtimes
+                viewBeamtimes beamtimes
 
             Failure e ->
                 div [] [ makeAlert [ AlertDanger ] [ showError e ] ]

@@ -1,4 +1,5 @@
 import datetime
+import os
 from dataclasses import replace
 from typing import Final
 
@@ -6,8 +7,8 @@ import pytest
 
 from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import convert_attributo_value
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_string
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -20,6 +21,8 @@ from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.numeric_range import NumericRange
 
 _default_flags: Final = AttributoConversionFlags(ignore_units=False)
+
+os.environ["AMARCORD_TZ"] = "UTC"
 
 
 def test_attributo_int_to_int_conversion() -> None:
@@ -277,7 +280,7 @@ def test_attributo_string_datetime() -> None:
         AttributoTypeDateTime(),
         _default_flags,
         datetime_to_attributo_string(t),
-    ) == datetime_to_attributo_int(t)
+    ) == utc_datetime_to_utc_int(t)
 
 
 def test_attributo_string_choice() -> None:

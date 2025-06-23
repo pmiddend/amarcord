@@ -32,7 +32,7 @@ import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String
-import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
+import Time exposing (Posix, Zone, millisToPosix, posixToMillis, utc)
 
 
 type Msg
@@ -67,7 +67,6 @@ type alias LoadedModel =
 
 type alias Model =
     { loadedModel : RemoteData HttpError LoadedModel
-    , zone : Zone
     , refreshRequest : RemoteData HttpError ()
     , eventForm : EventForm.Model
     , now : Posix
@@ -106,9 +105,8 @@ pageTitle { loadedModel } =
 
 
 init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )
-init { zone, now } localStorage beamtimeId =
+init { now } localStorage beamtimeId =
     ( { loadedModel = Loading
-      , zone = zone
       , refreshRequest = NotAsked
       , eventForm = EventForm.init beamtimeId "User"
       , now = now
@@ -124,14 +122,13 @@ init { zone, now } localStorage beamtimeId =
 
 
 dataSetInformation :
-    Zone
-    -> BeamtimeId
+    BeamtimeId
     -> JsonRun
     -> RemoteData HttpError JsonCreateDataSetFromRunOutput
     -> Maybe JsonExperimentType
     -> JsonReadRunsOverview
     -> List (Html Msg)
-dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
+dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
     case currentExperimentTypeMaybe of
         Nothing ->
             [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
@@ -241,7 +238,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                                 ]
                             ]
                     in
-                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map (viewHitRateAndIndexingGraphs zone))
+                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
                     , div [ class "mb-3" ] indexingProgress
                     , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]
@@ -301,7 +298,6 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                         , viewCloseHelpButton "help-data-set"
                         ]
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
-                        zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
                         (convertAttributoMapFromApi dsWithFom.dataSet.attributi)
                         True
@@ -325,8 +321,7 @@ posixDiffHumanFriendlyLongDurationsExact zone relative now =
 
 
 viewCurrentRun :
-    Zone
-    -> BeamtimeId
+    BeamtimeId
     -> Posix
     -> Maybe JsonExperimentType
     -> Maybe JsonExperimentType
@@ -335,7 +330,7 @@ viewCurrentRun :
     -> JsonReadRunsOverview
     -> JsonRun
     -> List (Html Msg)
-viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest ({ userConfig, experimentTypes, latestIndexingResult } as rrc) ({ externalId, started, stopped } as run) =
+viewCurrentRun beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest ({ userConfig, experimentTypes, latestIndexingResult } as rrc) ({ externalId, started, stopped } as run) =
     let
         autoPilot =
             [ div [ class "form-check form-switch mb-3" ]
@@ -377,7 +372,10 @@ viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType 
                         [ span [ class "text-success" ] [ spinner False ]
                         , text <| " Run " ++ String.fromInt externalId
                         ]
-                    , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started) ]
+                    , p [ class "lead text-success" ]
+                        [ strongText "Running"
+                        , text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started)
+                        ]
                     , case latestIndexingResult of
                         Nothing ->
                             text ""
@@ -388,8 +386,11 @@ viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType 
 
                 Just realStoppedTime ->
                     [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
-                    , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
-                    , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
+                    , p [ class "lead" ]
+                        [ strongText "Stopped"
+                        , text <| " " ++ posixDiffHumanFriendlyLongDurationsExact utc (millisToPosix realStoppedTime) now
+                        ]
+                    , p_ [ text <| "Duration: " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
                     , case latestIndexingResult of
                         Nothing ->
                             text ""
@@ -429,11 +430,11 @@ viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType 
         ++ autoPilot
         ++ onlineCrystFEL
         ++ dataSetSelection
-        ++ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentType rrc
+        ++ dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentType rrc
 
 
-viewEventRow : Zone -> JsonEvent -> Html Msg
-viewEventRow zone e =
+viewEventRow : JsonEvent -> Html Msg
+viewEventRow e =
     let
         viewFile : JsonFileOutput -> Html Msg
         viewFile { type__, fileName, id } =
@@ -458,7 +459,7 @@ viewEventRow zone e =
                 ++ maybeFiles
     in
     tr_
-        [ td_ [ text <| formatPosixHumanFriendly zone (millisToPosix e.created) ]
+        [ td_ [ text <| formatPosixHumanFriendly utc (millisToPosix e.createdLocal) ]
         , td_ mainContent
         ]
 
@@ -475,7 +476,6 @@ viewInner model { runsOverview, latestRun } =
                     [ class "row" ]
                     [ div [ class "col-lg-6" ]
                         (viewCurrentRun
-                            model.zone
                             model.beamtimeId
                             model.now
                             model.selectedExperimentType
@@ -494,14 +494,14 @@ viewInner model { runsOverview, latestRun } =
         Nothing ->
             Html.map EventFormMsg (EventForm.view model.eventForm)
 
-        Just { fileId, modified } ->
+        Just { fileId, modifiedLocal } ->
             div [ class "row" ]
                 [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
                 , div [ class "col-lg-6 text-center" ]
                     [ figure [ class "figure" ]
                         [ a [ href (makeFilesLink fileId Nothing) ] [ img_ [ src (makeFilesLink fileId Nothing ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
                         , figcaption [ class "figure-caption" ]
-                            [ text <| "Live stream image (updated " ++ formatPosixHumanFriendly model.zone (millisToPosix modified) ++ ")"
+                            [ text <| "Live stream image (updated " ++ formatPosixHumanFriendly utc (millisToPosix modifiedLocal) ++ ")"
                             ]
                         ]
                     ]
@@ -514,7 +514,7 @@ viewInner model { runsOverview, latestRun } =
                 , th_ [ text "Message" ]
                 ]
             ]
-        , tbody_ (List.map (viewEventRow model.zone) runsOverview.events)
+        , tbody_ (List.map viewEventRow runsOverview.events)
         ]
     , a [ href (makeLink (Runs model.beamtimeId [])) ] [ text "→ Go to runs table" ]
     ]
@@ -554,8 +554,8 @@ retrieveRuns model =
     send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet model.beamtimeId)
 
 
-updateLatestRun : Zone -> Maybe LatestRun -> Result HttpError JsonReadRunsOverview -> ( Maybe LatestRun, Cmd Msg )
-updateLatestRun zone oldLatestRunMaybe newRequest =
+updateLatestRun : Maybe LatestRun -> Result HttpError JsonReadRunsOverview -> ( Maybe LatestRun, Cmd Msg )
+updateLatestRun oldLatestRunMaybe newRequest =
     case newRequest of
         Err _ ->
             -- We've got an error in the latest run request: take old latest run - should be fine
@@ -566,8 +566,7 @@ updateLatestRun zone oldLatestRunMaybe newRequest =
                 Just newRun ->
                     let
                         reiInitData =
-                            { zone = zone
-                            , attributi = attributi
+                            { attributi = attributi
                             , chemicals = List.map convertChemicalFromApi chemicals
                             , experimentTypes = experimentTypes
                             }
@@ -612,14 +611,14 @@ updateLatestRun zone oldLatestRunMaybe newRequest =
                     ( Nothing, Cmd.none )
 
 
-updateRunOverviewRequest : Zone -> Result HttpError JsonReadRunsOverview -> RemoteData HttpError LoadedModel -> ( RemoteData HttpError LoadedModel, Cmd Msg )
-updateRunOverviewRequest zone newRequest oldModel =
+updateRunOverviewRequest : Result HttpError JsonReadRunsOverview -> RemoteData HttpError LoadedModel -> ( RemoteData HttpError LoadedModel, Cmd Msg )
+updateRunOverviewRequest newRequest oldModel =
     case oldModel of
         Success { runsOverview, latestRun } ->
             -- We had a model previously, and have one now, so let's update our structures
             let
                 ( newLatestRun, cmds ) =
-                    updateLatestRun zone latestRun newRequest
+                    updateLatestRun latestRun newRequest
             in
             ( Success
                 { runsOverview = Maybe.withDefault runsOverview (Result.toMaybe newRequest)
@@ -642,8 +641,7 @@ updateRunOverviewRequest zone newRequest oldModel =
                             -- We do have runs!
                             let
                                 reiInitData =
-                                    { zone = zone
-                                    , attributi = runsOverview.attributi
+                                    { attributi = runsOverview.attributi
                                     , chemicals = List.map convertChemicalFromApi runsOverview.chemicals
                                     , experimentTypes = runsOverview.experimentTypes
                                     }
@@ -697,7 +695,7 @@ update msg model =
                             model.currentExperimentType
 
                 ( newRunOverviewRequest, subCmds ) =
-                    updateRunOverviewRequest model.zone response model.loadedModel
+                    updateRunOverviewRequest response model.loadedModel
             in
             ( { model
                 | loadedModel = newRunOverviewRequest

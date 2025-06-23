@@ -19,10 +19,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import local_int_to_utc_datetime
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
@@ -37,6 +39,7 @@ from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_internal_id import RunInternalId
 from amarcord.util import create_intervals
 from amarcord.web.constants import DATE_FORMAT
+from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonIndexingParameters
 from amarcord.web.json_models import JsonIndexingResult
@@ -100,8 +103,10 @@ def json_attributo_to_data_set_orm_attributo(
         string_value=new_attributo.attributo_value_str,
         bool_value=new_attributo.attributo_value_bool,
         datetime_value=(
-            datetime_from_attributo_int(new_attributo.attributo_value_datetime)
-            if new_attributo.attributo_value_datetime
+            local_int_to_utc_datetime(new_attributo.attributo_value_datetime_local)
+            if new_attributo.attributo_value_datetime_local is not None
+            else utc_int_to_utc_datetime(new_attributo.attributo_value_datetime)
+            if new_attributo.attributo_value_datetime is not None
             else None
         ),
         list_value=(
@@ -131,8 +136,10 @@ def json_attributo_to_run_orm_attributo(
         string_value=new_attributo.attributo_value_str,
         bool_value=new_attributo.attributo_value_bool,
         datetime_value=(
-            datetime_from_attributo_int(new_attributo.attributo_value_datetime)
-            if new_attributo.attributo_value_datetime
+            local_int_to_utc_datetime(new_attributo.attributo_value_datetime_local)
+            if new_attributo.attributo_value_datetime_local is not None
+            else utc_int_to_utc_datetime(new_attributo.attributo_value_datetime)
+            if new_attributo.attributo_value_datetime is not None
             else None
         ),
         list_value=(
@@ -162,8 +169,10 @@ def json_attributo_to_chemical_orm_attributo(
         string_value=new_attributo.attributo_value_str,
         bool_value=new_attributo.attributo_value_bool,
         datetime_value=(
-            datetime_from_attributo_int(new_attributo.attributo_value_datetime)
-            if new_attributo.attributo_value_datetime
+            local_int_to_utc_datetime(new_attributo.attributo_value_datetime_local)
+            if new_attributo.attributo_value_datetime_local is not None
+            else utc_int_to_utc_datetime(new_attributo.attributo_value_datetime)
+            if new_attributo.attributo_value_datetime is not None
             else None
         ),
         list_value=(
@@ -269,7 +278,12 @@ def encode_data_set_attributo_value(
         attributo_value_int=d.integer_value,
         attributo_value_chemical=d.chemical_value,
         attributo_value_datetime=(
-            datetime_to_attributo_int(d.datetime_value)
+            utc_datetime_to_utc_int(d.datetime_value)
+            if d.datetime_value is not None
+            else None
+        ),
+        attributo_value_datetime_local=(
+            utc_datetime_to_local_int(d.datetime_value)
             if d.datetime_value is not None
             else None
         ),
@@ -302,7 +316,12 @@ def encode_run_attributo_value(
         attributo_value_int=d.integer_value,
         attributo_value_chemical=d.chemical_value,
         attributo_value_datetime=(
-            datetime_to_attributo_int(d.datetime_value)
+            utc_datetime_to_utc_int(d.datetime_value)
+            if d.datetime_value is not None
+            else None
+        ),
+        attributo_value_datetime_local=(
+            utc_datetime_to_local_int(d.datetime_value)
             if d.datetime_value is not None
             else None
         ),
@@ -364,6 +383,10 @@ def orm_encode_json_merge_parameters_to_json(
         min_res=mr.input_min_res,
         push_res=mr.input_push_res,
         w=mr.input_w,
+        cutoff_lowres=mr.cutoff_lowres,
+        cutoff_highres=[float(x.strip()) for x in mr.cutoff_highres.split(",")]
+        if mr.cutoff_highres
+        else None,
     )
 
 
@@ -373,7 +396,8 @@ def orm_encode_merge_result_to_json(
 ) -> JsonMergeResult:
     return JsonMergeResult(
         id=mr.id,
-        created=datetime_to_attributo_int(mr.created),
+        created=utc_datetime_to_utc_int(mr.created),
+        created_local=utc_datetime_to_local_int(mr.created),
         indexing_result_ids=[ir.id for ir in mr.indexing_results],
         # We don't export the indexing results here yet. No clear reason other than laziness
         runs=format_run_id_intervals(
@@ -387,7 +411,8 @@ def orm_encode_merge_result_to_json(
         ),
         state_running=(
             JsonMergeResultStateRunning(
-                started=datetime_to_attributo_int(mr.started),
+                started=utc_datetime_to_utc_int(mr.started),
+                started_local=utc_datetime_to_local_int(mr.started),
                 job_id=mr.job_id,
                 latest_log=mr.recent_log,
             )
@@ -396,8 +421,10 @@ def orm_encode_merge_result_to_json(
         ),
         state_error=(
             JsonMergeResultStateError(
-                started=datetime_to_attributo_int(mr.started),
-                stopped=datetime_to_attributo_int(mr.stopped),
+                started=utc_datetime_to_utc_int(mr.started),
+                started_local=utc_datetime_to_local_int(mr.started),
+                stopped=utc_datetime_to_utc_int(mr.stopped),
+                stopped_local=utc_datetime_to_local_int(mr.stopped),
                 error=mr.job_error,
                 latest_log=mr.recent_log,
             )
@@ -408,8 +435,10 @@ def orm_encode_merge_result_to_json(
         ),
         state_done=(
             JsonMergeResultStateDone(
-                started=datetime_to_attributo_int(mr.started),
-                stopped=datetime_to_attributo_int(mr.stopped),
+                started=utc_datetime_to_utc_int(mr.started),
+                started_local=utc_datetime_to_local_int(mr.started),
+                stopped=utc_datetime_to_utc_int(mr.stopped),
+                stopped_local=utc_datetime_to_local_int(mr.stopped),
                 result=JsonMergeResultInternal(
                     detailed_foms=[
                         JsonMergeResultShell(
@@ -569,7 +598,8 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
     ip = ir.indexing_parameters
     return JsonIndexingResult(
         id=ir.id,
-        created=datetime_to_attributo_int(ir.created),
+        created=utc_datetime_to_utc_int(ir.created),
+        created_local=utc_datetime_to_local_int(ir.created),
         parameters=JsonIndexingParameters(
             id=ip.id,
             is_online=ip.is_online,
@@ -586,8 +616,17 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
         indexed_frames=ir.indexed_frames,
         indexed_crystals=ir.indexed_frames,
         has_error=bool(ir.job_error),
-        detector_shift_x_mm=ir.detector_shift_x_mm,
-        detector_shift_y_mm=ir.detector_shift_y_mm,
+        align_detector_groups=[
+            JsonAlignDetectorGroup(
+                group=g.group,
+                x_translation_mm=g.x_translation_mm,
+                y_translation_mm=g.y_translation_mm,
+                z_translation_mm=g.z_translation_mm,
+                x_rotation_deg=g.x_rotation_deg,
+                y_rotation_deg=g.y_rotation_deg,
+            )
+            for g in ir.align_detector_groups
+        ],
         geometry_file=ir.geometry_file if ir.geometry_file is not None else "",
         geometry_hash=ir.geometry_hash if ir.geometry_hash is not None else "",
         generated_geometry_file=(
@@ -595,12 +634,22 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
         ),
         status=ir.job_status,
         started=(
-            datetime_to_attributo_int(ir.job_started)
+            utc_datetime_to_utc_int(ir.job_started)
+            if ir.job_started is not None
+            else None
+        ),
+        started_local=(
+            utc_datetime_to_local_int(ir.job_started)
             if ir.job_started is not None
             else None
         ),
         stopped=(
-            datetime_to_attributo_int(ir.job_stopped)
+            utc_datetime_to_utc_int(ir.job_stopped)
+            if ir.job_stopped is not None
+            else None
+        ),
+        stopped_local=(
+            utc_datetime_to_local_int(ir.job_stopped)
             if ir.job_stopped is not None
             else None
         ),

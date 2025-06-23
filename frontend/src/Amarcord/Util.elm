@@ -153,6 +153,21 @@ formatPosixTimeOfDayHumanFriendly zone posix =
     hour ++ ":" ++ minute ++ ":" ++ second
 
 
+formatDateHumanFriendly : Zone -> Posix -> String
+formatDateHumanFriendly zone posix =
+    let
+        year =
+            String.fromInt (toYear zone posix)
+
+        month =
+            monthToNumericString <| toMonth zone posix
+
+        day =
+            padLeft 2 '0' <| String.fromInt <| toDay zone posix
+    in
+    year ++ "/" ++ month ++ "/" ++ day
+
+
 formatPosixHumanFriendly : Zone -> Posix -> String
 formatPosixHumanFriendly zone posix =
     let

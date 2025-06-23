@@ -22,7 +22,7 @@ import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isNothing, orElse, unwrap)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
-import Time exposing (Zone)
+import Time exposing (utc)
 import Tuple exposing (second)
 
 
@@ -67,8 +67,8 @@ viewRunExperimentTypeCell experimentType =
     td [ class manualCellClass ] [ text experimentType ]
 
 
-viewAttributoCell : ViewAttributoValueProperties -> Zone -> ChemicalNameDict -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-viewAttributoCell props zone chemicalIds attributiValues { id, name, group, type_ } =
+viewAttributoCell : ViewAttributoValueProperties -> ChemicalNameDict -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
+viewAttributoCell props chemicalIds attributiValues { id, name, group, type_ } =
     td
         [ class
             (if props.colorize && group == "manual" then
@@ -89,10 +89,10 @@ viewAttributoCell props zone chemicalIds attributiValues { id, name, group, type
                             CellDescriptionViewer.view CellDescriptionViewer.SingleLine CellDescriptionViewer.NoErrors s
 
                         _ ->
-                            viewAttributoValue props zone chemicalIds type_ v
+                            viewAttributoValue props chemicalIds type_ v
 
                 else
-                    viewAttributoValue props zone chemicalIds type_ v
+                    viewAttributoValue props chemicalIds type_ v
         ]
 
 
@@ -114,8 +114,8 @@ possiblyAddSuffix props prefix possibleSuffix =
         )
 
 
-viewAttributoValue : ViewAttributoValueProperties -> Zone -> ChemicalNameDict -> AttributoType -> AttributoValue -> Html msg
-viewAttributoValue props zone chemicalIds type_ value =
+viewAttributoValue : ViewAttributoValueProperties -> ChemicalNameDict -> AttributoType -> AttributoValue -> Html msg
+viewAttributoValue props chemicalIds type_ value =
     case value of
         ValueNone ->
             text ""
@@ -127,7 +127,7 @@ viewAttributoValue props zone chemicalIds type_ value =
             else
                 text "no"
 
-        ValueDateTime posix ->
+        ValueDateTime { datetimeLocal } ->
             text <|
                 (if props.shortDateTime then
                     formatPosixTimeOfDayHumanFriendly
@@ -135,8 +135,8 @@ viewAttributoValue props zone chemicalIds type_ value =
                  else
                     formatPosixHumanFriendly
                 )
-                    zone
-                    posix
+                    utc
+                    datetimeLocal
 
         ValueChemical int ->
             if int == 0 then
@@ -166,10 +166,10 @@ viewAttributoValue props zone chemicalIds type_ value =
                 List { subType } ->
                     case subType of
                         Number _ ->
-                            span_ <| text "(" :: intersperse (text ", ") (List.map (viewAttributoValue props zone chemicalIds subType) attributoValues) ++ [ text ")" ]
+                            span_ <| text "(" :: intersperse (text ", ") (List.map (viewAttributoValue props chemicalIds subType) attributoValues) ++ [ text ")" ]
 
                         String ->
-                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone chemicalIds subType) attributoValues
+                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue props chemicalIds subType) attributoValues
 
                         _ ->
                             text "unsupported list element type"
@@ -582,8 +582,8 @@ unsavedAttributoChanges =
     List.any (\a -> a.type_.editStatus == Edited)
 
 
-createEditableAttributi : Zone -> List (Attributo AttributoType) -> AttributoMap AttributoValue -> EditableAttributiAndOriginal
-createEditableAttributi zone attributi m =
+createEditableAttributi : List (Attributo AttributoType) -> AttributoMap AttributoValue -> EditableAttributiAndOriginal
+createEditableAttributi attributi m =
     let
         -- two steps:
         -- 1. convert existing values into "best" manual values
@@ -595,7 +595,7 @@ createEditableAttributi zone attributi m =
             -> Dict AttributoId (Attributo AttributoEditValueWithStatus)
             -> Dict AttributoId (Attributo AttributoEditValueWithStatus)
         convertToEditValues attributoId a prev =
-            case attributoValueToEditValue zone attributoId attributi (second a.type_) of
+            case attributoValueToEditValue attributoId attributi (second a.type_) of
                 Nothing ->
                     prev
 
@@ -677,8 +677,8 @@ emptyEditValue name a =
             EditValueChoice { choiceValues = choiceValues, editValue = "" }
 
 
-attributoValueToEditValue : Zone -> AttributoId -> List (Attributo AttributoType) -> AttributoValue -> Maybe AttributoEditValue
-attributoValueToEditValue zone attributoId attributi value =
+attributoValueToEditValue : AttributoId -> List (Attributo AttributoType) -> AttributoValue -> Maybe AttributoEditValue
+attributoValueToEditValue attributoId attributi value =
     let
         attributoFound : Maybe (Attributo AttributoType)
         attributoFound =
@@ -709,8 +709,9 @@ attributoValueToEditValue zone attributoId attributi value =
                     else
                         Just (EditValueString x)
 
-                ( DateTime, ValueDateTime x ) ->
-                    Just (EditValueDateTime (formatPosixDateTimeCompatible zone x))
+                ( DateTime, ValueDateTime { datetimeLocal } ) ->
+                    -- Editing a datetime should be in the server's time zone, so we use local
+                    Just (EditValueDateTime (formatPosixDateTimeCompatible utc datetimeLocal))
 
                 ( Choice { choiceValues }, ValueNone ) ->
                     Just (EditValueChoice { editValue = "", choiceValues = choiceValues })
@@ -804,8 +805,8 @@ editEditableAttributi ea { attributoName, valueUpdate } =
             List.map updateValue ea
 
 
-editValueToValue : Zone -> AttributoEditValue -> Result String AttributoValue
-editValueToValue zone x =
+editValueToValue : AttributoEditValue -> Result String AttributoValue
+editValueToValue x =
     case x of
         EditValueInt "" ->
             Ok ValueNone
@@ -817,7 +818,18 @@ editValueToValue zone x =
             Ok (ValueBoolean boolValue)
 
         EditValueDateTime string ->
-            Result.map ValueDateTime (localDateTimeStringToPosix zone string)
+            -- We use UTC time zone to take the date string as-is, no
+            -- conversion, in the server's time zone, and then convert
+            -- in the server to posix, and store that in the DB.
+            Result.map
+                (\p ->
+                    -- Wrong, strictly speaking, it's both local and not UTC.
+                    ValueDateTime
+                        { datetimeUtc = p
+                        , datetimeLocal = p
+                        }
+                )
+                (localDateTimeStringToPosix utc string)
 
         EditValueChemicalId chemicalId ->
             Ok (ValueChemical (withDefault 0 chemicalId))
@@ -878,8 +890,8 @@ editValueToValue zone x =
                 Err "invalid choice"
 
 
-convertEditValues : Zone -> EditableAttributiAndOriginal -> Result (List ( AttributoId, String )) (AttributoMap AttributoValue)
-convertEditValues zone { editableAttributi } =
+convertEditValues : EditableAttributiAndOriginal -> Result (List ( AttributoId, String )) (AttributoMap AttributoValue)
+convertEditValues { editableAttributi } =
     let
         -- first, filter for manually edited values (the other ones we don't care about here)
         manuallyEdited : List ( AttributoId, AttributoEditValue )
@@ -898,7 +910,7 @@ convertEditValues zone { editableAttributi } =
         -- Convert the edited value to the real value (with optional error)
         convertSingle : ( AttributoId, AttributoEditValue ) -> Result ( AttributoId, String ) ( AttributoId, AttributoValue )
         convertSingle ( id, v ) =
-            case editValueToValue zone v of
+            case editValueToValue v of
                 Err e ->
                     -- add attributo id to error for better display later
                     Err ( id, e )

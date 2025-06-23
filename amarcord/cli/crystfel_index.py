@@ -41,9 +41,17 @@ from urllib import request
 
 _X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
 _Y_TRANSLATION_REGEX_INPUT = r"y-translation ([+-]?[0-9.]+) mm"
+_Z_TRANSLATION_REGEX_INPUT = r"z-translation ([+-]?[0-9.]+) mm"
+_X_ROTATION_REGEX_INPUT = r"x-rotation ([+-]?[0-9.]+) deg"
+_Y_ROTATION_REGEX_INPUT = r"y-rotation ([+-]?[0-9.]+) deg"
+_MILLE_GROUP_REGEX_INPUT = r"Group ([^:]+):"
 _MILLEPEDE_SUCCEDED_INPUT = "Millepede succeeded"
 _X_TRANSLATION_REGEX = re.compile(_X_TRANSLATION_REGEX_INPUT)
 _Y_TRANSLATION_REGEX = re.compile(_Y_TRANSLATION_REGEX_INPUT)
+_Z_TRANSLATION_REGEX = re.compile(_Z_TRANSLATION_REGEX_INPUT)
+_X_ROTATION_REGEX = re.compile(_X_ROTATION_REGEX_INPUT)
+_Y_ROTATION_REGEX = re.compile(_Y_ROTATION_REGEX_INPUT)
+_MILLE_GROUP_REGEX = re.compile(_MILLE_GROUP_REGEX_INPUT)
 _MILLE_BIN_GLOB = "mille-data*.bin"
 _POLL_SLEEP_S = 5.0
 _SLURM_JOB_STATUS_RUNNING = (
@@ -154,11 +162,10 @@ OFF_INDEX_ENVIRON_GNUPLOT_PATH = "AMARCORD_GNUPLOT_PATH"
 OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS = "AMARCORD_INDEXAMAJIG_PARAMS"
 OFF_INDEX_ENVIRON_RUN_ID = "AMARCORD_RUN_ID"
 OFF_INDEX_ENVIRON_PERFORMANCE_METRICS = "AMARCORD_PERFORMANCE_METRICS"
+OFF_INDEX_SLURM_URL = "AMARCORD_SLURM_URL"
 ON_INDEX_ENVIRON_ASAPO_SOURCE = "AMARCORD_ASAPO_SOURCE"
 ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER = "AMARCORD_CPU_COUNT_MULTIPLIER"
 
-# We should probably make this less of a constant
-MAXWELL_URL: Final = "https://max-portal.desy.de/sapi/slurm/v0.0.38"
 # No real reason why we haven't parametrized this into an environment
 # argument (see the other options below). 1000 seems like a nice
 # number for now, and CrystFEL uses the same:
@@ -291,10 +298,13 @@ class PrimaryArgs:
     use_slurm: bool
     # can be empty if slurm isn't used
     slurm_partition_to_use: str
+    # can be empty if slurm isn't used
+    slurm_url: str
     workload_manager_job_id: int
     # Where to store the stream file into
     stream_file: Path
     amarcord_api_url: None | str
+    original_globs: list[str]
     # the file list gets extremely long sometimes, so don't include this by default
     input_files: list[Path] = field(repr=False)
     cell_description: None | str
@@ -368,13 +378,22 @@ def write_error_json(args: PrimaryArgs | OnlineArgs, error: str) -> None:
 
 
 @dataclass(frozen=True)
+class PanelOutput:
+    group: str
+    x_translation_mm: float
+    y_translation_mm: float
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
+
+
+@dataclass(frozen=True)
 class IndexingFom:
     frames: int
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    detector_shift_x_mm: None | float = None
-    detector_shift_y_mm: None | float = None
+    align_detector_groups: dict[str, PanelOutput]
     # This is the "file id" in the AMARCORD DB for the unit cell file,
     # which we upload from this script and then transfer the ID in the
     # final result
@@ -387,6 +406,7 @@ def add_indexing_fom(line: IndexingFom, r: IndexingFom) -> IndexingFom:
         hits=line.hits + r.hits,
         indexed_frames=line.indexed_frames + r.indexed_frames,
         indexed_crystals=line.indexed_crystals + r.indexed_crystals,
+        align_detector_groups=line.align_detector_groups | r.align_detector_groups,
     )
 
 
@@ -404,15 +424,15 @@ def write_status_still_running(
         return
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
-    status_dict: dict[str, str | int | float | None] = {
+    status_dict: dict[
+        str, str | int | float | None | list[dict[str, None | float | str]]
+    ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
         "frames": line.frames,
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "detector_shift_x_mm": line.detector_shift_x_mm,
-        "detector_shift_y_mm": line.detector_shift_y_mm,
         "geometry_file": str(args.geometry_file) if args.geometry_file else None,
         "geometry_hash": geometry_hash,
         "latest_log": "\n".join(log_list),
@@ -451,7 +471,9 @@ def write_status_success(
     request_url = f"{args.amarcord_api_url}/api/indexing/{args.amarcord_indexing_result_id}/success"
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
-    status_dict: dict[str, str | int | float | None] = {
+    status_dict: dict[
+        str, str | int | float | None | list[dict[str, None | float | str]]
+    ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
         "program_version": program_version,
@@ -459,8 +481,17 @@ def write_status_success(
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "detector_shift_x_mm": line.detector_shift_x_mm,
-        "detector_shift_y_mm": line.detector_shift_y_mm,
+        "align_detector_groups": [
+            {
+                "group": align_group.group,
+                "x_translation_mm": align_group.x_translation_mm,
+                "y_translation_mm": align_group.y_translation_mm,
+                "z_translation_mm": align_group.z_translation_mm,
+                "x_rotation_deg": align_group.x_rotation_deg,
+                "y_rotation_deg": align_group.y_rotation_deg,
+            }
+            for align_group in line.align_detector_groups.values()
+        ],
         "geometry_file": str(args.geometry_file) if args.geometry_file else None,
         "generated_geometry_file": generated_geometry_file,
         "geometry_hash": geometry_hash,
@@ -500,20 +531,22 @@ def db_execute_timed(
     return result
 
 
-def clean_intermediate_files(job_id: int) -> None:
+def clean_intermediate_files() -> None:
     for fn in Path("./").glob("job-*-*-stdout.txt"):
         fn.unlink()
     for fn in Path("./").glob("job-*-*-stderr.txt"):
         fn.unlink()
     for fn in Path("./").glob("job-*.lst"):
         fn.unlink()
-    try:
-        for millepede_files_dir in Path(f"{job_id}-millepede-files").iterdir():
-            for bin_file in millepede_files_dir.glob("*.bin"):
-                bin_file.unlink()
-            millepede_files_dir.rmdir()
-    except:  # noqa: S110
-        pass
+    # In principle, these are intermediate files and not necessary, but it _is_ nice to
+    # re-run the millepede analysis after the fact and see the full output
+    # try:
+    #     for millepede_files_dir in Path(f"{job_id}-millepede-files").iterdir():
+    #         for bin_file in millepede_files_dir.glob("*.bin"):
+    #             bin_file.unlink()
+    #         millepede_files_dir.rmdir()
+    # except:
+    #     pass
 
 
 # See
@@ -557,7 +590,7 @@ def cancel_job(args: PrimaryArgs, job_id: JobArray) -> None:
 
 def cancel_job_slurm(args: PrimaryArgs, job_id: JobArraySlurm) -> None:
     req = request.Request(
-        f"{MAXWELL_URL}/job/{job_id.job_id}",
+        f"{args.slurm_url}/job/{job_id.job_id}",
         method="DELETE",
         headers=args.maxwell_headers,
     )
@@ -593,9 +626,9 @@ def initialize_db(
     with input_files_path.open("w", encoding="utf-8") as input_files_file:
         for input_file in args.input_files:
             input_files_file.write(str(input_file) + "\n")
-        input_files_file.flush()
-        output_file_name = Path("output.lst")
-        logger.info(f"=> listing events into {output_file_name}")
+            input_files_file.flush()
+            output_file_name = Path("output.lst")
+            logger.info(f"=> listing events into {output_file_name}")
 
         list_events_args: list[str] = [
             f"{args.crystfel_path}/bin/list_events",
@@ -607,12 +640,24 @@ def initialize_db(
             str(output_file_name),
         ]
         logger.info("list_events args: " + " ".join(list_events_args))
-        result = subprocess.run(list_events_args, check=True, capture_output=True)  # noqa: S603
-        logger.info(f"list events completed, return code: {result.returncode}")
-        # This used to be a FIFO, but due to a bug that wasn't
-        # diagnosed completely, for now it's a regular file. Which
-        # is a bummer, because with a FIFO you could do parallel
-        # processing, but whatever.
+        result = subprocess.run(  # noqa: S603
+            list_events_args,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        )
+        if result.returncode != 0:
+            first_lines = result.stdout.splitlines()[0:100]
+            exit_with_error(
+                args,
+                "list_events failed! cannot continue further; list_events output follows:\n\n"
+                + "\n".join(first_lines),
+            )
+            # This used to be a FIFO, but due to a bug that wasn't
+            # diagnosed completely, for now it's a regular file. Which
+            # is a bummer, because with a FIFO you could do parallel
+            # processing, but whatever.
         with output_file_name.open(encoding="utf-8") as fifo_file_obj:
             logger.info(f"opened list files: {output_file_name}")
             job_array_id = 0
@@ -637,11 +682,10 @@ def initialize_db(
                             hits=0,
                             indexed_frames=0,
                             indexed_crystals=0,
-                            detector_shift_x_mm=None,
-                            detector_shift_y_mm=None,
+                            align_detector_groups={},
                         ),
                     )
-                images_total = 0
+                    images_total = 0
                 with Path(f"job-{indexamajig_job_id}.lst").open(
                     "w",
                     encoding="utf-8",
@@ -661,12 +705,12 @@ def initialize_db(
                             0,
                         ),
                     )
-                indexamajig_job_id += 1
+                    indexamajig_job_id += 1
                 if indexamajig_job_id % INDEXAMAJIG_JOBS_PER_JOB_ARRAY == 0:
                     job_array_id += 1
                     job_array_ids.add(job_array_id)
-            logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
-            logger.info("<= list_events finished!")
+                    logger.info(f"all {indexamajig_job_id} indexamajig jobs added")
+                    logger.info("<= list_events finished!")
     return job_array_ids
 
 
@@ -706,16 +750,16 @@ def start_job_array_slurm(
             "nodes": 1,
             "array": f"0-{number_of_indexamajig_jobs-1}",
             "current_working_directory": str(cwd),
-            "environment": environment,
+            "environment": [f"{k}={v}" for k, v in environment.items()],
             # This is in minutes
-            "time_limit": 360,
+            "time_limit": {"set": True, "number": 360},
             "standard_output": (str(cwd / f"job-{job_array_id}-%a-stdout.txt")),
             "standard_error": (str(cwd / f"job-{job_array_id}-%a-stderr.txt")),
         },
         "script": script_file_contents,
     }
     req = request.Request(
-        f"{MAXWELL_URL}/job/submit",
+        f"{args.slurm_url}/job/submit",
         method="POST",
         headers=args.maxwell_headers,
         data=json.dumps(request_json).encode("utf-8"),
@@ -738,10 +782,10 @@ def start_job_array_slurm(
         logger.exception(
             f"HTTP error sending job for {job_array_id}: {e.fp.read().decode('utf-8')}",
         )
-        raise
+        exit_with_error(args, "HTTP error sending job sub array")
     except:
         logger.exception(f"unknown error sending job for {job_array_id}")
-        raise
+        exit_with_error(args, "error sending job sub array")
 
 
 def start_job_array(
@@ -797,7 +841,7 @@ def get_all_slurm_job_stati(
     job_array_id: JobArraySlurm,
 ) -> list[str]:
     req = request.Request(
-        f"{MAXWELL_URL}/jobs",
+        f"{args.slurm_url}/jobs",
         method="GET",
         headers=args.maxwell_headers,
     )
@@ -807,9 +851,10 @@ def get_all_slurm_job_stati(
         result = []
         for job in response_content_json["jobs"]:
             if (
-                job["array_job_id"] > 0 and job["array_job_id"] == job_array_id.job_id
+                job["array_job_id"]["number"] > 0
+                and job["array_job_id"]["number"] == job_array_id.job_id
             ) or job["job_id"] == job_array_id.job_id:
-                result.append(job["job_state"])
+                result.append(job["job_state"][0])
         return result
 
 
@@ -862,8 +907,7 @@ def run_job_array(
             hits=hits,
             indexed_frames=indexed_frames,
             indexed_crystals=indexed_crystals,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
+            align_detector_groups={},
         )
 
     while True:
@@ -976,8 +1020,7 @@ def run_job_array(
                     hits=hits,
                     indexed_frames=indexed_frames,
                     indexed_crystals=indexed_crystals,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
         else:
@@ -992,8 +1035,7 @@ def run_job_array(
                     hits=0,
                     indexed_frames=0,
                     indexed_crystals=0,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
 
@@ -1024,24 +1066,72 @@ def parse_secondary_args() -> SecondaryArgs:
     )
 
 
-def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
-    logger.info("parsing millepede output")
+def parse_millepede_output(stdout: str) -> str | dict[str, PanelOutput]:
+    logger.info("parsing align_detector output")
     success = False
     x_translation_mm: None | float = None
     y_translation_mm: None | float = None
+    z_translation_mm: None | float = None
+    x_rotation_deg: None | float = None
+    y_rotation_deg: None | float = None
 
+    current_group: None | str = None
+    groups: dict[str, PanelOutput] = {}
     for line in stdout.split("\n"):
         if not success:
             if _MILLEPEDE_SUCCEDED_INPUT in line:
                 success = True
             continue
 
+        group_match = _MILLE_GROUP_REGEX.search(line)
+        if group_match is not None:
+            if current_group is not None:
+                if x_translation_mm is None or y_translation_mm is None:
+                    logger.warning(
+                        f'alignment group "{current_group}" invalid: x or y translation missing: {x_translation_mm}, {y_translation_mm}'
+                    )
+                else:
+                    groups[current_group] = PanelOutput(
+                        group=current_group,
+                        x_translation_mm=x_translation_mm,
+                        y_translation_mm=y_translation_mm,
+                        z_translation_mm=z_translation_mm,
+                        x_rotation_deg=x_rotation_deg,
+                        y_rotation_deg=y_rotation_deg,
+                    )
+            current_group = group_match.group(1)
+
+        if current_group is None:
+            continue
         x_match = _X_TRANSLATION_REGEX.search(line)
         if x_match is not None:
             x_translation_mm = float(x_match.group(1))
         y_match = _Y_TRANSLATION_REGEX.search(line)
         if y_match is not None:
             y_translation_mm = float(y_match.group(1))
+        z_match = _Z_TRANSLATION_REGEX.search(line)
+        if z_match is not None:
+            z_translation_mm = float(z_match.group(1))
+        x_rotation_match = _X_ROTATION_REGEX.search(line)
+        if x_rotation_match is not None:
+            x_rotation_deg = float(x_rotation_match.group(1))
+        y_rotation_match = _Y_ROTATION_REGEX.search(line)
+        if y_rotation_match is not None:
+            y_rotation_deg = float(y_rotation_match.group(1))
+    if current_group is not None:
+        if x_translation_mm is None or y_translation_mm is None:
+            logger.warning(
+                f'alignment group "{current_group}" invalid: x or y translation missing: {x_translation_mm}, {y_translation_mm}'
+            )
+        else:
+            groups[current_group] = PanelOutput(
+                group=current_group,
+                x_translation_mm=x_translation_mm,
+                y_translation_mm=y_translation_mm,
+                z_translation_mm=z_translation_mm,
+                x_rotation_deg=x_rotation_deg,
+                y_rotation_deg=y_rotation_deg,
+            )
 
     if not success:
         error_message = "no line matching " + _MILLEPEDE_SUCCEDED_INPUT
@@ -1056,7 +1146,7 @@ def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
         error_message = "no line matching " + _Y_TRANSLATION_REGEX_INPUT
         logger.warning(f"parsing millepede output failed: {error_message}:\n{stdout}")
         return error_message
-    return x_translation_mm, y_translation_mm
+    return groups
 
 
 def determine_beamtime_json(args: OnlineArgs, p: Path) -> tuple[Path, dict[str, Any]]:
@@ -1085,7 +1175,7 @@ def run_align_detector(
     args: PrimaryArgs | OnlineArgs,
     mille_files_dir: Path,
     geometry_file_destination: Path,
-) -> None | tuple[float, float]:
+) -> None | dict[str, PanelOutput]:
     with TemporaryDirectory() as tempdir, set_directory(tempdir):
         align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
         if not Path(align_detector_binary).is_file():
@@ -1127,6 +1217,9 @@ def run_align_detector(
             "-o",
             str(geometry_file_destination),
             "--level=0",
+            "--camera-length",
+            "--out-of-plane-tilts",
+            "--out-of-plane",
         ]
         align_detector_args: list[str] = align_detector_args_prefix + [
             str(f) for f in mille_bin_files
@@ -1160,7 +1253,7 @@ def run_align_detector(
                 return None
 
             logger.info(
-                f"parsing millepede output succeeded, detector shift: {detector_shift}",
+                f"parsing millepede output succeeded, detector shifts: {detector_shift}",
             )
 
             return detector_shift
@@ -1236,6 +1329,12 @@ def run_online(args: OnlineArgs) -> None:
         resolved_geometry = find_geometry(Path().cwd())
     else:
         resolved_geometry = args.geometry_file
+
+        if not resolved_geometry.is_file():
+            exit_with_error(
+                args,
+                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
+            )
 
     if resolved_geometry is None:
         exit_with_error(
@@ -1351,8 +1450,7 @@ def run_online(args: OnlineArgs) -> None:
                 hits=0,
                 indexed_frames=0,
                 indexed_crystals=0,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
+                align_detector_groups={},
             ),
         )
         images = 0
@@ -1418,8 +1516,7 @@ def run_online(args: OnlineArgs) -> None:
                     hits=hits,
                     indexed_frames=indexable,
                     indexed_crystals=crystals,
-                    detector_shift_x_mm=None,
-                    detector_shift_y_mm=None,
+                    align_detector_groups={},
                 ),
             )
 
@@ -1435,27 +1532,22 @@ def run_online(args: OnlineArgs) -> None:
             hits=hits,
             indexed_frames=indexable,
             indexed_crystals=crystals,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
+            align_detector_groups={},
         )
     logger.info("process completed")
 
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
-        detector_shifts = run_align_detector(
+        align_detector_groups = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
-        if detector_shifts is not None:
-            logger.info(f"detector shift: {detector_shifts[0]}, {detector_shifts[1]}")
-        else:
-            detector_shifts = [None, None]
     else:
-        detector_shifts = [None, None]
+        align_detector_groups = {}
         geometry_file_destination = ""
 
     if final_fom.indexed_frames > 100:
@@ -1470,11 +1562,7 @@ def run_online(args: OnlineArgs) -> None:
             logger.exception("could not generate graphs")
             graphs_output = None
 
-        final_fom = replace(
-            final_fom,
-            detector_shift_x_mm=detector_shifts[0],
-            detector_shift_y_mm=detector_shifts[1],
-        )
+        final_fom = replace(final_fom, align_detector_groups=align_detector_groups)
     else:
         logger.info(
             f"not generating histograms, not enough indexed frames: {final_fom.indexed_frames}",
@@ -1869,13 +1957,21 @@ def run_primary(args: PrimaryArgs) -> None:
     if not args.input_files:
         logger.error("input file list empty, exiting immediately")
         exit_with_error(
-            args, "input file list empty - maybe the run has the wrong files entered?"
+            args,
+            "input file list empty - maybe the run has the wrong files entered? I've searched the following patterns for files: "
+            + ", ".join(args.original_globs),
         )
 
     if args.geometry_file is None:
         resolved_geometry = find_geometry(args.input_files[0])
     else:
         resolved_geometry = args.geometry_file
+
+        if not resolved_geometry.is_file():
+            exit_with_error(
+                args,
+                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
+            )
 
     if resolved_geometry is None:
         logger.error("did not find any geometry file, exiting.")
@@ -2018,19 +2114,19 @@ def run_primary(args: PrimaryArgs) -> None:
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
-        detector_shifts = run_align_detector(
+        align_detector_groups_or_none = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
         )
-        if detector_shifts is not None:
-            logger.info(f"detector shift: {detector_shifts[0]}, {detector_shifts[1]}")
+        if align_detector_groups_or_none is None:
+            align_detector_groups = {}
         else:
-            detector_shifts = [None, None]
+            align_detector_groups = align_detector_groups_or_none
     else:
-        detector_shifts = [None, None]
+        align_detector_groups = {}
         geometry_file_destination = ""
 
     logger.info("generating histograms")
@@ -2046,8 +2142,7 @@ def run_primary(args: PrimaryArgs) -> None:
 
     final_fom = replace(
         reduce(add_indexing_fom, job_array_results),
-        detector_shift_x_mm=detector_shifts[0],
-        detector_shift_y_mm=detector_shifts[1],
+        align_detector_groups=align_detector_groups,
     )
 
     if graphs_output is not None:
@@ -2068,7 +2163,7 @@ def run_primary(args: PrimaryArgs) -> None:
         line=final_fom,
     )
 
-    clean_intermediate_files(args.amarcord_indexing_result_id)
+    clean_intermediate_files()
 
     logger.info(f"done, finished in {time() - start_time}s")
 
@@ -2085,12 +2180,17 @@ def parse_primary_args() -> PrimaryArgs:
     master_files = [x for x in input_files if "_master.nx5" in x.name]
     return PrimaryArgs(
         use_slurm=use_slurm,
-        slurm_partition_to_use=os.environ[OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE],
+        slurm_url=os.environ.get(OFF_INDEX_SLURM_URL, ""),
+        # Only makes sense if you use slurm, so use empty string by default
+        slurm_partition_to_use=os.environ.get(
+            OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE, ""
+        ),
         workload_manager_job_id=(
             int(os.environ["SLURM_JOB_ID"]) if use_slurm else os.getpid()
         ),
         stream_file=Path(os.environ[OFF_INDEX_ENVIRON_STREAM_FILE]),
         amarcord_api_url=os.environ.get(OFF_INDEX_ENVIRON_AMARCORD_API_URL),
+        original_globs=glob_list,
         # A little hack here: if we have a file "master", and possibly
         # other data files (to which master links to), then just take
         # the master file. Otherwise, consider all files

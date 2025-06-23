@@ -14,7 +14,7 @@ import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (RunRange, makeFilesLink, runRangesToString)
 import Amarcord.RunAttributiForm as RunAttributiForm
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore)
+import Amarcord.Util exposing (HereAndNow, formatDateHumanFriendly, formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Api.Data exposing (JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
@@ -27,7 +27,7 @@ import List exposing (head)
 import Maybe
 import RemoteData exposing (RemoteData(..), fromResult, isSuccess)
 import String
-import Time exposing (Posix, Zone, millisToPosix)
+import Time exposing (Posix, Zone, millisToPosix, utc)
 
 
 type Msg
@@ -171,8 +171,8 @@ attributiColumnHeaders =
     List.map (th_ << makeAttributoHeader)
 
 
-attributiColumns : Zone -> ChemicalNameDict -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
-attributiColumns zone chemicalIds experimentTypeIds attributi run =
+attributiColumns : ChemicalNameDict -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
+attributiColumns chemicalIds experimentTypeIds attributi run =
     let
         viewCell : Attributo AttributoType -> Maybe (Html Msg)
         viewCell a =
@@ -188,7 +188,6 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
                             , withUnit = False
                             , withTolerance = False
                             }
-                            zone
                             chemicalIds
                             (convertAttributoMapFromApi run.attributi)
                             a
@@ -200,15 +199,14 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
 
 
 viewRunRow :
-    Zone
-    -> ChemicalNameDict
+    ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Maybe RunAttributiForm.Model
     -> Int
     -> JsonRun
     -> List (Html Msg)
-viewRunRow zone chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCount r =
+viewRunRow chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCount r =
     tr [ style "white-space" "nowrap" ]
         (td_
             [ button
@@ -219,9 +217,11 @@ viewRunRow zone chemicalIds experimentTypeIds attributi runEditInfo attributoCol
             ]
             :: td_ [ strongText (String.fromInt r.externalId) ]
             :: td_ [ text (String.fromInt r.id) ]
-            :: td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix r.started) ]
-            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly zone) (Maybe.map millisToPosix r.stopped) ]
-            :: attributiColumns zone chemicalIds experimentTypeIds attributi r
+            :: td_ [ text <| formatDateHumanFriendly utc (millisToPosix r.startedLocal) ]
+            :: td_ [ text <| formatPosixTimeOfDayHumanFriendly utc (millisToPosix r.startedLocal) ]
+            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatDateHumanFriendly utc << millisToPosix) r.stoppedLocal ]
+            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly utc << millisToPosix) r.stoppedLocal ]
+            :: attributiColumns chemicalIds experimentTypeIds attributi r
         )
         :: (case runEditInfo of
                 Nothing ->
@@ -241,8 +241,8 @@ viewRunRow zone chemicalIds experimentTypeIds attributi runEditInfo attributoCol
            )
 
 
-viewEventRow : Zone -> Int -> JsonEvent -> Html Msg
-viewEventRow zone attributoColumnCount e =
+viewEventRow : Int -> JsonEvent -> Html Msg
+viewEventRow attributoColumnCount e =
     let
         viewFile : JsonFileOutput -> Html Msg
         viewFile { type__, fileName, id } =
@@ -268,14 +268,13 @@ viewEventRow zone attributoColumnCount e =
     in
     tr [ class "bg-light" ]
         [ td_ []
-        , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix e.created) ]
+        , td_ [ text <| formatPosixTimeOfDayHumanFriendly utc (millisToPosix e.createdLocal) ]
         , td [ colspan attributoColumnCount ] mainContent
         ]
 
 
 viewRunAndEventRows :
-    Zone
-    -> ChemicalNameDict
+    ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Int
@@ -283,7 +282,7 @@ viewRunAndEventRows :
     -> List JsonRun
     -> List JsonEvent
     -> List (Html Msg)
-viewRunAndEventRows zone chemicalIds experimentTypeIds attributi attributoColumnCount runEditInfo runs events =
+viewRunAndEventRows chemicalIds experimentTypeIds attributi attributoColumnCount runEditInfo runs events =
     case ( head runs, head events ) of
         -- No elements, neither runs nor events, left anymore
         ( Nothing, Nothing ) ->
@@ -291,24 +290,23 @@ viewRunAndEventRows zone chemicalIds experimentTypeIds attributi attributoColumn
 
         -- Only runs left
         ( Just _, Nothing ) ->
-            List.concatMap (viewRunRow zone chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCount) runs
+            List.concatMap (viewRunRow chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCount) runs
 
         -- Only events left
         ( Nothing, Just _ ) ->
-            List.map (viewEventRow zone (List.length attributi)) events
+            List.map (viewEventRow (List.length attributi)) events
 
         -- We have events and runs and have to compare the dates
         ( Just run, Just event ) ->
             if posixBefore (millisToPosix event.created) (millisToPosix run.started) then
                 viewRunRow
-                    zone
                     chemicalIds
                     experimentTypeIds
                     attributi
                     runEditInfo
                     attributoColumnCount
                     run
-                    ++ viewRunAndEventRows zone
+                    ++ viewRunAndEventRows
                         chemicalIds
                         experimentTypeIds
                         attributi
@@ -318,8 +316,8 @@ viewRunAndEventRows zone chemicalIds experimentTypeIds attributi attributoColumn
                         events
 
             else
-                viewEventRow zone (List.length attributi) event
-                    :: viewRunAndEventRows zone
+                viewEventRow (List.length attributi) event
+                    :: viewRunAndEventRows
                         chemicalIds
                         experimentTypeIds
                         attributi
@@ -330,16 +328,15 @@ viewRunAndEventRows zone chemicalIds experimentTypeIds attributi attributoColumn
 
 
 viewRunsTable :
-    Zone
-    -> List (Attributo AttributoType)
+    List (Attributo AttributoType)
     -> Maybe RunAttributiForm.Model
     -> JsonReadRuns
     -> Html Msg
-viewRunsTable zone chosenColumns runEditInfo { runs, events, chemicals, experimentTypes } =
+viewRunsTable chosenColumns runEditInfo { runs, events, chemicals, experimentTypes } =
     let
         runRows : List (Html Msg)
         runRows =
-            viewRunAndEventRows zone
+            viewRunAndEventRows
                 (chemicalIdDict <| List.map convertChemicalFromApi chemicals)
                 (experimentTypeIdDict experimentTypes)
                 chosenColumns
@@ -355,7 +352,9 @@ viewRunsTable zone chosenColumns runEditInfo { runs, events, chemicals, experime
                 th_ [ text "Actions" ]
                     :: th_ [ text "ID" ]
                     :: th_ [ text "Internal ID" ]
+                    :: th_ [ text "Started date" ]
                     :: th_ [ text "Started" ]
+                    :: th_ [ text "Stopped date" ]
                     :: th_ [ text "Stopped" ]
                     :: attributiColumnHeaders chosenColumns
             ]
@@ -374,7 +373,6 @@ viewInner model rrc =
     , div [ class "container-fluid" ]
         [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
         , viewRunsTable
-            model.zone
             (ColumnChooser.resolveChosen model.columnChooser)
             model.runEditInfo
             rrc
@@ -594,8 +592,7 @@ update msg model =
                     let
                         ( editInfo, editInfoCmd ) =
                             RunAttributiForm.init
-                                { zone = model.zone
-                                , attributi = attributi
+                                { attributi = attributi
                                 , chemicals = List.map convertChemicalFromApi chemicals
                                 , experimentTypes = experimentTypes
                                 }

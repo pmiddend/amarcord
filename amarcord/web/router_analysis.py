@@ -16,14 +16,15 @@ from sqlalchemy.sql import select
 
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
-from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import determine_cell_description_from_runs
 from amarcord.db.orm_utils import determine_point_group_from_runs
@@ -38,6 +39,7 @@ from amarcord.web.fastapi_utils import orm_encode_merge_result_to_json
 from amarcord.web.fastapi_utils import orm_indexing_parameters_to_json
 from amarcord.web.fastapi_utils import orm_indexing_result_to_json
 from amarcord.web.fastapi_utils import run_id_to_run_ranges
+from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAnalysisRun
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonChemicalIdAndName
@@ -91,22 +93,33 @@ async def read_beamtime_geometry_details(
     detector_shifts: list[JsonDetectorShift] = []
     for run in runs:
         for ir in run.indexing_results:
-            if (
-                ir.indexing_parameters.is_online
-                and ir.detector_shift_x_mm is not None
-                and ir.detector_shift_y_mm is not None
-            ):
+            if ir.indexing_parameters.is_online and ir.align_detector_groups:
                 detector_shifts.append(
                     JsonDetectorShift(
                         run_external_id=run.external_id,
-                        run_start=datetime_to_attributo_int(run.started),
+                        run_start=utc_datetime_to_utc_int(run.started),
+                        run_start_local=utc_datetime_to_local_int(run.started),
                         run_end=(
-                            datetime_to_attributo_int(run.stopped)
+                            utc_datetime_to_utc_int(run.stopped)
                             if run.stopped is not None
                             else None
                         ),
-                        shift_x_mm=ir.detector_shift_x_mm,
-                        shift_y_mm=ir.detector_shift_y_mm,
+                        run_end_local=(
+                            utc_datetime_to_local_int(run.stopped)
+                            if run.stopped is not None
+                            else None
+                        ),
+                        align_detector_groups=[
+                            JsonAlignDetectorGroup(
+                                group=g.group,
+                                x_translation_mm=g.x_translation_mm,
+                                y_translation_mm=g.y_translation_mm,
+                                z_translation_mm=g.z_translation_mm,
+                                x_rotation_deg=g.x_rotation_deg,
+                                y_rotation_deg=g.y_rotation_deg,
+                            )
+                            for g in ir.align_detector_groups
+                        ],
                         geometry_hash=(
                             ir.geometry_hash if ir.geometry_hash is not None else ""
                         ),
@@ -126,7 +139,7 @@ async def read_run_analysis(
     beamtimeId: BeamtimeId,  # noqa: N803
     run_id: None | RunInternalId = None,
 ) -> JsonReadRunAnalysis:
-    def extract_summary(o: orm.IndexingResult) -> DBIndexingFOM:
+    def extract_summary(o: orm.IndexingResult) -> IndexingResultSummary:
         if o.job_error is not None:
             return empty_indexing_fom
         return fom_for_indexing_result(o)
@@ -149,6 +162,23 @@ async def read_run_analysis(
             if r.id == run_id:
                 run = r
                 break
+        assert run is not None, f"couldn't find run with ID {run_id}"
+        for ds in await session.scalars(
+            select(orm.DataSet).where(
+                orm.DataSet.experiment_type_id == run.experiment_type_id
+            )
+        ):
+            if run_matches_dataset(
+                {a.id: schema_dict_to_attributo_type(a.json_schema) for a in attributi},
+                run_attributi={ra.attributo_id: ra for ra in run.attributo_values},
+                data_set_attributi={
+                    dsa.attributo_id: dsa for dsa in ds.attributo_values
+                },
+            ):
+                data_set = ds
+                break
+    else:
+        data_set = None
     indexing_results = await session.scalars(
         select(orm.IndexingResult)
         .where(orm.IndexingResult.run_id == run_id)
@@ -172,6 +202,7 @@ async def read_run_analysis(
             JsonAnalysisRun(
                 id=run.id,
                 external_id=run.external_id,
+                data_set_id=data_set.id if data_set is not None else None,
                 attributi=[encode_run_attributo_value(v) for v in run.attributo_values],
                 file_paths=[
                     JsonRunFile(id=rf.id, glob=rf.glob, source=rf.source)
@@ -183,6 +214,7 @@ async def read_run_analysis(
         ),
         indexing_results=[
             JsonRunAnalysisIndexingResult(
+                indexing_result_id=indexing_result.id,
                 run_id=run.external_id if run is not None else 0,
                 # foms = figures of merit
                 foms=encode_indexing_fom_to_json(extract_summary(indexing_result)),
@@ -195,7 +227,10 @@ async def read_run_analysis(
                 in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
                 indexing_statistics=[
                     JsonIndexingStatistic(
-                        time=datetime_to_attributo_int(stat.time),
+                        # Strange if condition for the unlikely case that the run doesn't exist
+                        time=(
+                            stat.time - (run.started if run is not None else stat.time)
+                        ).seconds,
                         frames=stat.frames,
                         hits=stat.hits,
                         indexed=stat.indexed_frames,
@@ -890,7 +925,16 @@ async def read_analysis_results(
                 attributo_value_str=a.string_value,
                 attributo_value_int=a.integer_value,
                 attributo_value_chemical=a.chemical_value,
-                attributo_value_datetime=a.datetime_value,
+                attributo_value_datetime=(
+                    utc_datetime_to_utc_int(a.datetime_value)
+                    if a.datetime_value is not None
+                    else None
+                ),
+                attributo_value_datetime_local=(
+                    utc_datetime_to_local_int(a.datetime_value)
+                    if a.datetime_value is not None
+                    else None
+                ),
                 attributo_value_float=a.float_value,
                 attributo_value_bool=a.bool_value,
                 # At some point: grab into attributo list and check

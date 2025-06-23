@@ -20,6 +20,25 @@ Per beamtime, there is a `UserConfiguration` table (see diagram above). A beamti
 
 While the database, being an SQL-based database, has a fixed schema, scientific experiments are quite different from one another. To account for that, we have a table for so-called "Attributi" (singular "Attributo"), which are additional columns for both runs and chemicals (see below) that can be created and filled by the experimenter, and not the programmer.
 
+## Files
+
+In order to avoid complexity with respect to permissions and file-system mounting, you can actually store arbitrary files in the database. All database engines support this, so it's not a "hack". The following metadata is stored per file:
+
+- Unique numeric ID (the database primary key)
+- Type: a mime-type determined heuristically using the `libmagic` library
+- SHA256 hash of the original file
+- File name: the original file name (the database doesn't know about file names anymore, but in case we want to offer a download endpoint)
+- Size in bytes of the original file
+- Compressed size in bytes (optional)
+- Original path: if available, where the file was stored on the original file system
+- Modified timestamp
+- User-editable description of the file
+- Contents
+
+In order to keep the size of the content manageable, gzip compression can be applied to files. There is an "auto" mode in the API to not compress small files, otherwise you can enable/disable compression as needed. The SHA256 hash in the DB refers to the original contents of the file, not the compressed ones.
+
+The API also has a "deduplicate" flag in order to optionally return an existing file (via sha256 comparison) instead of always creating a new one.
+
 ## Live-stream images
 
 Per beamtime, we have one (optional) special file: the live-stream image. The file is, in principle, only special by its file name, which has to be `live-stream-image-$beamtimeid`. This image is then used in two places:

@@ -9,7 +9,8 @@ from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import utc_datetime_to_local_int
+from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.orm_utils import live_stream_image_name
@@ -75,6 +76,7 @@ async def create_event(
                     description=existing_live_stream.description,
                     sha256=existing_live_stream.sha256,
                     size_in_bytes=existing_live_stream.size_in_bytes,
+                    size_in_bytes_compressed=existing_live_stream.size_in_bytes_compressed,
                 )
                 new_event.files.append(copied_live_stream)
         session.add(new_event)
@@ -99,7 +101,8 @@ def encode_event(e: orm.EventLog) -> JsonEvent:
         id=e.id,
         text=e.text,
         source=e.source,
-        created=datetime_to_attributo_int(e.created),
+        created=utc_datetime_to_utc_int(e.created),
+        created_local=utc_datetime_to_local_int(e.created),
         level=e.level.value,
         files=[encode_file_output(f) for f in e.files],
     )

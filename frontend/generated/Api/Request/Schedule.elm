@@ -25,7 +25,7 @@ import Http
 import Json.Decode
 import Json.Encode
 
-getBeamtimeScheduleApiScheduleBeamtimeIdGet : Int -> Api.Request Api.Data.JsonBeamtimeSchedule
+getBeamtimeScheduleApiScheduleBeamtimeIdGet : Int -> Api.Request Api.Data.JsonBeamtimeScheduleOutput
 getBeamtimeScheduleApiScheduleBeamtimeIdGet beamtimeId_path =
     Api.request
         "GET"
@@ -34,7 +34,7 @@ getBeamtimeScheduleApiScheduleBeamtimeIdGet beamtimeId_path =
         []
         []
         Nothing
-        Api.Data.jsonBeamtimeScheduleDecoder
+        Api.Data.jsonBeamtimeScheduleOutputDecoder
 
 
 updateBeamtimeScheduleApiSchedulePost : Api.Data.JsonUpdateBeamtimeScheduleInput -> Api.Request Api.Data.JsonBeamtimeScheduleOutput

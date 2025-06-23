@@ -272,6 +272,7 @@ class ParsedArgs:
     hkl_file: Path
     ccp4_path: None | Path
     partialator_additional: None | str
+    get_hkl_additional: None | str
     crystfel_path: Path
     gnuplot_path: Path | None
     pdb_file_id: None | int
@@ -292,6 +293,7 @@ MERGE_ENVIRON_SPACE_GROUP = "AMARCORD_SPACE_GROUP"
 MERGE_ENVIRON_MERGE_RESULT_ID = "AMARCORD_RESULT_ID"
 MERGE_ENVIRON_CELL_FILE_ID = "AMARCORD_CELL_FILE_ID"
 MERGE_ENVIRON_POINT_GROUP = "AMARCORD_POINT_GROUP"
+MERGE_ENVIRON_GET_HKL_ADDITIONAL = "AMARCORD_GET_HKL_ADDITIONAL"
 MERGE_ENVIRON_HKL_FILE = "AMARCORD_HKL_FILE"
 MERGE_ENVIRON_PARTIALATOR_ADDITIONAL = "AMARCORD_PARTIALATOR_ADDITIONAL"
 MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE = "AMARCORD_AMBIGATOR_COMMAND_LINE"
@@ -341,6 +343,7 @@ def parse_args() -> ParsedArgs:
             os.environ.get(MERGE_ENVIRON_HKL_FILE, "partialator.hkl"),
         ),
         partialator_additional=os.environ.get(MERGE_ENVIRON_PARTIALATOR_ADDITIONAL),
+        get_hkl_additional=os.environ.get(MERGE_ENVIRON_GET_HKL_ADDITIONAL),
         pdb_file_id=int(pdb_file_id_str) if pdb_file_id_str is not None else None,
         restraints_cif_file_id=int(restraints_cif_file_id_str)
         if restraints_cif_file_id_str is not None
@@ -751,6 +754,8 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             str(output_path),
             "--output-format=mtz",
         ]
+        if args.get_hkl_additional is not None:
+            cli_args.extend(shlex.split(args.get_hkl_additional))
         if args.space_group is not None:
             cli_args.append(f"--space-group={args.space_group}")
 
@@ -1396,13 +1401,30 @@ def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
         ):
             logger.info("All hkl files already present, not restarting partialator")
         else:
-            partialator = subprocess.run(partialator_command_line_args, check=False)  # noqa: S603
+            with subprocess.Popen(  # noqa: S603
+                partialator_command_line_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                encoding="utf-8",
+                bufsize=1,
+            ) as partialator:
+                while True:
+                    assert partialator.stdout is not None
 
-            if partialator.returncode != 0:
-                exit_with_error(
-                    args,
-                    f"error running partialator, error code is {partialator.returncode}",
-                )
+                    line = partialator.stdout.readline()
+
+                    if not line:
+                        break
+
+                    logger.info(line)
+
+                partialator.wait()
+
+                if partialator.returncode != 0:
+                    exit_with_error(
+                        args,
+                        f"error running partialator, error code is {partialator.returncode}",
+                    )
     except:
         exit_with_error(args, "error running partialator")
 

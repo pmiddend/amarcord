@@ -27,19 +27,19 @@ import Http
 import Json.Decode
 import Json.Encode
 
-createBeamtimeApiBeamtimesPost : Api.Data.JsonUpdateBeamtimeInput -> Api.Request Api.Data.JsonBeamtimeOutput
-createBeamtimeApiBeamtimesPost jsonUpdateBeamtimeInput_body =
+createBeamtimeApiBeamtimesPost : Api.Data.JsonBeamtimeInput -> Api.Request Api.Data.JsonBeamtimeOutput
+createBeamtimeApiBeamtimesPost jsonBeamtimeInput_body =
     Api.request
         "POST"
         "/api/beamtimes"
         []
         []
         []
-        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonUpdateBeamtimeInput jsonUpdateBeamtimeInput_body)))
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonBeamtimeInput jsonBeamtimeInput_body)))
         Api.Data.jsonBeamtimeOutputDecoder
 
 
-readBeamtimeApiBeamtimesBeamtimeIdGet : Int -> Api.Request Api.Data.JsonBeamtime
+readBeamtimeApiBeamtimesBeamtimeIdGet : Int -> Api.Request Api.Data.JsonBeamtimeOutput
 readBeamtimeApiBeamtimesBeamtimeIdGet beamtimeId_path =
     Api.request
         "GET"
@@ -48,7 +48,7 @@ readBeamtimeApiBeamtimesBeamtimeIdGet beamtimeId_path =
         []
         []
         Nothing
-        Api.Data.jsonBeamtimeDecoder
+        Api.Data.jsonBeamtimeOutputDecoder
 
 
 readBeamtimesApiBeamtimesGet : Api.Request Api.Data.JsonReadBeamtime
