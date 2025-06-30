@@ -14,6 +14,9 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 <figcaption>Searching for the string "XI" yields the necessary results. Imaging scrolling down a few kilometers instead!</figcaption>
 </figure>
 
+### Miscellaneous features
+
+- When uploading a file in "Chemicals" (when adding or editing a chemical), you don't have to type in a description for the file. It will be automatically filled with the file name.
 
 # v1.3 - Q2 2025
 

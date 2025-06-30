@@ -181,7 +181,13 @@ viewFiles fileUploadError newFile files =
                     [ viewRemoteDataHttp "Upload successful!" fileUploadError
                     , div [ class "input-group mb-3" ]
                         [ button [ type_ "button", class "btn btn-outline-secondary", onClick EditNewFileOpenSelector ] [ text "Choose file..." ]
-                        , input [ type_ "text", disabled True, value (MaybeExtra.unwrap "No file selected" (ElmFile.name << .fileMetadata) newFile.file), class "form-control" ] []
+                        , input
+                            [ type_ "text"
+                            , disabled True
+                            , value (MaybeExtra.unwrap "No file selected" (ElmFile.name << .fileMetadata) newFile.file)
+                            , class "form-control"
+                            ]
+                            []
                         ]
                     , div [ class "mb-3" ]
                         [ label [ for "file-description", class "form-label" ] [ text "File Description", sup_ [ text "*" ] ]
@@ -207,7 +213,7 @@ viewFiles fileUploadError newFile files =
                         , disabled (newFile.description == "" || isNothing newFile.file)
                         , onClick EditFileUpload
                         ]
-                        [ icon { name = "upload" }, text " Upload" ]
+                        [ icon { name = "upload" }, text " Upload this file" ]
                     , button
                         [ class "btn btn-light me-3"
                         , type_ "button"
@@ -1255,8 +1261,15 @@ update msg model =
             let
                 oldFileUpload =
                     model.newFileUpload
+
+                newDescription =
+                    if String.isEmpty model.newFileUpload.description then
+                        ElmFile.name fwb.fileMetadata
+
+                    else
+                        model.newFileUpload.description
             in
-            ( { model | newFileUpload = { oldFileUpload | file = Just fwb } }, Cmd.none )
+            ( { model | newFileUpload = { oldFileUpload | file = Just fwb, description = newDescription } }, Cmd.none )
 
         EditFileUpload ->
             case model.newFileUpload.file of
