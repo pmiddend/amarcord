@@ -9,7 +9,7 @@ import Amarcord.CellDescriptionEdit exposing (validateCellDescription)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
 import Amarcord.Crystallography exposing (validatePointGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, onIntInput, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
@@ -24,13 +24,14 @@ import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, src, style, title, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
+import Select
 import Set exposing (Set)
 import String
 import Task
@@ -55,8 +56,17 @@ type alias NewFileUpload =
     }
 
 
+type alias PriorChemicalsItem =
+    { chemicalId : Int
+    , chemicalName : String
+    , chemicalBeamtimeName : String
+    , chemicalBeamtimeDate : String
+    }
+
+
 type alias CopyPriorChemicalData =
     { priorChemicals : JsonReadAllChemicals
+    , selectState : Select.State
     , selectedChemicalId : Maybe Int
     , submitRequest : RemoteData HttpError JsonCopyChemicalOutput
     , createAttributi : Bool
@@ -88,6 +98,7 @@ pageTitle _ =
 type Msg
     = ChemicalsReceived (Result HttpError JsonReadChemicals)
     | PriorChemicalsReceived (Result HttpError JsonReadAllChemicals)
+    | PriorChemicalsSelectMsg (Select.Msg PriorChemicalsItem)
     | InitiateCopyFromPreviousBeamtime
     | CancelCopyFromPreviousBeamtime
     | ToggleCreateAttriutiForCopyFromPreviousBeamtime
@@ -618,34 +629,42 @@ viewChemicalTypeIcon ct =
             icon { name = "droplet-fill" }
 
 
+selectChemicalsFilter : String -> List PriorChemicalsItem -> Maybe (List PriorChemicalsItem)
+selectChemicalsFilter filterString =
+    Just << List.filter (\{ chemicalName } -> String.contains (String.trim (String.toLower filterString)) (String.toLower chemicalName))
+
+
+selectLabel : PriorChemicalsItem -> String
+selectLabel { chemicalName, chemicalBeamtimeName, chemicalBeamtimeDate } =
+    chemicalName ++ " (" ++ chemicalBeamtimeName ++ " - " ++ chemicalBeamtimeDate ++ ")"
+
+
+selectOnSelect : Maybe PriorChemicalsItem -> Msg
+selectOnSelect x =
+    case x of
+        Nothing ->
+            Nop
+
+        Just { chemicalId } ->
+            CopyFromPreviousBeamtimeIdChanged chemicalId
+
+
+selectConfig : Select.Config Msg PriorChemicalsItem
+selectConfig =
+    Select.newConfig
+        { filter = selectChemicalsFilter
+        , toLabel = selectLabel
+        , onSelect = selectOnSelect
+        , toMsg = PriorChemicalsSelectMsg
+        }
+        |> Select.withEmptySearch True
+        |> Select.withClear False
+        |> Select.withPrompt "« Click here and start typing to select a chemical »"
+
+
 viewPriorChemicals : List (Attributo AttributoType) -> CopyPriorChemicalData -> Html Msg
-viewPriorChemicals attributi { priorChemicals, selectedChemicalId } =
+viewPriorChemicals attributi { priorChemicals, selectedChemicalId, selectState } =
     let
-        viewPriorChemical { id, name, beamtimeId } =
-            let
-                title =
-                    case ListExtra.find (\bt -> bt.id == beamtimeId) priorChemicals.beamtimes of
-                        Nothing ->
-                            name
-
-                        Just { startLocal } ->
-                            let
-                                startAsPosix =
-                                    millisToPosix startLocal
-                            in
-                            name
-                                ++ " / "
-                                ++ String.fromInt
-                                    (toYear utc startAsPosix)
-                                ++ "-"
-                                ++ monthToNumericString (toMonth utc startAsPosix)
-            in
-            option
-                [ value (String.fromInt id)
-                , selected (selectedChemicalId == Just id)
-                ]
-                [ text title ]
-
         attributiNamesInThisBeamtime : Set String
         attributiNamesInThisBeamtime =
             List.foldr (\a -> Set.insert a.name) Set.empty attributi
@@ -696,22 +715,35 @@ viewPriorChemicals attributi { priorChemicals, selectedChemicalId } =
             ListExtra.find (\c -> Just c.id == selectedChemicalId) priorChemicals.chemicals
                 |> Maybe.map viewAddedAttributiForChemical
                 |> Maybe.withDefault (text "")
+
+        formatBeamtimeDate : Int -> String
+        formatBeamtimeDate startLocal =
+            let
+                startAsPosix =
+                    millisToPosix startLocal
+            in
+            String.fromInt
+                (toYear utc startAsPosix)
+                ++ "-"
+                ++ monthToNumericString (toMonth utc startAsPosix)
+
+        chemicalToSelectItem : JsonChemical -> Maybe PriorChemicalsItem
+        chemicalToSelectItem { id, name, beamtimeId } =
+            ListExtra.find (\bt -> bt.id == beamtimeId) priorChemicals.beamtimes
+                |> Maybe.map
+                    (\bt ->
+                        { chemicalId = id, chemicalName = name, chemicalBeamtimeName = bt.title, chemicalBeamtimeDate = formatBeamtimeDate bt.startLocal }
+                    )
+
+        allItems : List PriorChemicalsItem
+        allItems =
+            List.filterMap chemicalToSelectItem priorChemicals.chemicals
     in
     form_ <|
         [ h4_ [ icon { name = "terminal" }, text " Select chemical to copy" ]
-        , select
-            [ id "chemical-to-copy"
-            , class "form-select mb-3"
-            , onIntInput CopyFromPreviousBeamtimeIdChanged
+        , div [ class "mb-2" ]
+            [ Select.view selectConfig selectState allItems (List.filter (\{ chemicalId } -> Just chemicalId == selectedChemicalId) allItems)
             ]
-            (option
-                [ disabled True
-                , value ""
-                , selected (isNothing selectedChemicalId)
-                ]
-                [ text "« choose a chemical »" ]
-                :: List.map viewPriorChemical priorChemicals.chemicals
-            )
         , viewAddedAttributi
         , div [ class "hstack gap-3 mb-3" ]
             [ button
@@ -881,6 +913,18 @@ convertChemicalsResponse x =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        PriorChemicalsSelectMsg subMsg ->
+            case model.priorChemicals of
+                Success priorChemsSuccess ->
+                    let
+                        ( newSelectState, subCmd ) =
+                            Select.update selectConfig subMsg priorChemsSuccess.selectState
+                    in
+                    ( { model | priorChemicals = Success { priorChemsSuccess | selectState = newSelectState } }, subCmd )
+
+                _ ->
+                    ( model, Cmd.none )
+
         ToggleCreateAttriutiForCopyFromPreviousBeamtime ->
             case model.priorChemicals of
                 Success priorChemsSuccess ->
@@ -920,6 +964,7 @@ update msg model =
                                 , selectedChemicalId = Nothing
                                 , submitRequest = NotAsked
                                 , createAttributi = False
+                                , selectState = Select.init "copy-from-prior-select"
                                 }
                       }
                     , Cmd.none

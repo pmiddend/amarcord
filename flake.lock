@@ -53,15 +53,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1730597265,
-        "narHash": "sha256-8t5GmQXKaZAvhoSSiNTmxjNogokX1zQDGzxtm8VWi/I=",
-        "owner": "jeslie0",
+        "lastModified": 1751268060,
+        "narHash": "sha256-SwMXsOpobpeUKznG13kz1c4LlprTvTPiLtXnXt1Nm3M=",
+        "owner": "pmiddend",
         "repo": "mkElmDerivation",
-        "rev": "07573133b8d727a4e5508ec171fbb60017b12268",
+        "rev": "cf025ae9c118b8c7bdba0fe6357d165de7b84c92",
         "type": "github"
       },
       "original": {
-        "owner": "jeslie0",
+        "owner": "pmiddend",
+        "ref": "fix-makefile-presence",
         "repo": "mkElmDerivation",
         "type": "github"
       }

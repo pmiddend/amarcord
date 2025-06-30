@@ -3,6 +3,18 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 [TOC]
 # 🚧 v1.4 - Q3 2025
 
+## Features
+
+### Chemicals: Better "Copy from previous beamtime" input ([\#478](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/478))
+
+Since the list of chemicals across beamtimes keeps growing, and most of the time you actually know which chemical to copy (by name), you can now just click the drop-down and start typing!
+
+<figure>
+![Changelog dropdown in action](changelog-assets/478-changelog-dropdown.png){width=971 height=202px}
+<figcaption>Searching for the string "XI" yields the necessary results. Imaging scrolling down a few kilometers instead!</figcaption>
+</figure>
+
+
 # v1.3 - Q2 2025
 
 ## Features

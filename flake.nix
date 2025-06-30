@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "nixpkgs/nixos-24.11";
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
-    url = "github:jeslie0/mkElmDerivation";
+    url = "github:pmiddend/mkElmDerivation?ref=fix-makefile-presence";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.pyproject-nix = {
