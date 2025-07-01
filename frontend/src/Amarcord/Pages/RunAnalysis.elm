@@ -31,6 +31,7 @@ type alias Model =
     { runIdInput : String
     , runAnalysisRequest : RemoteData HttpError JsonReadRunAnalysis
     , beamtimeId : BeamtimeId
+    , runDoesntExist : Maybe Int
     }
 
 
@@ -44,6 +45,7 @@ init beamtimeId =
     ( { runIdInput = ""
       , runAnalysisRequest = Loading
       , beamtimeId = beamtimeId
+      , runDoesntExist = Nothing
       }
     , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId Nothing)
     )
@@ -154,6 +156,12 @@ viewInner : Model -> List (Html Msg)
 viewInner model =
     [ h1_ [ text "Indexing Details" ]
     , p_ [ text "Enter a run ID to see details. Press Return to update." ]
+    , case model.runDoesntExist of
+        Nothing ->
+            text ""
+
+        Just _ ->
+            div [ class "alert alert-warning" ] [ text "This run ID does not exist." ]
     , case model.runAnalysisRequest of
         NotAsked ->
             text ""
@@ -221,10 +229,13 @@ update msg model =
                         Just realRunId ->
                             case List.Extra.find (\runIdIntExt -> runIdIntExt.externalRunId == realRunId) runIds of
                                 Nothing ->
-                                    ( model, Cmd.none )
+                                    ( { model | runDoesntExist = Just realRunId }, Cmd.none )
 
                                 Just { internalRunId } ->
-                                    ( model, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+                                    ( { model | runDoesntExist = Nothing }
+                                    , send RunAnalysisResultsReceived
+                                        (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId))
+                                    )
 
                 _ ->
                     ( model, Cmd.none )
