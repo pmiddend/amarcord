@@ -1068,7 +1068,11 @@ async def read_runs_overview(
                     (orm.Run.beamtime_id == beamtimeId)
                     & (orm.Run.experiment_type_id == latest_run.experiment_type_id),
                 )
-                .options(selectinload(orm.Run.indexing_results)),
+                .options(
+                    selectinload(orm.Run.indexing_results).selectinload(
+                        orm.IndexingResult.indexing_parameters
+                    )
+                ),
             )
         ).all()
 
@@ -1085,7 +1089,14 @@ async def read_runs_overview(
         foms_in_this_ds: list[IndexingResultSummary] = []
         for r in other_runs_in_ds:
             try:
-                max_ir = max(r.indexing_results, key=lambda ir: ir.indexed_frames)
+                max_ir = max(
+                    (
+                        ir
+                        for ir in r.indexing_results
+                        if ir.indexing_parameters.is_online
+                    ),
+                    key=lambda ir: ir.indexed_frames,
+                )
                 foms_in_this_ds.append(fom_for_indexing_result(max_ir))
             except:  # noqa: S110
                 # No indexing results in this run. Fine.
