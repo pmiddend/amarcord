@@ -338,21 +338,33 @@ async def indexing_daemon_start_new_jobs(
         + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else ""),
     ) as response:
         number_of_running_jobs = len(
-            JsonReadIndexingResultsOutput(**await response.json()).indexing_jobs,
+            [
+                x
+                for x in JsonReadIndexingResultsOutput(
+                    **await response.json()
+                ).indexing_jobs
+                if not x.is_online
+            ],
         )
 
-    max_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
-
-    if max_jobs_to_start <= 0:
-        return
+    max_offline_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
 
     if indexing_results:
         logger.info(
-            f"there are {len(indexing_results)} job(s) to start, will start {max_jobs_to_start} (because of limit)",
+            f"there are {len(indexing_results)} job(s) to start, will start {max_offline_jobs_to_start} offline jobs (because of limit)",
         )
 
     number_of_started_jobs = 0
     for indexing_result in indexing_results:
+        if (
+            not indexing_result.is_online
+            and number_of_started_jobs >= max_offline_jobs_to_start
+        ):
+            logger.info(
+                f"not starting offline job for ix ID {indexing_result.id}, since we have a {args.max_parallel_offline_jobs} limit set",
+            )
+            continue
+
         bound_logger = logger.bind(
             run_internal_id=indexing_result.run_internal_id,
             run_external_id=indexing_result.run_external_id,
@@ -425,11 +437,6 @@ async def indexing_daemon_start_new_jobs(
             f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break",
         )
         await asyncio.sleep(_long_break_duration_seconds())
-        if number_of_started_jobs > max_jobs_to_start:
-            logger.info(
-                f"not starting any more jobs, since we have a {args.max_parallel_offline_jobs} limit set",
-            )
-            break
     if number_of_started_jobs == 0:
         # Usually too spammy
         # logger.info(

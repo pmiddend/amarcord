@@ -18,6 +18,11 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 
 - When uploading a file in "Chemicals" (when adding or editing a chemical), you don't have to type in a description for the file. It will be automatically filled with the file name.
 
+## Fixes
+
+- The number of indexed frames in the run overview was referring to the maximum number of indexed frames in *any* indexing result, not just the online result. This is highly confusing and was changed ([\#481](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/481))
+- The indexing daemon didn't tell apart online and offline indexing jobs, so too many offline jobs were able to block online jobs from starting ([\#480](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/480))
+
 # v1.3 - Q2 2025
 
 ## Features
