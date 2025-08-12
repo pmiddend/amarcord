@@ -730,6 +730,20 @@ createRunRanges beamtimeId =
         << List.sort
 
 
+
+-- Two cell descriptions that are not given at all (i.e. guess) are equal. As are two equal descriptions.
+
+
+optionalCellDescriptionsAlmostEqualStrings : Maybe String -> Maybe String -> Bool
+optionalCellDescriptionsAlmostEqualStrings l r =
+    case ( l, r ) of
+        ( Nothing, Nothing ) ->
+            True
+
+        _ ->
+            Maybe.map2 cellDescriptionsAlmostEqualStrings l r |> Maybe.withDefault False
+
+
 viewCommandLineDiff : String -> String -> Html msg
 viewCommandLineDiff priorCmdLine newCmdLine =
     let
@@ -892,16 +906,16 @@ viewRowDiff pparams params =
 
                   else
                     text ""
-                , if pparams.cellDescription /= params.cellDescription then
+                , if optionalCellDescriptionsAlmostEqualStrings pparams.cellDescription params.cellDescription then
+                    text ""
+
+                  else
                     div_
                         [ text "Cell description: "
                         , viewCellDescription pparams.cellDescription
                         , span [ class "ms-1 me-1" ] [ text "→" ]
                         , viewCellDescription params.cellDescription
                         ]
-
-                  else
-                    text ""
                 , if pparams.isOnline /= params.isOnline then
                     div_ [ text "Online → Offline" ]
 
