@@ -1,7 +1,7 @@
 # This CITATION.cff file was generated with cffinit.
 # Visit https://bit.ly/cffinit to generate yours today!
 
-cff-version: 1.2.0
+cff-version: 1.4.0
 title: AMARCORD
 message: >-
   If you use this software, please cite it using the
@@ -23,7 +23,7 @@ authors:
     city: Hamburg
     post-code: '22607'
     location: Building 99
-repository-code: 'https://gitlab.desy.de/cfel-sc-public/amarcord-serial'
+repository-code: 'https://gitlab.desy.de/amarcord/amarcord'
 abstract: >-
   Free and open-source database application designed to
   gather metadata about chemicals, runs and analysis results

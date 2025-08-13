@@ -4,8 +4,8 @@ AMARCORD isn't in widespread use, so it is likely that you will encounter rather
 
 # How to contribute
 
-- Post issues in the [GitLab issue tracker](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues).
-- Open [merge requests](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues)
+- Post issues in the [GitLab issue tracker](https://gitlab.desy.de/amarcord/amarcord/-/issues).
+- Open [merge requests](https://gitlab.desy.de/amarcord/amarcord/-/issues)
   - Try to create one issue per merge request, and link them together
   - If you’re frivolous enough, use [Gitmoji](https://gitmoji.dev) to categorize the issue
   - Prefix your commit message by the subsystem you touch. If it’s the frontend, call it `frontend: did something`, or `webserver: did something else`.
