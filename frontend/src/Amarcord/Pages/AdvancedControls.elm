@@ -14,12 +14,13 @@ import Amarcord.API.Requests
         )
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
+import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
 import Amarcord.Html exposing (div_, input_, onIntInput, p_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
-import Amarcord.IndexingParameters as IndexingParameters
+import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
-import Api.Data exposing (JsonDeleteRunOutput, JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
+import Api.Data exposing (JsonDeleteRunOutput, JsonReadOnlineIndexingParametersOutput, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Runs exposing (deleteRunApiRunsBeamtimeIdRunIdDelete, readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, label, li, option, p, select, text, ul)
@@ -48,7 +49,7 @@ type alias Model =
     , manualChange : Bool
     , bulkUpdateModel : RunsBulkUpdate.Model
     , beamtimeId : BeamtimeId
-    , onlineIndexingParameters : RemoteData HttpError IndexingParameters.Model
+    , onlineIndexingParameters : RemoteData HttpError IndexingParametersEdit.Model
     , updateOnlineIndexingParameters : RemoteData HttpError JsonUpdateOnlineIndexingParametersOutput
     , deleteRunRequest : RemoteData HttpError JsonDeleteRunOutput
     , deleteRunId : RunExternalId
@@ -71,13 +72,13 @@ type Msg
     | DeleteRunRequestDone (Result HttpError JsonDeleteRunOutput)
     | DeleteRunIdChanged (Maybe Int)
     | RunsReceived (Result HttpError JsonReadRunsOverview)
-    | IndexingParametersReceived (Result HttpError JsonIndexingParameters)
+    | IndexingParametersReceived (Result HttpError JsonReadOnlineIndexingParametersOutput)
     | Refresh Posix
     | RunIdChanged (Maybe Int)
     | RunsBulkUpdateMsg RunsBulkUpdate.Msg
     | CurrentExperimentTypeChanged Int
     | ExperimentIdChanged (Result HttpError JsonUserConfigurationSingleOutput)
-    | IndexingParametersMsg IndexingParameters.Msg
+    | IndexingParametersMsg IndexingParametersEdit.Msg
     | StartUpdateOnlineIndexingParameters
     | UpdateOnlineIndexingParametersDone (Result HttpError JsonUpdateOnlineIndexingParametersOutput)
 
@@ -169,20 +170,25 @@ update msg model =
         StartUpdateOnlineIndexingParameters ->
             case model.onlineIndexingParameters of
                 Success onlineIndexingParameters ->
-                    case IndexingParameters.toCommandLine onlineIndexingParameters of
+                    case IndexingParametersEdit.toCommandLine onlineIndexingParameters of
                         Err _ ->
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            ( { model | updateOnlineIndexingParameters = Loading }
-                            , send UpdateOnlineIndexingParametersDone
-                                (updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch model.beamtimeId
-                                    { commandLine = coparseCommandLine commandLine
-                                    , geometryFile = onlineIndexingParameters.geometryFile
-                                    , source = onlineIndexingParameters.source
-                                    }
-                                )
-                            )
+                            case IndexingParametersEdit.extractGeometryId onlineIndexingParameters of
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                                Just geometryId ->
+                                    ( { model | updateOnlineIndexingParameters = Loading }
+                                    , send UpdateOnlineIndexingParametersDone
+                                        (updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch model.beamtimeId
+                                            { commandLine = coparseCommandLine commandLine
+                                            , geometryId = geometryIdToInt geometryId
+                                            , source = onlineIndexingParameters.source
+                                            }
+                                        )
+                                    )
 
                 _ ->
                     ( model, Cmd.none )
@@ -192,7 +198,7 @@ update msg model =
                 Success onlineIndexingParameters ->
                     let
                         ( updatedIndexingParams, cmd ) =
-                            IndexingParameters.update paramsMsg onlineIndexingParameters
+                            IndexingParametersEdit.update paramsMsg onlineIndexingParameters
                     in
                     ( { model | onlineIndexingParameters = Success updatedIndexingParams }, Cmd.map IndexingParametersMsg cmd )
 
@@ -204,11 +210,20 @@ update msg model =
                 Err requestError ->
                     ( { model | onlineIndexingParameters = Failure requestError }, Cmd.none )
 
-                Ok { commandLine } ->
+                Ok { parameters, geometries } ->
                     -- Deliberately init "sources" empty, because then
                     -- we'll get an input field instead of a dropdown,
                     -- which makes sense. We don't know the source with online indexing yet
-                    case IndexingParameters.convertCommandLineToModel (IndexingParameters.init [] "" "" False) commandLine of
+                    case
+                        IndexingParametersEdit.convertCommandLineToModel
+                            (IndexingParametersEdit.init []
+                                ""
+                                (parameters.geometryId |> Maybe.map GeometryId)
+                                (List.map GeometryMetadata.fromJson geometries)
+                                False
+                            )
+                            parameters.commandLine
+                    of
                         Err e ->
                             ( { model | onlineIndexingParameters = Failure (BadJson e) }, Cmd.none )
 
@@ -362,7 +377,7 @@ viewOnlineIndexingParameters model =
 
             Success indexingParamFormModel ->
                 div_
-                    [ Html.map IndexingParametersMsg <| IndexingParameters.view indexingParamFormModel
+                    [ Html.map IndexingParametersMsg <| IndexingParametersEdit.view indexingParamFormModel
                     , div [ class "mb-3 hstack gap-3" ]
                         [ button [ type_ "button", class "btn btn-primary", onClick StartUpdateOnlineIndexingParameters ]
                             [ icon { name = "send" }, text " Update parameters" ]

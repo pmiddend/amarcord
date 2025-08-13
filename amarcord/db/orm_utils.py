@@ -4,8 +4,12 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from typing import AsyncGenerator
+from typing import Callable
 
 import magic
+import mstache
+import structlog
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,9 +18,12 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
+from amarcord.db.attributi import parse_schema_type
 from amarcord.db.attributi import schema_dict_to_attributo_type
+from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.attributi import utc_datetime_to_local_int
 from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -24,6 +31,7 @@ from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
@@ -32,9 +40,12 @@ from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
 from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
 from amarcord.db.constants import SPACE_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
+from amarcord.db.run_internal_id import RunInternalId
+from amarcord.error_message import ErrorMessage
 from amarcord.util import sha256_file
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonBeamtimeOutput
+from amarcord.web.json_models import JsonGeometryMetadata
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
 
@@ -58,8 +69,7 @@ def default_online_indexing_parameters() -> orm.IndexingParameters:
     return orm.IndexingParameters(
         is_online=True,
         cell_description="",
-        # empty means look for it in the current beam time
-        geometry_file="",
+        geometry_id=None,
         command_line="--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2"
         + " --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3"
         + " --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
@@ -686,3 +696,152 @@ def data_sets_are_equal(a: orm.DataSet, b: orm.DataSet) -> bool:
         if not av.is_value_equal(bv):
             return False
     return True
+
+
+async def all_geometry_metadatas(
+    session: AsyncSession, beamtime_id: BeamtimeId
+) -> list[JsonGeometryMetadata]:
+    return [
+        JsonGeometryMetadata(
+            id=geom.id,
+            name=geom.name,
+            created_local=utc_datetime_to_local_int(geom.created),
+        )
+        for geom in await session.scalars(
+            select(orm.Geometry).where(orm.Geometry.beamtime_id == beamtime_id)
+        )
+    ]
+
+
+async def run_attributo_value_to_template_replacement(
+    attributo: orm.Attributo, av: orm.RunHasAttributoValue
+) -> str:
+    attributo_type = schema_union_to_attributo_type(
+        parse_schema_type(attributo.json_schema)
+    )
+
+    match attributo_type:
+        case AttributoTypeInt():
+            return str(av.integer_value) if av.integer_value is not None else ""
+        case AttributoTypeBoolean():
+            return "true" if av.bool_value is not None else "false"
+        case AttributoTypeString() | AttributoTypeChoice():
+            return av.string_value if av.string_value is not None else ""
+        case AttributoTypeChemical():
+            return (
+                (await av.awaitable_attrs.chemical).name
+                if av.chemical_value is not None
+                else ""
+            )
+        case AttributoTypeDecimal():
+            return str(av.float_value) if av.float_value is not None else ""
+        case AttributoTypeDateTime():
+            return str(av.datetime_value) if av.datetime_value is not None else ""
+        case AttributoTypeList():
+            return (
+                ",".join(
+                    str(v) for v in (av.list_value if av.list_value is not None else [])
+                )
+                if av.datetime_value is not None
+                else ""
+            )
+
+
+async def generate_geometry_replacements(
+    run: orm.Run, geometry: orm.Geometry
+) -> AsyncGenerator[orm.GeometryTemplateReplacement, None]:
+    for attributo in await geometry.awaitable_attrs.attributi:
+        replacement_found = False
+        for run_attributo_value in run.attributo_values:
+            if run_attributo_value.attributo_id == attributo.id:
+                yield orm.GeometryTemplateReplacement(
+                    attributo_id=attributo.id,
+                    replacement=await run_attributo_value_to_template_replacement(
+                        attributo, run_attributo_value
+                    ),
+                )
+                replacement_found = True
+                break
+        # This could happen if we have an Attributo in the geometry which is unset in the run.
+        if not replacement_found:
+            yield orm.GeometryTemplateReplacement(
+                attributo_id=attributo.id,
+                replacement="",
+            )
+
+
+async def add_geometry_template_replacements_to_ir(
+    ir: orm.IndexingResult, run: orm.Run, geometry: orm.Geometry
+) -> None:
+    async for replacement in generate_geometry_replacements(run, geometry):
+        ir.template_replacements.append(replacement)
+
+
+def render_template(
+    content: str, template_replacements: list[orm.GeometryTemplateReplacement]
+) -> str:
+    attributo_values: dict[str, str | Callable[[str, Callable[[str], str]], str]] = {}
+    for r in template_replacements:
+        attributo_values[r.attributo.name] = r.replacement
+    return mstache.render(content, attributo_values)
+
+
+async def check_geometry_replacements_on_run_change(
+    logger: structlog.stdlib.BoundLogger,
+    session: AsyncSession,
+    run_ids: list[RunInternalId],
+    # Note: the attributo IDs here are attributi that have definitely
+    # _changed_. The function will fail or delete stuff if this change
+    # ripples down to indexing results.
+    attributo_ids: list[AttributoId],
+    delete_dependent_objects: bool,
+) -> int | ErrorMessage:
+    geometry_replacements_that_use_the_changed_attributi = list(
+        (
+            await session.scalars(
+                select(orm.GeometryTemplateReplacement)
+                .join(orm.GeometryTemplateReplacement.indexing_result)
+                .where(
+                    orm.GeometryTemplateReplacement.attributo_id.in_(attributo_ids)
+                    & (orm.IndexingResult.run_id.in_(run_ids))
+                )
+                .options(selectinload(orm.GeometryTemplateReplacement.indexing_result))
+                .options(selectinload(orm.GeometryTemplateReplacement.attributo))
+            )
+        ).all()
+    )
+
+    if geometry_replacements_that_use_the_changed_attributi:
+        if not delete_dependent_objects:
+            dependent_indexing_result_ids = set(
+                gr.indexing_result_id
+                for gr in geometry_replacements_that_use_the_changed_attributi
+            )
+            attributo_names = set(
+                gr.attributo.name
+                for gr in geometry_replacements_that_use_the_changed_attributi
+            )
+            error_prefix = "attributi" if len(attributo_names) > 1 else "attributo"
+            error_suffix = "are" if len(attributo_names) > 1 else "is"
+            return ErrorMessage(
+                f"The {error_prefix} "
+                + ", ".join(f'"{aname}"' for aname in attributo_names)
+                + f" {error_suffix} used in the geometries for the following indexing result(s): "
+                + ", ".join(f"{gr}" for gr in dependent_indexing_result_ids)
+                + ". You cannot just change the values without invalidating these indexing result(s). "
+                + 'If you are sure about it, you can select the "Delete dependent objects" checkbox and try again, but you will lose results.'
+            )
+        logger.info("Removing dependent objects")
+        indexing_result_ids: set[int] = set()
+        indexing_results: list[orm.IndexingResult] = []
+        for replacement in geometry_replacements_that_use_the_changed_attributi:
+            if replacement.indexing_result_id not in indexing_result_ids:
+                indexing_result_ids.add(replacement.indexing_result_id)
+                indexing_results.append(replacement.indexing_result)
+        for ir in indexing_results:
+            logger.info(f"removing indexing result {ir.id}")
+            await session.delete(ir)
+        deleted_object_count = len(indexing_results)
+    else:
+        deleted_object_count = 0
+    return deleted_object_count

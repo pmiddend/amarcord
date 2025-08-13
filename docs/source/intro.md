@@ -8,4 +8,10 @@ The target audience is *people doing serial crystallography*, be that *biologist
 
 ## I'm interested — where do I go from here?
 
-It's best you head to the [](QuickStart) section from here.
+That depends on how you want to use AMARCORD:
+
+- 👨‍💻 **Developer**: If you indend to extend AMARCORD, head over to the [](developer-guide)
+- 🧑‍🔬 **Scientist**: If you're a scientist (biologist, beamline scientist, ...) who want to use AMARCORD (at a beamline that already has it installed, for example), the [](UserGuide) is your best bet to start.
+- 🧑‍🔧 **Admin**: To learn how to install and maintain AMARCORD and its database, head over to the [](admin-guide)
+
+Finally, if you're *any* of these and just want to try out AMARCORD, head to the [](QuickStart) section.

@@ -17,6 +17,7 @@ from amarcord.web.router_data_sets import router as data_sets_router
 from amarcord.web.router_events import router as events_router
 from amarcord.web.router_experiment_types import router as experiment_types_router
 from amarcord.web.router_files import router as files_router
+from amarcord.web.router_geometry import router as geometry_router
 from amarcord.web.router_indexing import router as indexing_router
 from amarcord.web.router_merging import router as merging_router
 from amarcord.web.router_misc import router as misc_router
@@ -53,6 +54,7 @@ app.include_router(data_sets_router)
 app.include_router(events_router)
 app.include_router(experiment_types_router)
 app.include_router(files_router)
+app.include_router(geometry_router)
 app.include_router(indexing_router)
 app.include_router(merging_router)
 app.include_router(misc_router)

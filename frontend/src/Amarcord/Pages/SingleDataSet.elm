@@ -1,7 +1,7 @@
 module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingParametersId(..), IndexingParametersIdSet, IndexingResultId(..), emptyIndexingParametersIdSet, indexingParametersIdToString, indexingResultIdToString, insertIndexingParametersIdSet, memberIndexingParametersIdSet, removeIndexingParametersIdSet)
 import Amarcord.Attributo exposing (Attributo, AttributoType, ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), copyToClipboardButton, icon, loadingBar, viewAlert, viewHelpButton)
@@ -11,22 +11,25 @@ import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseComman
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.Crystallography exposing (cellDescriptionToString, cellDescriptionsAlmostEqualStrings)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.GeometryMetadata as GeometryMetadata exposing (GeometryMetadata, geometryIdToInt)
+import Amarcord.GeometryViewer as GeometryViewer
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, small_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
-import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
+import Amarcord.IndexingParametersEdit as IndexingParametersEdit
+import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
-import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
+import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributoOutput, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, label, li, nav, ol, small, span, sup, table, td, text, th, tr)
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, label, li, nav, ol, small, span, sup, table, td, text, th, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
+import List.Extra
 import Maybe
 import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
@@ -44,24 +47,29 @@ subscriptions _ =
     [ Time.every 10000 Refresh ]
 
 
-type alias IndexingParametersId =
-    Int
-
-
 type alias ProcessingParametersInput =
     { dataSetId : DataSetId
-    , indexingParamFormModel : IndexingParameters.Model
+    , indexingParamFormModel : IndexingParametersEdit.Model
     }
+
+
+
+-- type GeometryViewerPath
+--     = ParameterPath IndexingParametersId
+--     | ResultPath
+--         { parametersId : IndexingParametersId
+--         , resultIndex : IndexingResultId
+--         }
 
 
 type Msg
     = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
     | CopyToClipboard String
     | OpenMergeForm DataSetId IndexingParametersId String String String
-    | OpenProcessingFormWithExisting JsonIndexingParameters DataSetId
-    | ToggleIndexingParameterExpansion Int
-    | IndexingParametersMsg IndexingParameters.Msg
-    | ProcessingParametersWithExistingReceived JsonIndexingParameters DataSetId (Result HttpError JsonReadIndexingParametersOutput)
+    | OpenProcessingFormWithExisting IndexingParametersData DataSetId
+    | ToggleIndexingParameterExpansion IndexingParametersId
+    | IndexingParametersMsg IndexingParametersEdit.Msg
+    | ProcessingParametersWithExistingReceived IndexingParametersData DataSetId (Result HttpError JsonReadIndexingParametersOutput)
     | ProcessingParametersReceived (Result HttpError JsonReadIndexingParametersOutput)
     | SubmitQuickMerge DataSetId IndexingParametersId
     | ProcessingSubmitted (Result HttpError JsonCreateIndexingForDataSetOutput)
@@ -75,7 +83,11 @@ type Msg
     | ToggleAccordionShowModelParameters MergeResultId
     | OpenProcessingForm Int
     | CancelProcessing
-    | ToggleShowErroneous Int
+    | ToggleShowErroneous IndexingParametersId
+
+
+
+-- | GeometryViewerMsg GeometryViewerPath GeometryViewer.Msg
 
 
 type SelectedMergeResult
@@ -97,8 +109,250 @@ type alias ActivatedMergeForm =
 
 type alias MergeRequest =
     { dataSetId : Int
-    , indexingParametersId : Int
+    , indexingParametersId : IndexingParametersId
     , request : RemoteData HttpError JsonQueueMergeJobOutput
+    }
+
+
+type alias SingleDataSetResults =
+    { attributi : List JsonAttributoOutput
+    , chemicalIdToName : List JsonChemicalIdAndName
+    , experimentType : JsonExperimentType
+    , dataSet : DataSetWithIndexingResults
+    , geometries : List GeometryMetadata
+    }
+
+
+type alias IndexingParametersData =
+    { id : IndexingParametersId
+    , cellDescription : Maybe String
+    , isOnline : Bool
+    , commandLine : String
+    , geometry : GeometryViewer.Model
+    }
+
+
+type alias IndexingResult =
+    { id : IndexingResultId
+    , created : Int
+    , createdLocal : Int
+    , started : Maybe Int
+    , startedLocal : Maybe Int
+    , stopped : Maybe Int
+    , stoppedLocal : Maybe Int
+    , parameters : JsonIndexingParameters
+    , streamFile : String
+    , programVersion : String
+    , runInternalId : Int
+    , runExternalId : Int
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , indexedCrystals : Int
+    , status : DBJobStatus
+    , alignDetectorGroups : List JsonAlignDetectorGroup
+    , generatedGeometry : GeometryViewer.Model
+    , unitCellHistogramsFileId : Maybe Int
+    , hasError : Bool
+    , templateReplacements : List ( String, String )
+    }
+
+
+type alias IndexingParametersWithResults =
+    { parameters : IndexingParametersData
+    , indexingResults : List IndexingResult
+    , mergeResults : List JsonMergeResult
+    }
+
+
+type alias DataSetWithIndexingResults =
+    { dataSet : JsonDataSet
+    , internalRunIds : List Int
+    , runs : List JsonRunRange
+    , pointGroup : String
+    , spaceGroup : String
+    , cellDescription : String
+    , indexingResults : List IndexingParametersWithResults
+    }
+
+
+convertAnalysisResultsWithPrevious : JsonReadSingleDataSetResults -> SingleDataSetResults
+convertAnalysisResultsWithPrevious { attributi, chemicalIdToName, experimentType, dataSet, geometries } =
+    let
+        geometryIdToMetadata : Dict Int GeometryMetadata
+        geometryIdToMetadata =
+            List.foldr (\geom -> Dict.insert geom.id (GeometryMetadata.fromJson geom)) Dict.empty geometries
+
+        -- convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData -> Maybe IndexingParametersData
+        -- convertIndexingParameters ip priorParameters =
+        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData
+        convertIndexingParameters ip =
+            -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
+            ip.id
+                |> Maybe.map
+                    (\ipId ->
+                        { id = IndexingParametersId ipId
+                        , cellDescription = ip.cellDescription
+                        , isOnline = ip.isOnline
+                        , commandLine = ip.commandLine
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init Nothing
+                        }
+                    )
+
+        -- convertIndexingResult : JsonIndexingResult -> Maybe IndexingResult -> IndexingResult
+        -- convertIndexingResult ir priorResult =
+        convertIndexingResult : JsonIndexingResult -> IndexingResult
+        convertIndexingResult ir =
+            -- Prior parameters left in here because we might need it for a more intelligent geometry viewer
+            { id = IndexingResultId ir.id
+            , created = ir.created
+            , createdLocal = ir.createdLocal
+            , started = ir.started
+            , startedLocal = ir.startedLocal
+            , stopped = ir.stopped
+            , stoppedLocal = ir.stoppedLocal
+            , parameters = ir.parameters
+            , streamFile = ir.streamFile
+            , programVersion = ir.programVersion
+            , runInternalId = ir.runInternalId
+            , runExternalId = ir.runExternalId
+            , frames = ir.frames
+            , hits = ir.hits
+            , indexedFrames = ir.indexedFrames
+            , indexedCrystals = ir.indexedCrystals
+            , status = ir.status
+            , alignDetectorGroups = ir.alignDetectorGroups
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init (Just (IndexingResultId ir.id))
+            , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
+            , hasError = ir.hasError
+            , templateReplacements = List.map (\{ placeholderName, placeholderReplacement } -> ( placeholderName, placeholderReplacement )) ir.geometryPlaceholderReplacements
+            }
+
+        -- convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults -> Maybe IndexingParametersWithResults
+        -- convertIndexingParametersWithResults ipr iprPriorMaybe =
+        convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults
+        convertIndexingParametersWithResults ipr =
+            -- convertIndexingParameters ipr.parameters (iprPriorMaybe |> Maybe.map .parameters)
+            convertIndexingParameters ipr.parameters
+                |> Maybe.map
+                    (\parameters ->
+                        { parameters = parameters
+                        , indexingResults =
+                            List.map
+                                (convertIndexingResult
+                                 -- convertIndexingResult
+                                 --     ir
+                                 --     (iprPriorMaybe
+                                 --         |> Maybe.andThen
+                                 --             (\iprPrior -> List.Extra.find (\irPrior -> irPrior.id == IndexingResultId ir.id) iprPrior.indexingResults)
+                                 --     )
+                                )
+                                ipr.indexingResults
+                        , mergeResults = ipr.mergeResults
+                        }
+                    )
+
+        convertDataSet : JsonDataSetWithIndexingResults -> DataSetWithIndexingResults
+        convertDataSet ds =
+            { dataSet = ds.dataSet
+            , internalRunIds = ds.internalRunIds
+            , runs = ds.runs
+            , pointGroup = ds.pointGroup
+            , spaceGroup = ds.spaceGroup
+            , cellDescription = ds.cellDescription
+            , indexingResults =
+                List.filterMap
+                    (convertIndexingParametersWithResults
+                     -- convertIndexingParametersWithResults ir
+                     --     (List.Extra.find
+                     --         (\priorIr -> Just priorIr.parameters.id == Maybe.map IndexingParametersId ir.parameters.id)
+                     --         prior.dataSet.indexingResults
+                     --     )
+                    )
+                    ds.indexingResults
+            }
+    in
+    { attributi = attributi
+    , chemicalIdToName = chemicalIdToName
+    , experimentType = experimentType
+    , dataSet = convertDataSet dataSet
+    , geometries = List.map GeometryMetadata.fromJson geometries
+    }
+
+
+convertAnalysisResults : JsonReadSingleDataSetResults -> SingleDataSetResults
+convertAnalysisResults { attributi, chemicalIdToName, experimentType, dataSet, geometries } =
+    let
+        geometryIdToMetadata : Dict Int GeometryMetadata
+        geometryIdToMetadata =
+            List.foldr (\geom -> Dict.insert geom.id (GeometryMetadata.fromJson geom)) Dict.empty geometries
+
+        convertIndexingParameters : JsonIndexingParameters -> Maybe IndexingParametersData
+        convertIndexingParameters ip =
+            ip.id
+                |> Maybe.map
+                    (\id ->
+                        { id = IndexingParametersId id
+                        , cellDescription = ip.cellDescription
+                        , isOnline = ip.isOnline
+                        , commandLine = ip.commandLine
+                        , geometry = ip.geometryId |> Maybe.andThen (\geomId -> Dict.get geomId geometryIdToMetadata) |> GeometryViewer.init Nothing
+                        }
+                    )
+
+        convertIndexingResult : JsonIndexingResult -> IndexingResult
+        convertIndexingResult ir =
+            { id = IndexingResultId ir.id
+            , created = ir.created
+            , createdLocal = ir.createdLocal
+            , started = ir.started
+            , startedLocal = ir.startedLocal
+            , stopped = ir.stopped
+            , stoppedLocal = ir.stoppedLocal
+            , parameters = ir.parameters
+            , streamFile = ir.streamFile
+            , programVersion = ir.programVersion
+            , runInternalId = ir.runInternalId
+            , runExternalId = ir.runExternalId
+            , frames = ir.frames
+            , hits = ir.hits
+            , indexedFrames = ir.indexedFrames
+            , indexedCrystals = ir.indexedCrystals
+            , status = ir.status
+            , alignDetectorGroups = ir.alignDetectorGroups
+            , generatedGeometry = ir.generatedGeometryId |> Maybe.andThen (\id -> Dict.get id geometryIdToMetadata) |> GeometryViewer.init Nothing
+            , unitCellHistogramsFileId = ir.unitCellHistogramsFileId
+            , hasError = ir.hasError
+            , templateReplacements = List.map (\{ placeholderName, placeholderReplacement } -> ( placeholderName, placeholderReplacement )) ir.geometryPlaceholderReplacements
+            }
+
+        convertIndexingParametersWithResults : JsonIndexingParametersWithResults -> Maybe IndexingParametersWithResults
+        convertIndexingParametersWithResults ipr =
+            convertIndexingParameters ipr.parameters
+                |> Maybe.map
+                    (\parameters ->
+                        { parameters = parameters
+                        , indexingResults = List.map convertIndexingResult ipr.indexingResults
+                        , mergeResults = ipr.mergeResults
+                        }
+                    )
+
+        convertDataSet : JsonDataSetWithIndexingResults -> DataSetWithIndexingResults
+        convertDataSet ds =
+            { dataSet = ds.dataSet
+            , internalRunIds = ds.internalRunIds
+            , runs = ds.runs
+            , pointGroup = ds.pointGroup
+            , spaceGroup = ds.spaceGroup
+            , cellDescription = ds.cellDescription
+            , indexingResults = List.filterMap convertIndexingParametersWithResults ds.indexingResults
+            }
+    in
+    { attributi = attributi
+    , chemicalIdToName = chemicalIdToName
+    , experimentType = experimentType
+    , dataSet = convertDataSet dataSet
+    , geometries = List.map GeometryMetadata.fromJson geometries
     }
 
 
@@ -107,7 +361,7 @@ type alias Model =
     , navKey : Nav.Key
     , processingParametersRequest : RemoteData HttpError JsonReadIndexingParametersOutput
     , submitProcessingRequest : RemoteData HttpError JsonCreateIndexingForDataSetOutput
-    , analysisRequest : RemoteData HttpError JsonReadSingleDataSetResults
+    , analysisRequest : RemoteData HttpError SingleDataSetResults
     , activatedMergeForm : Maybe ActivatedMergeForm
     , mergeRequest : Maybe MergeRequest
     , selectedMergeResult : SelectedMergeResult
@@ -115,8 +369,8 @@ type alias Model =
     , beamtimeId : BeamtimeId
     , dataSetId : DataSetId
     , currentProcessingParameters : Maybe ProcessingParametersInput
-    , expandedIndexingParameterIds : Set Int
-    , showErroneousIndexingJobs : Set Int
+    , expandedIndexingParameterIds : IndexingParametersIdSet
+    , showErroneousIndexingJobs : IndexingParametersIdSet
     }
 
 
@@ -144,8 +398,8 @@ init navKey hereAndNow beamtimeId dataSetId =
       , expandedMergeResultIds = Set.empty
       , beamtimeId = beamtimeId
       , currentProcessingParameters = Nothing
-      , expandedIndexingParameterIds = Set.empty
-      , showErroneousIndexingJobs = Set.empty
+      , expandedIndexingParameterIds = emptyIndexingParametersIdSet
+      , showErroneousIndexingJobs = emptyIndexingParametersIdSet
       }
     , send AnalysisResultsReceived (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId dataSetId)
     )
@@ -441,15 +695,15 @@ viewRate part total =
         ]
 
 
-viewIndexingResults : Posix -> Bool -> List JsonIndexingResult -> Html Msg
-viewIndexingResults now showErroneous results =
+viewIndexingResults : Posix -> Bool -> IndexingParametersData -> List IndexingResult -> Html Msg
+viewIndexingResults now showErroneous parameters results =
     let
         tableHeaders : List String
         tableHeaders =
             [ "IID", "Run", "Status", "Frames", "Hits", "Ixed" ]
 
         viewHistogram fileId =
-            div [ class "col" ]
+            div [ class "col w-75" ]
                 [ a
                     [ href (makeFilesLink fileId Nothing)
                     ]
@@ -476,8 +730,8 @@ viewIndexingResults now showErroneous results =
                     started
                 )
 
-        viewIndexingResultRow : JsonIndexingResult -> List (Html Msg)
-        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometryFile } =
+        viewIndexingResultRow : IndexingResult -> List (Html Msg)
+        viewIndexingResultRow { id, runExternalId, hasError, status, started, stopped, streamFile, programVersion, frames, hits, indexedFrames, alignDetectorGroups, unitCellHistogramsFileId, generatedGeometry, templateReplacements } =
             if showErroneous || not hasError then
                 [ tr
                     [ class
@@ -488,7 +742,7 @@ viewIndexingResults now showErroneous results =
                             ""
                         )
                     ]
-                    [ td_ [ text (String.fromInt id) ]
+                    [ td_ [ text (indexingResultIdToString id) ]
                     , td_ [ text (String.fromInt runExternalId) ]
                     , td [ class "text-nowrap" ]
                         (viewJobStatus hasError status
@@ -532,76 +786,133 @@ viewIndexingResults now showErroneous results =
                     ]
                     [ td_ []
                     , td [ colspan 5 ]
-                        [ div_
-                            [ span [ class "hstack gap-1" ]
-                                [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
-                                , if hasError then
-                                    a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
+                        [ table [ class "table table-sm table-borderless" ]
+                            [ let
+                                logsRow =
+                                    tr_
+                                        [ td_ [ strongText "Logs" ]
+                                        , td_
+                                            [ span [ class "hstack gap-1" ]
+                                                [ a [ href (makeIndexingIdLogLink id) ] [ icon { name = "link-45deg" }, text " Job log" ]
+                                                , if hasError then
+                                                    a [ href (makeIndexingIdErrorLogLink id) ] [ icon { name = "link-45deg" }, text "Error log" ]
 
-                                  else
-                                    text ""
-                                ]
-                            ]
-                        , div_ <|
-                            List.map
-                                (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
-                                    div_
-                                        [ strongText "Detector shift: "
-                                        , text
-                                            (formatFloatHumanFriendly xTranslationMm
-                                                ++ "mm, "
-                                                ++ formatFloatHumanFriendly yTranslationMm
-                                                ++ "mm"
-                                                ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
-                                            )
+                                                  else
+                                                    text ""
+                                                ]
+                                            ]
                                         ]
-                                )
-                                alignDetectorGroups
-                        , case
-                            List.head
-                                (List.filterMap
-                                    (\{ xRotationDeg, yRotationDeg } ->
-                                        Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg
-                                    )
-                                    alignDetectorGroups
-                                )
-                          of
-                            Nothing ->
-                                text ""
 
-                            Just ( x, y ) ->
-                                div_
-                                    [ strongText "Detector rotation: "
-                                    , text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°")
-                                    ]
-                        , if String.isEmpty programVersion then
-                            text ""
+                                geometryParameterRows =
+                                    if List.isEmpty templateReplacements then
+                                        []
 
-                          else
-                            div_ [ strongText "CrystFEL version: ", text programVersion ]
-                        , div_
-                            [ strongText "Stream file: "
-                            , br_
-                            , span [ class "text-break" ] [ text streamFile ]
-                            , copyToClipboardButton (CopyToClipboard streamFile)
+                                    else
+                                        case GeometryViewer.extractId parameters.geometry of
+                                            Nothing ->
+                                                []
+
+                                            Just geometryId ->
+                                                let
+                                                    replacementOrEmpty replacement =
+                                                        if String.isEmpty (String.trim replacement) then
+                                                            em_ [ text "empty" ]
+
+                                                        else
+                                                            text replacement
+                                                in
+                                                [ tr_
+                                                    [ td_ [ strongText "Geometry placeholders" ]
+                                                    , td_
+                                                        [ ul [ class "mb-0" ]
+                                                            (List.map
+                                                                (\( attributoName, replacement ) ->
+                                                                    li_ [ text (attributoName ++ " → "), replacementOrEmpty replacement ]
+                                                                )
+                                                                templateReplacements
+                                                            )
+                                                        ]
+                                                    ]
+                                                , tr_
+                                                    [ td_ [ strongText "Input geometry" ]
+                                                    , td_
+                                                        [ a
+                                                            [ href
+                                                                (makeGeometryLink geometryId (Just id))
+                                                            ]
+                                                            [ icon { name = "link-45deg" }, text " View" ]
+                                                        ]
+                                                    ]
+                                                ]
+
+                                shiftsRows =
+                                    List.map
+                                        (\{ xTranslationMm, yTranslationMm, zTranslationMm } ->
+                                            tr_
+                                                [ td_ [ strongText "Detector shift" ]
+                                                , td_
+                                                    [ text
+                                                        (formatFloatHumanFriendly xTranslationMm
+                                                            ++ "mm, "
+                                                            ++ formatFloatHumanFriendly yTranslationMm
+                                                            ++ "mm"
+                                                            ++ Maybe.withDefault "" (Maybe.map (\z -> ", " ++ formatFloatHumanFriendly z ++ "mm") zTranslationMm)
+                                                        )
+                                                    ]
+                                                ]
+                                        )
+                                        alignDetectorGroups
+
+                                rotationRows =
+                                    case List.head (List.filterMap (\{ xRotationDeg, yRotationDeg } -> Maybe.map2 (\x y -> ( x, y )) xRotationDeg yRotationDeg) alignDetectorGroups) of
+                                        Nothing ->
+                                            []
+
+                                        Just ( x, y ) ->
+                                            [ tr_
+                                                [ td_ [ strongText "Detector rotation" ]
+                                                , td_ [ text (formatFloatHumanFriendly x ++ "°, " ++ formatFloatHumanFriendly y ++ "°") ]
+                                                ]
+                                            ]
+
+                                programVersionRow =
+                                    if String.isEmpty programVersion then
+                                        []
+
+                                    else
+                                        [ tr_ [ td_ [ strongText "CrystFEL version" ], td_ [ text programVersion ] ] ]
+
+                                streamFileRow =
+                                    if String.isEmpty streamFile then
+                                        []
+
+                                    else
+                                        [ tr_
+                                            [ td_ [ strongText "Stream file" ]
+                                            , td_
+                                                [ span [ class "text-break" ] [ text streamFile ]
+                                                , copyToClipboardButton (CopyToClipboard streamFile)
+                                                ]
+                                            ]
+                                        ]
+
+                                generatedGeometryRow =
+                                    if Maybe.Extra.isJust (GeometryViewer.extractId generatedGeometry) then
+                                        -- [ Html.map (GeometryViewerMsg (ResultPath { parametersId = parameters.id, resultIndex = id })) (tr_ [ td_ [ strongText "Generated geometry" ], td_ [ GeometryViewer.view generatedGeometry ] ]) ]
+                                        [ tr_ [ td_ [ strongText "Generated geometry" ], td_ [ GeometryViewer.view generatedGeometry ] ] ]
+
+                                    else
+                                        []
+                              in
+                              tbody_ (logsRow :: geometryParameterRows ++ shiftsRows ++ rotationRows ++ programVersionRow ++ streamFileRow ++ generatedGeometryRow)
                             ]
-                        , if String.isEmpty generatedGeometryFile then
-                            text ""
-
-                          else
-                            div_
-                                [ strongText "Geometry file: "
-                                , br_
-                                , span [ class "text-break" ] [ text generatedGeometryFile ]
-                                , copyToClipboardButton (CopyToClipboard generatedGeometryFile)
-                                ]
                         , case unitCellHistogramsFileId of
                             Nothing ->
                                 text ""
 
                             Just ucFileId ->
                                 div_
-                                    [ strongText "Unit cell histograms"
+                                    [ strongText "Unit cell histograms: "
                                     , viewHistogram ucFileId
                                     ]
                         ]
@@ -617,7 +928,7 @@ viewIndexingResults now showErroneous results =
         ]
 
 
-mergeActions : Bool -> JsonDataSet -> JsonIndexingParameters -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
+mergeActions : Bool -> JsonDataSet -> IndexingParametersData -> Maybe MergeRequest -> String -> String -> String -> IndexingParametersId -> Html Msg
 mergeActions isActive dataSet indexingParameters mergeRequest cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParametersId =
     let
         mergeRequestIsLoading : Maybe MergeRequest -> Bool
@@ -883,7 +1194,7 @@ viewCommandLineDiff priorCmdLine newCmdLine =
                         ]
 
 
-viewRowDiff : JsonIndexingParameters -> JsonIndexingParameters -> Html msg
+viewRowDiff : IndexingParametersData -> IndexingParametersData -> Html msg
 viewRowDiff pparams params =
     let
         viewCellDescription d =
@@ -901,8 +1212,8 @@ viewRowDiff pparams params =
     tr_
         [ td [ colspan 5 ]
             [ div [ class "alert alert-dark" ]
-                [ if pparams.geometryFile /= params.geometryFile then
-                    div_ [ em_ [ text "Geometry file changed" ] ]
+                [ if pparams.geometry /= params.geometry then
+                    div_ [ em_ [ text "Geometry changed" ] ]
 
                   else
                     text ""
@@ -938,13 +1249,13 @@ viewSingleIndexingResultRow :
     -> String
     -> String
     -> String
-    -> Maybe JsonIndexingParametersWithResults
-    -> JsonIndexingParametersWithResults
+    -> Maybe IndexingParametersWithResults
+    -> IndexingParametersWithResults
     -> List (Html Msg)
 viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs priorParametersAndResults ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
-            Set.member parametersId model.expandedIndexingParameterIds
+            memberIndexingParametersIdSet parametersId model.expandedIndexingParameterIds
 
         hasJobsInProgress =
             List.any (\{ status } -> status == DBJobStatusRunning || status == DBJobStatusQueued) indexingResults
@@ -984,69 +1295,63 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
                     ]
                 , processingInProgressButton
                 ]
+
+        successfulResults : List IndexingResult
+        successfulResults =
+            List.filter (\ir -> not ir.hasError) indexingResults
+
+        frames : Int
+        frames =
+            List.foldr (\new old -> new.frames + old) 0 successfulResults
+
+        hits : Int
+        hits =
+            List.foldr (\new old -> new.hits + old) 0 successfulResults
+
+        indexedFrames : Int
+        indexedFrames =
+            List.foldr (\new old -> new.indexedFrames + old) 0 successfulResults
+
+        priorRowDiff =
+            case priorParametersAndResults of
+                Nothing ->
+                    text ""
+
+                Just priorParametersAndResultsReal ->
+                    viewRowDiff priorParametersAndResultsReal.parameters parameters
     in
-    case parameters.id of
-        Nothing ->
-            []
-
-        Just parametersId ->
-            let
-                successfulResults : List JsonIndexingResult
-                successfulResults =
-                    List.filter (\ir -> not ir.hasError) indexingResults
-
-                frames : Int
-                frames =
-                    List.foldr (\new old -> new.frames + old) 0 successfulResults
-
-                hits : Int
-                hits =
-                    List.foldr (\new old -> new.hits + old) 0 successfulResults
-
-                indexedFrames : Int
-                indexedFrames =
-                    List.foldr (\new old -> new.indexedFrames + old) 0 successfulResults
-
-                priorRowDiff =
-                    case priorParametersAndResults of
-                        Nothing ->
-                            text ""
-
-                        Just priorParametersAndResultsReal ->
-                            viewRowDiff priorParametersAndResultsReal.parameters parameters
-            in
-            [ priorRowDiff
-            , tr_
-                [ td_ [ text (String.fromInt parametersId) ]
-                , td_ [ createRunRanges model.beamtimeId (List.map .runExternalId successfulResults) ]
-                , td_ [ text (formatIntHumanFriendly frames) ]
-                , td_ [ text (formatIntHumanFriendly hits) ]
-                , td_ [ text (formatIntHumanFriendly indexedFrames) ]
-                ]
-            , if Set.member parametersId model.expandedIndexingParameterIds then
-                tr [ id ("indexing-params" ++ String.fromInt parametersId) ]
-                    [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
-                        [ div_ [ hideShowDetailsButton parametersId ]
-                        , div [ class "border shadow-sm p-3 bg-light" ] [ viewSingleIndexing model dataSet p ]
-                        ]
-                    ]
-
-              else
-                tr_ [ td [ colspan (List.length indexingAndMergeResultHeaders) ] [ div_ [ hideShowDetailsButton parametersId ] ] ]
-            , tr_
-                [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
-                    [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model
-                        experimentType
-                        dataSet
-                        cellDescriptionForDs
-                        pointGroupForDs
-                        spaceGroupForDs
-                        parameters
-                        mergeResults
-                    ]
+    [ priorRowDiff
+    , tr_
+        [ td_ [ text (indexingParametersIdToString parameters.id) ]
+        , td_ [ createRunRanges model.beamtimeId (List.map .runExternalId successfulResults) ]
+        , td_ [ text (formatIntHumanFriendly frames) ]
+        , td_ [ text (formatIntHumanFriendly hits) ]
+        , td_ [ text (formatIntHumanFriendly indexedFrames) ]
+        ]
+    , if memberIndexingParametersIdSet parameters.id model.expandedIndexingParameterIds then
+        tr [ id ("indexing-params" ++ indexingParametersIdToString parameters.id) ]
+            [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
+                [ div_ [ hideShowDetailsButton parameters.id ]
+                , div [ class "border shadow-sm p-3 bg-light" ] [ viewSingleIndexing model dataSet p ]
                 ]
             ]
+
+      else
+        tr_ [ td [ colspan (List.length indexingAndMergeResultHeaders) ] [ div_ [ hideShowDetailsButton parameters.id ] ] ]
+    , tr_
+        [ td [ colspan (List.length indexingAndMergeResultHeaders), class "ps-5" ]
+            [ h5_ [ text "Merge Results" ]
+            , viewMergeResults model
+                experimentType
+                dataSet
+                cellDescriptionForDs
+                pointGroupForDs
+                spaceGroupForDs
+                parameters
+                mergeResults
+            ]
+        ]
+    ]
 
 
 indexingAndMergeResultHeaders : List (Html msg)
@@ -1054,7 +1359,7 @@ indexingAndMergeResultHeaders =
     List.map text [ "PID", "Runs", "Frames", "Hits", "Ixed" ]
 
 
-viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List IndexingParametersWithResults -> String -> String -> String -> Html Msg
 viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
@@ -1102,23 +1407,21 @@ viewMergeResultsTable model experimentType mergeResults =
             ]
 
 
-viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> String -> String -> String -> IndexingParametersData -> List JsonMergeResult -> Html Msg
 viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs indexingParameters mergeResults =
     div [ style "margin-bottom" "4rem" ] <|
-        [ viewMaybe
-            (mergeActions
-                (isJust model.activatedMergeForm)
-                dataSet
-                indexingParameters
-                model.mergeRequest
-                cellDescriptionForDs
-                pointGroupForDs
-                spaceGroupForDs
-            )
+        [ mergeActions
+            (isJust model.activatedMergeForm)
+            dataSet
+            indexingParameters
+            model.mergeRequest
+            cellDescriptionForDs
+            pointGroupForDs
+            spaceGroupForDs
             indexingParameters.id
         , viewMaybe
             (\{ mergeParameters } ->
-                viewIfLazy (Just mergeParameters.indexingParametersId == indexingParameters.id)
+                viewIfLazy (mergeParameters.indexingParametersId == indexingParameters.id)
                     (\_ ->
                         div_
                             [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
@@ -1138,7 +1441,7 @@ viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupFor
             model.activatedMergeForm
         , viewMaybe
             (\{ request, dataSetId, indexingParametersId } ->
-                viewIf (dataSetId == dataSet.id && Just indexingParametersId == indexingParameters.id) <|
+                viewIf (dataSetId == dataSet.id && indexingParametersId == indexingParameters.id) <|
                     case request of
                         Failure e ->
                             div_ [ viewAlert [ AlertDanger ] [ showError e ] ]
@@ -1151,7 +1454,7 @@ viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupFor
         ]
 
 
-viewSingleIndexing : Model -> JsonDataSet -> JsonIndexingParametersWithResults -> Html Msg
+viewSingleIndexing : Model -> JsonDataSet -> IndexingParametersWithResults -> Html Msg
 viewSingleIndexing model dataSet { parameters, indexingResults } =
     div_
         [ dl [ class "row" ]
@@ -1185,16 +1488,13 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                             , copyToClipboardButton (CopyToClipboard cellDescription)
                             ]
                 ]
-            , dt [ class "col-3" ] [ text "Geometry file" ]
+            , dt [ class "col-3" ] [ text "Geometry" ]
             , dd [ class "col-9" ]
-                [ if String.isEmpty parameters.geometryFile then
-                    text "auto-detect"
-
-                  else
-                    span [ class "d-flex text-break" ]
-                        [ text parameters.geometryFile
-                        , copyToClipboardButton (CopyToClipboard parameters.geometryFile)
-                        ]
+                -- [ Html.map
+                --     (GeometryViewerMsg (ParameterPath parameters.id))
+                --     (GeometryViewer.view parameters.geometry)
+                -- ]
+                [ GeometryViewer.view parameters.geometry
                 ]
             ]
         , p_
@@ -1214,22 +1514,31 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
             , div [ class "form-text mb-3" ] [ small [] [ text "If you want to reprocess with slightly different parameters, instead of starting from scratch, this button is the right one for you." ] ]
             ]
         , h5_ [ text "Indexing Results per Run" ]
-        , div [ class "form-check" ]
-            [ input_
-                [ class "form-check-input"
-                , type_ "checkbox"
-                , id ("show-erroneous" ++ String.fromInt (Maybe.withDefault 0 parameters.id))
-                , onClick (ToggleShowErroneous (Maybe.withDefault 0 parameters.id))
+        , let
+            numberOfErroneous =
+                List.Extra.count (\ir -> ir.hasError) indexingResults
+          in
+          if numberOfErroneous == 0 then
+            text ""
+
+          else
+            div [ class "form-check" ]
+                [ input_
+                    [ class "form-check-input"
+                    , type_ "checkbox"
+                    , id ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                    , onClick (ToggleShowErroneous parameters.id)
+                    ]
+                , label
+                    [ for ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                    , class "form-check-label"
+                    ]
+                    [ text ("Show " ++ String.fromInt numberOfErroneous ++ " erroneous indexing job(s)") ]
                 ]
-            , label
-                [ for ("show-erroneous" ++ String.fromInt (Maybe.withDefault 0 parameters.id))
-                , class "form-check-label"
-                ]
-                [ text "Show erroneous indexing jobs" ]
-            ]
         , viewIndexingResults
             model.hereAndNow.now
-            (Set.member (Maybe.withDefault 0 parameters.id) model.showErroneousIndexingJobs || List.all (\ir -> ir.hasError) indexingResults)
+            (memberIndexingParametersIdSet parameters.id model.showErroneousIndexingJobs || List.all (\ir -> ir.hasError) indexingResults)
+            parameters
             indexingResults
         ]
 
@@ -1247,16 +1556,17 @@ viewProcessingParameterForm model { indexingParamFormModel } =
             , em_ [ text "indexamajig" ]
             , text " takes a list of diffraction snapshots from crystals in random orientations and attempts to find peaks, index and integrate each one."
             ]
-        , Html.map IndexingParametersMsg <| IndexingParameters.view indexingParamFormModel
-        , div [ class "hstack gap-3 mb-3" ]
+        , Html.map IndexingParametersMsg <| IndexingParametersEdit.view indexingParamFormModel
+        , div [ class "hstack gap-3" ]
             [ button
                 [ type_ "button"
                 , class "btn btn-primary"
                 , onClick SubmitProcessing
                 , disabled
                     (isLoading model.submitProcessingRequest
-                        || Result.Extra.isErr (IndexingParameters.toCommandLine indexingParamFormModel)
-                        || IndexingParameters.isEditOpen indexingParamFormModel
+                        || Result.Extra.isErr (IndexingParametersEdit.toCommandLine indexingParamFormModel)
+                        || IndexingParametersEdit.isEditOpen indexingParamFormModel
+                        || IndexingParametersEdit.noGeometrySelected indexingParamFormModel
                     )
                 ]
                 [ viewSpinnerOrIcon model.submitProcessingRequest
@@ -1270,10 +1580,20 @@ viewProcessingParameterForm model { indexingParamFormModel } =
                 ]
                 [ icon { name = "x-lg" }, text " Cancel" ]
             ]
+        , if IndexingParametersEdit.noGeometrySelected indexingParamFormModel then
+            div [ class "form-text" ] [ small_ [ text "Please select a geometry." ] ]
+
+          else
+            text ""
+        , if IndexingParametersEdit.isEditOpen indexingParamFormModel then
+            div [ class "form-text" ] [ small_ [ text "Please finish editing the parameters." ] ]
+
+          else
+            text ""
         , case model.submitProcessingRequest of
             Failure e ->
                 viewAlert [ AlertDanger ] <|
-                    [ h4 [ class "alert-heading" ]
+                    [ h4 [ class "alert-heading mt-3" ]
                         [ text "Failed to start processing job. Read the error message carefully!"
                         ]
                     , showError e
@@ -1313,7 +1633,7 @@ viewDataSetProcessingButtons model dataSet =
             text ""
 
 
-viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> String -> String -> String -> Html Msg
+viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List IndexingParametersWithResults -> String -> String -> String -> Html Msg
 viewProcessingResultsForDataSet model experimentType dataSet indexingResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     div_
         [ viewDataSetProcessingButtons model dataSet
@@ -1353,7 +1673,7 @@ viewDataSet :
     -> JsonExperimentType
     -> List (Attributo AttributoType)
     -> ChemicalNameDict
-    -> JsonDataSetWithIndexingResults
+    -> DataSetWithIndexingResults
     -> List (Html Msg)
 viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults, cellDescription, pointGroup, spaceGroup } =
     [ h4 [ class "mt-3" ] [ text "Data Set Metadata" ]
@@ -1474,14 +1794,78 @@ possiblyRefresh model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- GeometryViewerMsg path subMsg ->
+        --     case model.analysisRequest of
+        --         Success analysisRequestSuccess ->
+        --             case path of
+        --                 ParameterPath parameterId ->
+        --                     let
+        --                         changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
+        --                         changeIndexingParamsAndResult ir =
+        --                             if ir.parameters.id == parameterId then
+        --                                 let
+        --                                     ( newViewer, viewerCmds ) =
+        --                                         GeometryViewer.update subMsg ir.parameters.geometry
+        --                                     oldParameters =
+        --                                         ir.parameters
+        --                                     newParameters =
+        --                                         { oldParameters | geometry = newViewer }
+        --                                 in
+        --                                 ( { ir | parameters = newParameters }, Cmd.map (GeometryViewerMsg path) viewerCmds )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
+        --                         newParamsAndIndexingResults =
+        --                             List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
+        --                         oldDataSet =
+        --                             analysisRequestSuccess.dataSet
+        --                         newRequest : SingleDataSetResults
+        --                         newRequest =
+        --                             { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
+        --                     in
+        --                     ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
+        --                 ResultPath { parametersId, resultIndex } ->
+        --                     let
+        --                         changeIndexingResult : IndexingResult -> ( IndexingResult, Cmd Msg )
+        --                         changeIndexingResult ir =
+        --                             if ir.id == resultIndex then
+        --                                 let
+        --                                     ( newViewer, cmds ) =
+        --                                         GeometryViewer.update subMsg ir.generatedGeometry
+        --                                 in
+        --                                 ( { ir | generatedGeometry = newViewer }, Cmd.map (GeometryViewerMsg path) cmds )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         changeIndexingParamsAndResult : IndexingParametersWithResults -> ( IndexingParametersWithResults, Cmd Msg )
+        --                         changeIndexingParamsAndResult ir =
+        --                             if ir.parameters.id == parametersId then
+        --                                 let
+        --                                     newResultsAndCmds =
+        --                                         List.map changeIndexingResult ir.indexingResults
+        --                                 in
+        --                                 ( { ir | indexingResults = List.map Tuple.first newResultsAndCmds }, Cmd.batch (List.map Tuple.second newResultsAndCmds) )
+        --                             else
+        --                                 ( ir, Cmd.none )
+        --                         newParamsAndIndexingResults : List ( IndexingParametersWithResults, Cmd Msg )
+        --                         newParamsAndIndexingResults =
+        --                             List.map changeIndexingParamsAndResult analysisRequestSuccess.dataSet.indexingResults
+        --                         oldDataSet =
+        --                             analysisRequestSuccess.dataSet
+        --                         newRequest : SingleDataSetResults
+        --                         newRequest =
+        --                             { analysisRequestSuccess | dataSet = { oldDataSet | indexingResults = List.map Tuple.first newParamsAndIndexingResults } }
+        --                     in
+        --                     ( { model | analysisRequest = Success newRequest }, Cmd.batch (List.map Tuple.second newParamsAndIndexingResults) )
+        --         _ ->
+        --             ( model, Cmd.none )
         ToggleShowErroneous pid ->
             ( { model
                 | showErroneousIndexingJobs =
-                    (if Set.member pid model.showErroneousIndexingJobs then
-                        Set.remove
+                    (if memberIndexingParametersIdSet pid model.showErroneousIndexingJobs then
+                        removeIndexingParametersIdSet
 
                      else
-                        Set.insert
+                        insertIndexingParametersIdSet
                     )
                         pid
                         model.showErroneousIndexingJobs
@@ -1495,11 +1879,11 @@ update msg model =
         ToggleIndexingParameterExpansion ipId ->
             let
                 newParameterIds =
-                    if Set.member ipId model.expandedIndexingParameterIds then
-                        Set.remove ipId model.expandedIndexingParameterIds
+                    if memberIndexingParametersIdSet ipId model.expandedIndexingParameterIds then
+                        removeIndexingParametersIdSet ipId model.expandedIndexingParameterIds
 
                     else
-                        Set.insert ipId model.expandedIndexingParameterIds
+                        insertIndexingParametersIdSet ipId model.expandedIndexingParameterIds
             in
             ( { model | expandedIndexingParameterIds = newParameterIds }, Cmd.none )
 
@@ -1514,7 +1898,7 @@ update msg model =
                 Just processingParameters ->
                     let
                         ( updatedIndexingParams, cmd ) =
-                            IndexingParameters.update paramsMsg processingParameters.indexingParamFormModel
+                            IndexingParametersEdit.update paramsMsg processingParameters.indexingParamFormModel
 
                         updatedProcessingParams =
                             { processingParameters | indexingParamFormModel = updatedIndexingParams }
@@ -1536,10 +1920,16 @@ update msg model =
                 Err e ->
                     ( { model | processingParametersRequest = Failure e }, Cmd.none )
 
-                Ok { sources } ->
+                Ok { sources, geometries } ->
                     case
-                        IndexingParameters.convertCommandLineToModel
-                            (IndexingParameters.init sources (Maybe.withDefault "" parameters.cellDescription) parameters.geometryFile True)
+                        IndexingParametersEdit.convertCommandLineToModel
+                            (IndexingParametersEdit.init
+                                sources
+                                (Maybe.withDefault "" parameters.cellDescription)
+                                (GeometryViewer.extractId parameters.geometry)
+                                (List.map GeometryMetadata.fromJson geometries)
+                                True
+                            )
                             parameters.commandLine
                     of
                         Err e ->
@@ -1571,16 +1961,27 @@ update msg model =
                     ( { model | processingParametersRequest = Failure e }, Cmd.none )
 
                 Ok v ->
-                    ( { model
-                        | processingParametersRequest = Success v
-                        , currentProcessingParameters =
-                            Just
-                                { dataSetId = v.dataSetId
-                                , indexingParamFormModel = IndexingParameters.init v.sources v.cellDescription "" True
-                                }
-                      }
-                    , Cmd.none
-                    )
+                    case model.analysisRequest of
+                        Success _ ->
+                            ( { model
+                                | processingParametersRequest = Success v
+                                , currentProcessingParameters =
+                                    Just
+                                        { dataSetId = v.dataSetId
+                                        , indexingParamFormModel =
+                                            IndexingParametersEdit.init
+                                                v.sources
+                                                v.cellDescription
+                                                Nothing
+                                                (List.map GeometryMetadata.fromJson v.geometries)
+                                                True
+                                        }
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
 
         CancelProcessing ->
             ( { model
@@ -1602,7 +2003,7 @@ update msg model =
                         , currentProcessingParameters = Nothing
                         , processingParametersRequest = NotAsked
                         , expandedIndexingParameterIds =
-                            Set.insert v.indexingParametersId model.expandedIndexingParameterIds
+                            insertIndexingParametersIdSet (IndexingParametersId v.indexingParametersId) model.expandedIndexingParameterIds
                       }
                     , Cmd.batch
                         [ possiblyRefresh model
@@ -1616,48 +2017,72 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just { dataSetId, indexingParamFormModel } ->
-                    case IndexingParameters.toCommandLine indexingParamFormModel of
+                    case IndexingParametersEdit.toCommandLine indexingParamFormModel of
                         Err _ ->
                             ( model, Cmd.none )
 
                         Ok commandLine ->
-                            if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
-                                ( { model | submitProcessingRequest = Loading }
-                                , send
-                                    ProcessingSubmitted
-                                    (indexingJobQueueForDataSetApiIndexingPost
-                                        { dataSetId = dataSetId
-                                        , isOnline = False
-                                        , cellDescription = ""
-                                        , geometryFile = indexingParamFormModel.geometryFile
-                                        , commandLine = coparseCommandLine commandLine
-                                        , source = indexingParamFormModel.source
-                                        }
-                                    )
-                                )
+                            case IndexingParametersEdit.extractGeometryId indexingParamFormModel of
+                                Nothing ->
+                                    ( model, Cmd.none )
 
-                            else
-                                case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
-                                    Err _ ->
-                                        ( model, Cmd.none )
-
-                                    Ok cellDescription ->
+                                Just geometryId ->
+                                    if String.trim (CellDescriptionEdit.modelAsText indexingParamFormModel.cellDescription) == "" then
                                         ( { model | submitProcessingRequest = Loading }
                                         , send
                                             ProcessingSubmitted
                                             (indexingJobQueueForDataSetApiIndexingPost
                                                 { dataSetId = dataSetId
                                                 , isOnline = False
-                                                , cellDescription = cellDescriptionToString cellDescription
-                                                , geometryFile = indexingParamFormModel.geometryFile
+                                                , cellDescription = ""
+                                                , geometryId = geometryIdToInt geometryId
                                                 , commandLine = coparseCommandLine commandLine
                                                 , source = indexingParamFormModel.source
                                                 }
                                             )
                                         )
 
+                                    else
+                                        case CellDescriptionEdit.parseModel indexingParamFormModel.cellDescription of
+                                            Err _ ->
+                                                ( model, Cmd.none )
+
+                                            Ok cellDescription ->
+                                                ( { model | submitProcessingRequest = Loading }
+                                                , send
+                                                    ProcessingSubmitted
+                                                    (indexingJobQueueForDataSetApiIndexingPost
+                                                        { dataSetId = dataSetId
+                                                        , isOnline = False
+                                                        , cellDescription = cellDescriptionToString cellDescription
+                                                        , geometryId = geometryIdToInt geometryId
+                                                        , commandLine = coparseCommandLine commandLine
+                                                        , source = indexingParamFormModel.source
+                                                        }
+                                                    )
+                                                )
+
         AnalysisResultsReceived analysisResults ->
-            ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
+            let
+                newModel =
+                    case model.analysisRequest of
+                        Success _ ->
+                            let
+                                newAnalysisRequest : RemoteData HttpError SingleDataSetResults
+                                newAnalysisRequest =
+                                    case analysisResults of
+                                        Ok jsonResults ->
+                                            Success (convertAnalysisResultsWithPrevious jsonResults)
+
+                                        _ ->
+                                            fromResult (Result.map convertAnalysisResults analysisResults)
+                            in
+                            { model | analysisRequest = newAnalysisRequest }
+
+                        _ ->
+                            { model | analysisRequest = fromResult (Result.map convertAnalysisResults analysisResults) }
+            in
+            ( newModel, Cmd.none )
 
         OpenMergeForm dataSetId indexingParametersId cellDescriptionForDs pointGroupForDs spaceGroupForDs ->
             ( { model
@@ -1713,13 +2138,18 @@ update msg model =
                     )
 
         Refresh posix ->
-            let
-                newHereAndNow =
-                    { now = posix, zone = model.hereAndNow.zone }
-            in
-            ( { model | hereAndNow = newHereAndNow }
-            , possiblyRefresh model
-            )
+            case model.analysisRequest of
+                Loading ->
+                    ( model, Cmd.none )
+
+                _ ->
+                    let
+                        newHereAndNow =
+                            { now = posix, zone = model.hereAndNow.zone }
+                    in
+                    ( { model | hereAndNow = newHereAndNow }
+                    , possiblyRefresh model
+                    )
 
         CrystFELMergeMessage cfMsg ->
             case model.activatedMergeForm of

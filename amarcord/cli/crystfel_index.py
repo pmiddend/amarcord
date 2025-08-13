@@ -13,7 +13,6 @@ import signal
 import sqlite3
 import subprocess
 import sys
-import tempfile
 import urllib.error
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -100,6 +99,10 @@ def sha256_file(p: Path) -> str:
 
 def sha256_combination(hashes: Iterable[bytes]) -> str:
     return hashlib.sha256(b"".join(hashes)).hexdigest()
+
+
+def sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
 
 
 def sha256_file_bytes(p: Path) -> bytes:
@@ -309,8 +312,7 @@ class PrimaryArgs:
     # the file list gets extremely long sometimes, so don't include this by default
     input_files: list[Path] = field(repr=False)
     cell_description: None | str
-    # Can be empty, in which case we search dynamically for the geometry
-    geometry_file: None | Path
+    geometry_contents: str
     crystfel_path: Path
     amarcord_indexing_result_id: int
     # The primary job spawns sub-jobs, and needs information for Maxwell on this
@@ -331,7 +333,10 @@ class SecondaryArgs:
     cell_file: None | Path
     job_array_id: int
     crystfel_path: Path
-    geometry_file: Path
+    # The idea here is that the primary job writes the geometry file,
+    # once, and then passes the location to the secondary jobs (since
+    # the geometry is read-only anyways)
+    geometry_path: Path
     indexamajig_params: list[str]
     use_auto_geom_refinement: bool
 
@@ -345,8 +350,7 @@ class OnlineArgs:
     asapo_source: str
     # To tweak the -j argument, still keeping it a bit dynamic (depending on the machine used)
     cpu_count_multiplier: None | float
-    # Can be None, in which case we search for the geometry file dynamically
-    geometry_file: None | Path
+    geometry_contents: str
     cell_description: None | str
     amarcord_indexing_result_id: int
     crystfel_path: Path
@@ -418,7 +422,6 @@ def exit_with_error(args: PrimaryArgs | OnlineArgs, error: str) -> NoReturn:
 
 def write_status_still_running(
     args: PrimaryArgs | OnlineArgs,
-    geometry_hash: str,
     line: IndexingFom,
 ) -> None:
     if args.amarcord_api_url is None:
@@ -434,8 +437,6 @@ def write_status_still_running(
         "hits": line.hits,
         "indexed_frames": line.indexed_frames,
         "indexed_crystals": line.indexed_crystals,
-        "geometry_file": str(args.geometry_file) if args.geometry_file else None,
-        "geometry_hash": geometry_hash,
         "latest_log": "\n".join(log_list),
     }
     request_url = f"{args.amarcord_api_url}/api/indexing/{args.amarcord_indexing_result_id}/still-running"
@@ -463,8 +464,7 @@ def write_status_still_running(
 def write_status_success(
     args: PrimaryArgs | OnlineArgs,
     program_version: str,
-    geometry_hash: str,
-    generated_geometry_file: str,
+    generated_geometry_contents: str,
     line: IndexingFom,
 ) -> None:
     if args.amarcord_api_url is None:
@@ -493,9 +493,7 @@ def write_status_success(
             }
             for align_group in line.align_detector_groups.values()
         ],
-        "geometry_file": str(args.geometry_file) if args.geometry_file else None,
-        "generated_geometry_file": generated_geometry_file,
-        "geometry_hash": geometry_hash,
+        "generated_geometry_contents": generated_geometry_contents,
         "unit_cell_histograms_id": line.unit_cell_histograms_id,
         "latest_log": "\n".join(log_list),
     }
@@ -605,22 +603,9 @@ def cancel_job_slurm(args: PrimaryArgs, job_id: JobArraySlurm) -> None:
         logger.exception("cancel request exception")
 
 
-@contextmanager
-def temp_fifo() -> Generator[str, Any, None]:
-    """Context Manager for creating named pipes with temporary names."""
-    tmpdir = Path(tempfile.mkdtemp())
-    filename = tmpdir / "fifo"  # Temporary filename
-    os.mkfifo(str(filename))  # Create FIFO
-    try:
-        yield str(filename)
-    finally:
-        filename.unlink()
-        tmpdir.rmdir()  # Remove directory
-
-
 def initialize_db(
     args: PrimaryArgs,
-    geometry_hash: str,
+    geometry_path: Path,
     db: sqlite3.Connection,
 ) -> set[int]:
     input_files_path = Path("input.lst")
@@ -636,7 +621,7 @@ def initialize_db(
             "-i",
             input_files_file.name,
             "-g",
-            str(args.geometry_file),
+            str(geometry_path),
             "-o",
             str(output_file_name),
         ]
@@ -677,7 +662,6 @@ def initialize_db(
                     )
                     write_status_still_running(
                         args,
-                        geometry_hash,
                         IndexingFom(
                             frames=0,
                             hits=0,
@@ -796,6 +780,7 @@ def start_job_array(
     args: PrimaryArgs,
     db: sqlite3.Connection,
     cell_file: None | Path,
+    geometry_path: Path,
     script_file_contents: str,
     job_array_id: int,
 ) -> JobArray:
@@ -807,7 +792,7 @@ def start_job_array(
             args.amarcord_indexing_result_id,
         ),
         OFF_INDEX_ENVIRON_SECONDARY_JOB_ARRAY_ID: str(job_array_id),
-        OFF_INDEX_ENVIRON_GEOMETRY_FILE: str(args.geometry_file),
+        OFF_INDEX_ENVIRON_GEOMETRY_FILE: str(geometry_path),
         OFF_INDEX_ENVIRON_CRYSTFEL_PATH: str(args.crystfel_path),
         OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS: args.indexamajig_params,
         OFF_INDEX_ENVIRON_USE_SLURM: "True" if args.use_slurm else "False",
@@ -877,7 +862,7 @@ def run_job_array(
     args: PrimaryArgs,
     db: sqlite3.Connection,
     cell_file: None | Path,
-    geometry_hash: str,
+    geometry_path: Path,
     script_file_contents: str,
     job_array_id: int,
 ) -> JobArrayFailure | IndexingFom:
@@ -885,6 +870,7 @@ def run_job_array(
         args,
         db,
         cell_file,
+        geometry_path,
         script_file_contents,
         job_array_id,
     )
@@ -1024,7 +1010,6 @@ def run_job_array(
             )
             write_status_still_running(
                 args,
-                geometry_hash,
                 IndexingFom(
                     frames=images_processed_so_far,
                     hits=hits,
@@ -1039,7 +1024,6 @@ def run_job_array(
             )
             write_status_still_running(
                 args,
-                geometry_hash,
                 IndexingFom(
                     frames=0,
                     hits=0,
@@ -1061,7 +1045,7 @@ def parse_secondary_args() -> SecondaryArgs:
         ),
         job_array_id=int(os.environ[OFF_INDEX_ENVIRON_SECONDARY_JOB_ARRAY_ID]),
         crystfel_path=Path(os.environ[OFF_INDEX_ENVIRON_CRYSTFEL_PATH]),
-        geometry_file=Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE]),
+        geometry_path=Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE]),
         indexamajig_params=shlex.split(
             os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS],
         ),
@@ -1184,6 +1168,7 @@ def determine_beamtime_json(args: OnlineArgs, p: Path) -> tuple[Path, dict[str, 
 def run_align_detector(
     args: PrimaryArgs | OnlineArgs,
     mille_files_dir: Path,
+    geometry_path: Path,
     geometry_file_destination: Path,
 ) -> None | dict[str, PanelOutput]:
     with TemporaryDirectory() as tempdir, set_directory(tempdir):
@@ -1223,7 +1208,7 @@ def run_align_detector(
         align_detector_args_prefix: list[str] = [
             align_detector_binary,
             "-i",
-            str(args.geometry_file),
+            str(geometry_path),
             "-o",
             str(geometry_file_destination),
             "--level=0",
@@ -1335,37 +1320,6 @@ def read_beamtime_metadata(args: OnlineArgs) -> BeamtimeMetadata:
 def run_online(args: OnlineArgs) -> None:
     logger.info(f"running in online mode, arguments: {args}")
 
-    if args.geometry_file is None:
-        resolved_geometry = find_geometry(Path().cwd())
-    else:
-        resolved_geometry = args.geometry_file
-
-        if not resolved_geometry.is_file():
-            exit_with_error(
-                args,
-                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
-            )
-
-    if resolved_geometry is None:
-        exit_with_error(
-            args,
-            f"did not find any geometry file relative to current dir {Path().cwd()}, exiting.",
-        )
-
-    args = replace(args, geometry_file=resolved_geometry)
-    logger.info(f"using the following geometry: {resolved_geometry}")
-
-    try:
-        geometry_hash = crystfel_geometry_hash(resolved_geometry)
-    except:
-        exit_with_error(args, "cannot resolve geometry hash")
-
-    if not args.crystfel_path.is_dir():
-        exit_with_error(
-            args,
-            f"crystfel path {args.crystfel_path} doesn't exist, exiting.",
-        )
-
     try:
         crystfel_version = determine_crystfel_version(args.crystfel_path)
     except:
@@ -1375,11 +1329,24 @@ def run_online(args: OnlineArgs) -> None:
 
     beamtime_metadata = read_beamtime_metadata(args)
 
+    if not args.crystfel_path.is_dir():
+        exit_with_error(
+            args,
+            f"crystfel path {args.crystfel_path} doesn't exist, exiting.",
+        )
+
     work_dir = Path(f"indexing-{args.amarcord_indexing_result_id}-work")
     work_dir.mkdir()
+
     logger.info(f"created work dir {work_dir}, switching")
 
     os.chdir(work_dir)
+
+    geometry_path_relative = _write_geometry(args, args.geometry_contents)
+
+    # We need the geometry in contexts where are aren't in the current
+    # working directory anymore
+    geometry_path = geometry_path_relative.resolve()
 
     cell_file: None | Path
     if args.cell_description is not None and args.cell_description.strip():
@@ -1402,7 +1369,7 @@ def run_online(args: OnlineArgs) -> None:
     )
     cmd_line: list[str] = [
         f"{args.crystfel_path}/bin/indexamajig",
-        f"--geometry={args.geometry_file}",
+        f"--geometry={geometry_path}",
         "-j",
         str(cpu_count_weighted),
         "-o",
@@ -1454,7 +1421,6 @@ def run_online(args: OnlineArgs) -> None:
         logger.info("process started, reading lines")
         write_status_still_running(
             args,
-            geometry_hash,
             IndexingFom(
                 frames=0,
                 hits=0,
@@ -1520,7 +1486,6 @@ def run_online(args: OnlineArgs) -> None:
 
             write_status_still_running(
                 args,
-                geometry_hash,
                 IndexingFom(
                     frames=images,
                     hits=hits,
@@ -1546,6 +1511,7 @@ def run_online(args: OnlineArgs) -> None:
         )
     logger.info("process completed")
 
+    generated_geometry_file_contents: str
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
@@ -1554,11 +1520,17 @@ def run_online(args: OnlineArgs) -> None:
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
+            geometry_path=geometry_path,
             geometry_file_destination=Path(geometry_file_destination),
         )
+        try:
+            with Path(geometry_file_destination).open("r", encoding="utf-8") as f:
+                generated_geometry_file_contents = f.read()
+        except:
+            generated_geometry_file_contents = ""
     else:
         align_detector_groups = {}
-        geometry_file_destination = ""
+        generated_geometry_file_contents = ""
 
     if final_fom.indexed_frames > 100:
         logger.info("generating histograms")
@@ -1590,8 +1562,7 @@ def run_online(args: OnlineArgs) -> None:
     write_status_success(
         args=args,
         program_version=crystfel_version,
-        geometry_hash=geometry_hash,
-        generated_geometry_file=geometry_file_destination,
+        generated_geometry_contents=generated_geometry_file_contents,
         line=final_fom,
     )
 
@@ -1617,7 +1588,7 @@ def run_secondary(args: SecondaryArgs) -> None:
         f"--input={lst_file_name}",
         f"--serial-start={start_idx}",
         f"--output=job-{job_id}.stream",
-        f"--geometry={args.geometry_file}",
+        f"--geometry={args.geometry_path}",
         "-j",
         str(cpu_count_weighted),
         *args.indexamajig_params,
@@ -1743,16 +1714,6 @@ def find_searching_upwards(
         if guess is not None:
             return guess
     return None
-
-
-def find_geometry(f: Path) -> None | Path:
-    def relative_geom_file(g: Path) -> None | Path:
-        geometry_file = (g / "shared" / "geometry.geom").resolve()
-        if geometry_file.is_file():
-            return geometry_file
-        return None
-
-    return find_searching_upwards(f, relative_geom_file)
 
 
 def write_gnuplot_script(target: IO[bytes]) -> None:
@@ -1960,6 +1921,22 @@ def upload_file(args: PrimaryArgs | OnlineArgs, file_path: Path) -> None | int:
             return None
 
 
+def _write_geometry(args: PrimaryArgs | OnlineArgs, contents: str) -> Path:
+    geometry_path_relative = Path("geometry.geom")
+    if contents.startswith("/"):
+        try:
+            shutil.copyfile(Path(contents), geometry_path_relative)
+        except Exception as e:
+            exit_with_error(
+                args,
+                f"tried to copy geometry file from {contents} to {geometry_path_relative.resolve()}: {e}",
+            )
+    else:
+        with geometry_path_relative.open("w", encoding="utf-8") as f:
+            f.write(args.geometry_contents)
+    return geometry_path_relative
+
+
 def run_primary(args: PrimaryArgs) -> None:
     logger.info(f"running in primary mode, arguments: {args}")
     logger.info(f"PATH is {os.environ.get('PATH')}")
@@ -1970,36 +1947,6 @@ def run_primary(args: PrimaryArgs) -> None:
             args,
             "input file list empty - maybe the run has the wrong files entered? I've searched the following patterns for files: "
             + ", ".join(args.original_globs),
-        )
-
-    if args.geometry_file is None:
-        resolved_geometry = find_geometry(args.input_files[0])
-    else:
-        resolved_geometry = args.geometry_file
-
-        if not resolved_geometry.is_file():
-            exit_with_error(
-                args,
-                f"cannot find the given geometry file {resolved_geometry}, check that it exists and is readable",
-            )
-
-    if resolved_geometry is None:
-        logger.error("did not find any geometry file, exiting.")
-        exit_with_error(
-            args,
-            "geometry file not found - either specify one explicitly, or put it under the shared/ directory",
-        )
-
-    args = replace(args, geometry_file=resolved_geometry)
-    logger.info(f"using the following geometry: {resolved_geometry}")
-
-    try:
-        geometry_hash = crystfel_geometry_hash(resolved_geometry)
-    except:
-        logger.exception("cannot resolve geometry hash")
-        exit_with_error(
-            args,
-            "cannot resolve geometry hash - maybe the mask files aren't where they are supposed to be?",
         )
 
     if not args.crystfel_path.is_dir():
@@ -2025,6 +1972,13 @@ def run_primary(args: PrimaryArgs) -> None:
     logger.info(f"created work dir {work_dir}, switching")
 
     os.chdir(work_dir)
+
+    geometry_path_relative = _write_geometry(args, args.geometry_contents)
+
+    # We need the geometry in contexts where are aren't in the current
+    # working directory anymore
+    geometry_path = geometry_path_relative.resolve()
+
     cell_file: None | Path
     if args.cell_description is not None and args.cell_description.strip():
         parsed_cell_description = parse_cell_description(args.cell_description)
@@ -2062,7 +2016,7 @@ def run_primary(args: PrimaryArgs) -> None:
         db.execute("CREATE INDEX job_state_index ON IndexamajigJob (state)")
         db.execute("CREATE INDEX job_array_id_index ON IndexamajigJob (job_array_id)")
 
-    job_array_ids = initialize_db(args, geometry_hash, db)
+    job_array_ids = initialize_db(args, geometry_path, db)
 
     if not job_array_ids:
         logger.error("there are no jobs to run")
@@ -2081,8 +2035,8 @@ def run_primary(args: PrimaryArgs) -> None:
             args=args,
             db=db,
             cell_file=cell_file,
-            geometry_hash=geometry_hash,
             script_file_contents=script_file_contents,
+            geometry_path=geometry_path,
             job_array_id=job_array_id,
         )
         if isinstance(job_array_result, JobArrayFailure):
@@ -2123,13 +2077,14 @@ def run_primary(args: PrimaryArgs) -> None:
 
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
-        geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
+        geometry_file_destination = args.stream_file.with_suffix(".geom").resolve()
         align_detector_groups_or_none = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
             ).resolve(),
-            geometry_file_destination=Path(geometry_file_destination),
+            geometry_path=geometry_path,
+            geometry_file_destination=geometry_file_destination,
         )
         if align_detector_groups_or_none is None:
             align_detector_groups = {}
@@ -2137,7 +2092,7 @@ def run_primary(args: PrimaryArgs) -> None:
             align_detector_groups = align_detector_groups_or_none
     else:
         align_detector_groups = {}
-        geometry_file_destination = ""
+        geometry_file_destination = None
 
     logger.info("generating histograms")
     try:
@@ -2163,13 +2118,19 @@ def run_primary(args: PrimaryArgs) -> None:
             unit_cell_histograms_id=unit_cell_histograms_id,
         )
 
+    if geometry_file_destination is not None:
+        try:
+            with Path(geometry_file_destination).open("r", encoding="utf-8") as f:
+                generated_geometry_file_contents = f.read()
+        except:
+            generated_geometry_file_contents = ""
+    else:
+        generated_geometry_file_contents = ""
+
     write_status_success(
         args=args,
         program_version=crystfel_version,
-        geometry_hash=geometry_hash,
-        generated_geometry_file=geometry_file_destination
-        if Path(geometry_file_destination).is_file()
-        else "",
+        generated_geometry_contents=generated_geometry_file_contents,
         line=final_fom,
     )
 
@@ -2205,11 +2166,7 @@ def parse_primary_args() -> PrimaryArgs:
         # other data files (to which master links to), then just take
         # the master file. Otherwise, consider all files
         input_files=master_files if master_files else input_files,
-        geometry_file=(
-            Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE])
-            if OFF_INDEX_ENVIRON_GEOMETRY_FILE in os.environ
-            else None
-        ),
+        geometry_contents=os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE],
         cell_description=os.environ.get(OFF_INDEX_ENVIRON_CELL_DESCRIPTION),
         use_auto_geom_refinement="--mille" in indexamajig_params,
         amarcord_indexing_result_id=amarcord_indexing_result_id,
@@ -2244,11 +2201,7 @@ def parse_online_args() -> OnlineArgs:
         cpu_count_multiplier=float(
             os.environ[ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER],
         ),
-        geometry_file=(
-            Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE])
-            if OFF_INDEX_ENVIRON_GEOMETRY_FILE in os.environ
-            else None
-        ),
+        geometry_contents=os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE],
         cell_description=os.environ.get(OFF_INDEX_ENVIRON_CELL_DESCRIPTION),
         use_auto_geom_refinement="--mille"
         in os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS],

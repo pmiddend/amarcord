@@ -27,6 +27,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Create Data Set
+-}
 createDataSetApiDataSetsPost : Api.Data.JsonCreateDataSetInput -> Api.Request Api.Data.JsonCreateDataSetOutput
 createDataSetApiDataSetsPost jsonCreateDataSetInput_body =
     Api.request
@@ -39,6 +42,8 @@ createDataSetApiDataSetsPost jsonCreateDataSetInput_body =
         Api.Data.jsonCreateDataSetOutputDecoder
 
 
+{-| Create Data Set From Run
+-}
 createDataSetFromRunApiDataSetsFromRunPost : Api.Data.JsonCreateDataSetFromRun -> Api.Request Api.Data.JsonCreateDataSetFromRunOutput
 createDataSetFromRunApiDataSetsFromRunPost jsonCreateDataSetFromRun_body =
     Api.request
@@ -51,6 +56,8 @@ createDataSetFromRunApiDataSetsFromRunPost jsonCreateDataSetFromRun_body =
         Api.Data.jsonCreateDataSetFromRunOutputDecoder
 
 
+{-| Delete Data Set
+-}
 deleteDataSetApiDataSetsDelete : Api.Data.JsonDeleteDataSetInput -> Api.Request Api.Data.JsonDeleteDataSetOutput
 deleteDataSetApiDataSetsDelete jsonDeleteDataSetInput_body =
     Api.request
@@ -63,6 +70,8 @@ deleteDataSetApiDataSetsDelete jsonDeleteDataSetInput_body =
         Api.Data.jsonDeleteDataSetOutputDecoder
 
 
+{-| Read Data Sets
+-}
 readDataSetsApiDataSetsBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadDataSets
 readDataSetsApiDataSetsBeamtimeIdGet beamtimeId_path =
     Api.request

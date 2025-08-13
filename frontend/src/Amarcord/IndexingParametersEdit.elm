@@ -1,8 +1,10 @@
-module Amarcord.IndexingParameters exposing (Model, Msg(..), convertCommandLineToModel, init, isEditOpen, toCommandLine, update, view)
+module Amarcord.IndexingParametersEdit exposing (Model, Msg(..), convertCommandLineToModel, extractGeometryId, init, isEditOpen, noGeometrySelected, toCommandLine, update, view)
 
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
+import Amarcord.GeometryEdit as GeometryEdit
+import Amarcord.GeometryMetadata exposing (GeometryId, GeometryMetadata)
 import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
@@ -84,6 +86,11 @@ isEditOpen { commandLineEdit } =
     Maybe.Extra.isJust commandLineEdit
 
 
+noGeometrySelected : Model -> Bool
+noGeometrySelected =
+    Maybe.Extra.isNothing << GeometryEdit.extractCurrentId << .geometry
+
+
 type alias Model =
     { openTab : TabType
     , peakDetection : PeakDetection.Model
@@ -96,7 +103,8 @@ type alias Model =
 
     -- Specials
     , source : String
-    , geometryFile : String
+    , geometry : GeometryEdit.Model
+    , geometries : List GeometryMetadata
     , cellDescription : CellDescriptionEdit.Model
     , peakDetector : Maybe String
     , indexingMethods : Maybe (Dict String IndexingMethod)
@@ -122,6 +130,11 @@ type alias Model =
     }
 
 
+extractGeometryId : Model -> Maybe GeometryId
+extractGeometryId { geometry } =
+    GeometryEdit.extractCurrentId geometry
+
+
 type Msg
     = Change (Model -> Model)
     | ToggleIndexingMethods
@@ -133,6 +146,7 @@ type Msg
     | CancelCommandLineEdit
     | FinishCommandLineEdit String
     | CellDescriptionChange CellDescriptionEdit.Msg
+    | GeometryChange GeometryEdit.Msg
 
 
 indexingMethodsToCommandLine : List IndexingMethod -> Result String (List CommandLineOption)
@@ -258,7 +272,11 @@ toCommandLine ip =
 
 makeEmptyModel : Model -> Model
 makeEmptyModel m =
-    init m.sources (CellDescriptionEdit.modelAsText m.cellDescription) m.geometryFile m.mutableCellDescription
+    init m.sources
+        (CellDescriptionEdit.modelAsText m.cellDescription)
+        (GeometryEdit.extractCurrentId m.geometry)
+        m.geometries
+        m.mutableCellDescription
 
 
 convertCommandLineToModel : Model -> String -> Result String Model
@@ -468,8 +486,8 @@ convertCommandLineToModel model cli =
             List.foldl convertSingle (Ok (makeEmptyModel model)) options
 
 
-init : List String -> String -> String -> Bool -> Model
-init sources cellDescription geometryFile mutableCellDescription =
+init : List String -> String -> Maybe GeometryId -> List GeometryMetadata -> Bool -> Model
+init sources cellDescription geometry geometries mutableCellDescription =
     { peakDetector = Nothing
     , peakDetection = PeakDetection.init
     , sources = sources
@@ -479,7 +497,8 @@ init sources cellDescription geometryFile mutableCellDescription =
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
-    , geometryFile = geometryFile
+    , geometry = GeometryEdit.init geometry geometries
+    , geometries = geometries
     , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
     , indexingMethods = Nothing
@@ -987,26 +1006,8 @@ viewCellDescription model =
 
 viewGeometry : Model -> Html Msg
 viewGeometry model =
-    div [ class "form-floating mb-3" ]
-        [ input_
-            [ type_ "text"
-            , class "form-control"
-            , id "pp-geometry-file"
-            , value model.geometryFile
-            , onInput
-                (\newGeometryFile ->
-                    Change
-                        (\ip ->
-                            { ip | geometryFile = newGeometryFile }
-                        )
-                )
-            ]
-        , label [ for "pp-geometry-file" ] [ text "Geometry file" ]
-        , div
-            [ class "form-text"
-            ]
-            [ text "Leave blank to autodetect the geometry file by going up the directory hierarchy of the beamtime."
-            ]
+    div [ class "mb-3" ]
+        [ Html.map GeometryChange (GeometryEdit.view model.geometry)
         ]
 
 
@@ -1105,6 +1106,9 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GeometryChange subMsg ->
+            ( { model | geometry = GeometryEdit.update subMsg model.geometry }, Cmd.none )
+
         CellDescriptionChange subMsg ->
             ( { model | cellDescription = CellDescriptionEdit.update subMsg model.cellDescription }, Cmd.none )
 

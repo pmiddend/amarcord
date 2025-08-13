@@ -1,4 +1,4 @@
-# Setups at different facilities
+# Setups at facilities
 
 (DESYSetup)=
 ## DESY

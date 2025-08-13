@@ -141,7 +141,7 @@ geometryChangeExternalRunIds : List JsonDetectorShift -> List Int
 geometryChangeExternalRunIds shifts =
     let
         folder ( currentRun, nextRun ) =
-            if currentRun.geometryHash /= nextRun.geometryHash then
+            if currentRun.geometryId /= nextRun.geometryId then
                 Just <| nextRun.runExternalId
 
             else
@@ -527,7 +527,7 @@ viewDetectorShiftsByAbsoluteTime r =
         geometryChanges =
             let
                 folder ( currentRun, nextRun ) =
-                    if currentRun.geometryHash /= nextRun.geometryHash then
+                    if currentRun.geometryId /= nextRun.geometryId then
                         Just <| convertDuration <| nextRun.runStart - firstRunStart
 
                     else

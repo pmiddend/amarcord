@@ -41,6 +41,7 @@ from amarcord.util import create_intervals
 from amarcord.web.constants import DATE_FORMAT
 from amarcord.web.json_models import JsonAlignDetectorGroup
 from amarcord.web.json_models import JsonAttributoValue
+from amarcord.web.json_models import JsonGeometryPlaceholderReplacement
 from amarcord.web.json_models import JsonIndexingParameters
 from amarcord.web.json_models import JsonIndexingResult
 from amarcord.web.json_models import JsonMergeParameters
@@ -590,7 +591,7 @@ def orm_indexing_parameters_to_json(
         is_online=p.is_online,
         cell_description=p.cell_description,
         command_line=p.command_line,
-        geometry_file=p.geometry_file if p.geometry_file is not None else "",
+        geometry_id=p.geometry_id,
     )
 
 
@@ -605,7 +606,7 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             is_online=ip.is_online,
             cell_description=ip.cell_description,
             command_line=ip.command_line,
-            geometry_file=ip.geometry_file if ip.geometry_file is not None else "",
+            geometry_id=ip.geometry_id,
         ),
         stream_file=ir.stream_file if ir.stream_file is not None else "",
         program_version=ir.program_version if ir.program_version is not None else "",
@@ -627,11 +628,7 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             )
             for g in ir.align_detector_groups
         ],
-        geometry_file=ir.geometry_file if ir.geometry_file is not None else "",
-        geometry_hash=ir.geometry_hash if ir.geometry_hash is not None else "",
-        generated_geometry_file=(
-            "" if ir.generated_geometry_file is None else ir.generated_geometry_file
-        ),
+        generated_geometry_id=ir.generated_geometry_id,
         status=ir.job_status,
         started=(
             utc_datetime_to_utc_int(ir.job_started)
@@ -654,4 +651,10 @@ def orm_indexing_result_to_json(ir: orm.IndexingResult) -> JsonIndexingResult:
             else None
         ),
         unit_cell_histograms_file_id=ir.unit_cell_histograms_file_id,
+        geometry_placeholder_replacements=[
+            JsonGeometryPlaceholderReplacement(
+                placeholder_name=r.attributo.name, placeholder_replacement=r.replacement
+            )
+            for r in ir.template_replacements
+        ],
     )

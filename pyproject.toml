@@ -14,7 +14,7 @@ dependencies = [
     "aiohttp==3.9.5",
     # asynchronous db client
     "aiosqlite==0.20.0",
-    "alembic==1.13.1",
+    "alembic==1.16.1",
     # asynchronous db client
     "asyncpg==0.30.0",
     # for the webserver
@@ -27,7 +27,7 @@ dependencies = [
     # For the Excel spreadsheet export
     "openpyxl==3.1.5",
     # For validating units
-    "pint==0.23",
+    "pint==0.24.4",
     # For the config file
     "pydantic==2.11.3",
     # asynchronous db client
@@ -37,7 +37,7 @@ dependencies = [
     # see https://fastapi.tiangolo.com/tutorial/request-files/
     "python-multipart==0.0.9",
     # for general DB access
-    "sqlalchemy==2.0.36",
+    "sqlalchemy==2.0.41",
     "structlog-overtime==1.0.1",
     "structlog==24.2.0",
     # For parsing the arguments for programs (always required basically)
@@ -47,6 +47,8 @@ dependencies = [
     "python-magic==0.4.27",
     # for async file opening functions
     "anyio==4.8.0",
+    # for the geometry templates
+    "mstache==0.3.0",
 ]
 
 [dependency-groups]
@@ -91,6 +93,11 @@ amarcord-slurm-runner = "amarcord.cli.slurm_runner:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Without this, hatch(ling?) doesn't find our code. Maybe if it were
+# located inside "src/amarcord" but that's a MR for the future.
+[tool.hatch.build.targets.wheel]
+packages = ["amarcord"]
 
 [tool.uv]
 # This is a hack, to fix the uv2nix flake thing.
@@ -202,7 +209,6 @@ reportUnnecessaryTypeIgnoreComment = false
 # Sensible, but false positive waaaaaay to often
 reportUnusedCallResult = false
 pythonVersion = "3.12"
-stubPath = "stubs"
 
 [tool.coverage.run]
 omit = [

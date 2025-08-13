@@ -1,5 +1,5 @@
 (Executables)=
-# Executables
+# Executables Overview
 
 ## `slurm_runner`
 
@@ -15,11 +15,11 @@ Generate an `openapi.json` file to use, for example, to generate Elm code for th
 
 ## `indexing_daemon`
 
-Daemon which retrieves queued indexing jobs from the DB and starts them on the workload manager.
+Daemon which retrieves queued indexing jobs from the DB and starts them on the workload manager. See [](IndexingDaemon) for detailed information.
 
 ## `merge_daemon`
 
-Daemon which retrieves queued merge jobs from the DB and starts them on the workload manager.
+Daemon which retrieves queued merge jobs from the DB and starts them on the workload manager. See [](MergeDaemon) for detailed information.
 
 ## `crystfel_merge`
 

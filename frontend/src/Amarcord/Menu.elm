@@ -63,6 +63,7 @@ menu bt =
         "collection"
         [ { route = Route.Chemicals bt, description = "Chemicals", iconName = "gem" }
         , { route = Route.DataSets bt, description = "Data Sets", iconName = "folder2" }
+        , { route = Route.Geometries bt, description = "Geometries", iconName = "border-all" }
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"

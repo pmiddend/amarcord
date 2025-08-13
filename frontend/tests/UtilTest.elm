@@ -7,7 +7,7 @@ import Test exposing (..)
 
 suite : Test
 suite =
-    describe "Crystallography"
+    describe "Util"
         [ test "fold pairs leaves out first element" <|
             \_ ->
                 Expect.equal [ ( 2, 3 ), ( 1, 2 ) ] (foldPairs [ 1, 2, 3 ] (\( prior, current ) -> ( prior, current )))

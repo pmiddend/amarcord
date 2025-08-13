@@ -4,16 +4,16 @@ import Amarcord.API.Requests exposing (RunExternalId(..), RunInternalId(..), run
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, isEditValueChemicalId, resetEditableAttributo, unsavedAttributoChanges, viewAttributoForm)
-import Amarcord.Bootstrap exposing (icon)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
 import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.Html exposing (div_, h2_, h5_, input_, li_, onIntInput, p_, strongText)
-import Amarcord.HttpError exposing (HttpError, send)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunFilesForm as RunFilesForm
 import Amarcord.Util exposing (listContainsBy)
 import Api.Data exposing (JsonAttributoOutput, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Runs exposing (updateRunApiRunsPatch)
-import Html exposing (Html, a, button, div, form, label, option, p, select, text, ul)
+import Html exposing (Html, a, button, div, form, h4, label, option, p, select, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, href, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
@@ -50,6 +50,7 @@ type alias Model =
     -- then jump to the latest one.
     , initiatedManually : Bool
     , showAllAttributi : Bool
+    , deleteDependentObjects : Bool
     , filesEdit : Maybe RunFilesForm.Model
     , submitErrors : List String
     , runEditRequest : RemoteData HttpError JsonUpdateRunOutput
@@ -63,6 +64,7 @@ type Msg
     | ValueUpdate AttributoNameWithValueUpdate
     | ExperimentTypeIdChanged Int
     | ChangeShowAllAttributi Bool
+    | ChangeDeleteDependentObjects Bool
     | UpdateRun JsonRun
     | RunFilesFormMsg RunFilesForm.Msg
 
@@ -90,6 +92,7 @@ init { attributi, chemicals, experimentTypes } showFileMode latestRunReal =
       , attributi = List.map convertAttributoFromApi attributi
       , initiatedManually = False
       , showAllAttributi = False
+      , deleteDependentObjects = False
       , filesEdit =
             case showFileMode of
                 ShowFiles ->
@@ -105,7 +108,7 @@ init { attributi, chemicals, experimentTypes } showFileMode latestRunReal =
 
 
 view : Model -> Html Msg
-view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, submitErrors, runEditRequest, chemicals, experimentTypes, filesEdit } =
+view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, submitErrors, runEditRequest, chemicals, experimentTypes, filesEdit, deleteDependentObjects } =
     let
         matchesCurrentExperiment a x =
             case x of
@@ -175,6 +178,27 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
 
             else
                 []
+
+        submitError =
+            case runEditRequest of
+                Failure err ->
+                    [ makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to modify run!" ], showError err ] ]
+
+                _ ->
+                    []
+
+        deleteDependentObjectsCheckbox =
+            div [ class "form-check form-switch mb-3" ]
+                [ input_
+                    [ type_ "checkbox"
+                    , Html.Attributes.id "delete-dependent-objects"
+                    , class "form-check-input"
+                    , checked deleteDependentObjects
+                    , onInput (always (ChangeDeleteDependentObjects (not deleteDependentObjects)))
+                    ]
+                , label [ class "form-check-label", for "delete-dependent-objects" ] [ text "Delete dependent objects" ]
+                , div [ class "form-text" ] [ text "If you change Attributi in this run that affect, for example, indexing results, you will get an error message when you press \"Save changes\". With this checkbox, these objects will instead be deleted." ]
+                ]
 
         buttons =
             [ button
@@ -248,7 +272,14 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
                         , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                         ]
                     ]
-                :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ filesForm ++ submitErrorsHtml ++ submitSuccess ++ buttons)
+                :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi
+                        ++ filesForm
+                        ++ submitErrorsHtml
+                        ++ submitError
+                        ++ submitSuccess
+                        ++ [ deleteDependentObjectsCheckbox ]
+                        ++ buttons
+                   )
         ]
 
 
@@ -285,6 +316,7 @@ update msg model =
                             , experimentTypeId = model.experimentTypeId
                             , attributi = attributoMapToListOfAttributi editedAttributi
                             , files = Maybe.map RunFilesForm.retrieveFiles model.filesEdit
+                            , deleteDependentObjects = model.deleteDependentObjects
                             }
                         )
                     )
@@ -335,6 +367,9 @@ update msg model =
 
         ChangeShowAllAttributi newValue ->
             ( { model | showAllAttributi = newValue }, Cmd.none )
+
+        ChangeDeleteDependentObjects newValue ->
+            ( { model | deleteDependentObjects = newValue }, Cmd.none )
 
         UpdateRun newRun ->
             if unsavedAttributoChanges model.editableAttributi.editableAttributi then

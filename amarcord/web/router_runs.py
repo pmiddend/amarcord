@@ -27,6 +27,7 @@ from amarcord.cli.crystfel_index import coparse_cell_description
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import local_int_to_utc_datetime
+from amarcord.db.attributi import nonmatching_run_dataset_attributi
 from amarcord.db.attributi import run_matches_dataset
 from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributi import utc_datetime_to_local_int
@@ -46,6 +47,8 @@ from amarcord.db.excel_import import parse_run_spreadsheet_workbook
 from amarcord.db.indexing_result import IndexingResultSummary
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import add_geometry_template_replacements_to_ir
+from amarcord.db.orm_utils import check_geometry_replacements_on_run_change
 from amarcord.db.orm_utils import data_sets_are_equal
 from amarcord.db.orm_utils import default_online_indexing_parameters
 from amarcord.db.orm_utils import determine_run_indexing_metadata
@@ -57,6 +60,7 @@ from amarcord.db.orm_utils import run_has_attributo_to_data_set_has_attributo
 from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.db.run_external_id import RunExternalId
 from amarcord.db.run_internal_id import RunInternalId
+from amarcord.error_message import ErrorMessage
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
@@ -206,7 +210,7 @@ async def _create_data_set_for_run(
     session: AsyncSession,
     latest_config: orm.UserConfiguration,
     run: orm.Run,
-) -> None:
+) -> None | int:
     current_experiment_type = (
         await latest_config.awaitable_attrs.current_experiment_type
     )
@@ -250,6 +254,198 @@ async def _create_data_set_for_run(
             have_equal = True
     if not have_equal:
         session.add(new_data_set)
+        await session.flush()
+        return new_data_set.id
+    return None
+
+
+@dataclass
+class RunData:
+    files: None | list[orm.RunHasFiles]
+    started: None | int
+    stopped: None | int
+    is_utc: bool
+    attributi_by_id: dict[AttributoId, orm.Attributo]
+    attributo_values: list[orm.RunHasAttributoValue]
+    attributo_ids_already_in_run: set[AttributoId]
+
+
+async def _convert_run_from_json(
+    run_logger: structlog.stdlib.BoundLogger,
+    session: AsyncSession,
+    files: None | list[JsonRunFile],
+    started: None | int,
+    stopped: None | int,
+    is_utc: bool,
+    input_attributi: list[JsonAttributoValue],
+) -> ErrorMessage | RunData:
+    attributi_by_id: dict[AttributoId, orm.Attributo] = {
+        orm_attributo.id: orm_attributo
+        for orm_attributo in (
+            await session.scalars(
+                select(orm.Attributo).where(
+                    orm.Attributo.id.in_(
+                        input_attributo.attributo_id
+                        for input_attributo in input_attributi
+                    )
+                    & (orm.Attributo.associated_table == AssociatedTable.RUN),
+                ),
+            )
+        )
+    }
+    attributo_ids_already_in_run: set[AttributoId] = set()
+    attributo_values: list[orm.RunHasAttributoValue] = []
+    for new_attributo in input_attributi:
+        attributo_type = attributi_by_id.get(AttributoId(new_attributo.attributo_id))
+        if attributo_type is None:
+            return ErrorMessage(
+                f"attributo with ID {new_attributo.attributo_id} not found in list of run attributi",
+            )
+        validation_result = validate_json_attributo_return_error(
+            new_attributo,
+            attributo_type,
+        )
+        run_logger.info(
+            f"validating type of {new_attributo.attributo_id}: type is {attributo_type.json_schema}: {validation_result}",
+        )
+        if validation_result is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"error validating attributi: {validation_result}",
+            )
+        attributo_values.append(
+            json_attributo_to_run_orm_attributo(new_attributo),
+        )
+        attributo_ids_already_in_run.add(AttributoId(new_attributo.attributo_id))
+    return RunData(
+        files=[
+            orm.RunHasFiles(glob=run_file.glob, source=run_file.source)
+            for run_file in files
+        ]
+        if files is not None
+        else None,
+        started=started,
+        stopped=stopped,
+        is_utc=is_utc,
+        attributi_by_id=attributi_by_id,
+        attributo_values=attributo_values,
+        attributo_ids_already_in_run=attributo_ids_already_in_run,
+    )
+
+
+async def _check_geometry_replacements_on_run_change_local(
+    logger: structlog.stdlib.BoundLogger,
+    session: AsyncSession,
+    run_in_db: orm.Run,
+    run_data: RunData,
+    delete_dependent_objects: bool,
+) -> int | ErrorMessage:
+    # We might already have indexing results associated with
+    # this run. Problems occur if these indexing results have
+    # geometries which, in turn, use attributi that are
+    # changed now.
+    changed_attributo_values_by_id: dict[AttributoId, orm.RunHasAttributoValue] = {
+        a.attributo_id: a for a in run_data.attributo_values
+    }
+    existing_attributo_values_by_id: dict[AttributoId, orm.RunHasAttributoValue] = {
+        a.attributo_id: a
+        for a in run_in_db.attributo_values
+        if a.attributo_id in changed_attributo_values_by_id
+    }
+    attributi_types_by_id: dict[AttributoId, AttributoType] = {
+        aid: schema_dict_to_attributo_type(a.json_schema)
+        for aid, a in run_data.attributi_by_id.items()
+    }
+    nonmatching_ids = list(
+        nonmatching_run_dataset_attributi(
+            attributi_types_by_id,
+            changed_attributo_values_by_id,
+            existing_attributo_values_by_id,
+        )
+    )
+    return await check_geometry_replacements_on_run_change(
+        logger,
+        session,
+        run_ids=[run_in_db.id],
+        attributo_ids=nonmatching_ids,
+        delete_dependent_objects=delete_dependent_objects,
+    )
+
+
+async def _create_new_run(
+    run_logger: structlog.stdlib.BoundLogger,
+    session: AsyncSession,
+    latest_config: orm.UserConfiguration,
+    run_external_id: RunExternalId,
+    experiment_type_id: int,
+    beamtime_id: BeamtimeId,
+    run_data: RunData,
+) -> orm.Run:
+    run_logger.info("run not in DB, creating a new one")
+    run_in_db = orm.Run(
+        external_id=run_external_id,
+        experiment_type_id=experiment_type_id,
+        beamtime_id=beamtime_id,
+        started=(
+            datetime.datetime.now(datetime.timezone.utc)
+            if run_data.started is None
+            else utc_int_to_utc_datetime(run_data.started)
+            if run_data.is_utc
+            else local_int_to_utc_datetime(run_data.started)
+        ),
+        stopped=(
+            None
+            if run_data.stopped is None
+            else utc_int_to_utc_datetime(run_data.stopped)
+            if run_data.is_utc
+            else local_int_to_utc_datetime(run_data.stopped)
+        ),
+        modified=datetime.datetime.now(datetime.timezone.utc),
+    )
+
+    run_in_db.attributo_values.extend(run_data.attributo_values)
+
+    if latest_config.auto_pilot:
+        latest_run = await retrieve_latest_run(session, beamtime_id)
+        if latest_run is not None:
+            for latest_run_attributo in latest_run.attributo_values:
+                if (
+                    latest_run_attributo.attributo_id
+                    not in run_data.attributo_ids_already_in_run
+                    and (await latest_run_attributo.awaitable_attrs.attributo).group
+                    == ATTRIBUTO_GROUP_MANUAL
+                ):
+                    run_in_db.attributo_values.append(
+                        duplicate_run_attributo(latest_run_attributo),
+                    )
+    if run_data.files is not None:
+        run_in_db.files.extend(run_data.files)
+    session.add(run_in_db)
+    # we might have a new run, and added a chemical to it, but the chemical relationship hasn't been loaded
+    # for that. That we do here by flushing
+    await session.flush()
+    return run_in_db
+
+
+async def _update_run(
+    run_logger: structlog.stdlib.BoundLogger,
+    session: AsyncSession,
+    run_in_db: orm.Run,
+    run_data: RunData,
+) -> None:
+    run_logger.info("run in DB, updating attributes")
+    attributo_ids_to_update = set(x.attributo_id for x in run_data.attributo_values)
+    for existing_attributo in run_in_db.attributo_values:
+        if existing_attributo.attributo_id in attributo_ids_to_update:
+            await session.delete(existing_attributo)
+    run_in_db.attributo_values.extend(run_data.attributo_values)
+    if run_data.files is not None and run_data.files:
+        # This only adds new files. If we wanted to replace, we need another flag
+        run_in_db.files.extend(run_data.files)
+    if run_data.started is not None:
+        run_in_db.started = utc_int_to_utc_datetime(run_data.started)
+    if run_data.stopped is not None:
+        run_in_db.stopped = utc_int_to_utc_datetime(run_data.stopped)
 
 
 @router.post(
@@ -290,127 +486,46 @@ async def create_or_update_run(
             )
         ).one_or_none()
         run_was_created = run_in_db is None
+        run_data = await _convert_run_from_json(
+            run_logger,
+            session,
+            files=input_.files,
+            started=input_.started,
+            stopped=input_.stopped,
+            is_utc=input_.is_utc,
+            input_attributi=input_.attributi,
+        )
+        if isinstance(run_data, ErrorMessage):
+            raise HTTPException(status_code=400, detail=run_data.message)
         if run_in_db is None:
-            run_logger.info("run not in DB, creating a new one")
-            run_in_db = orm.Run(
-                external_id=runExternalId,
-                experiment_type_id=experiment_type_id,
-                beamtime_id=beamtime_id,
-                started=(
-                    datetime.datetime.now(datetime.timezone.utc)
-                    if input_.started is None
-                    else utc_int_to_utc_datetime(input_.started)
-                    if input_.is_utc
-                    else local_int_to_utc_datetime(input_.started)
-                ),
-                stopped=(
-                    None
-                    if input_.stopped is None
-                    else utc_int_to_utc_datetime(input_.stopped)
-                    if input_.is_utc
-                    else local_int_to_utc_datetime(input_.stopped)
-                ),
-                modified=datetime.datetime.now(datetime.timezone.utc),
-            )
-
-            attributi_by_id: dict[int, orm.Attributo] = {
-                orm_attributo.id: orm_attributo
-                for orm_attributo in (
-                    await session.scalars(
-                        select(orm.Attributo).where(
-                            orm.Attributo.id.in_(
-                                input_attributo.attributo_id
-                                for input_attributo in input_.attributi
-                            )
-                            & (orm.Attributo.associated_table == AssociatedTable.RUN),
-                        ),
-                    )
-                )
-            }
-            attributo_ids_already_in_run: set[int] = set()
-            for new_attributo in input_.attributi:
-                attributo_type = attributi_by_id.get(new_attributo.attributo_id)
-                if attributo_type is None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"attributo with ID {new_attributo.attributo_id} not found in list of run attributi",
-                    )
-                validation_result = validate_json_attributo_return_error(
-                    new_attributo,
-                    attributo_type,
-                )
-                run_logger.info(
-                    f"validating type of {new_attributo.attributo_id}: type is {attributo_type.json_schema}: {validation_result}",
-                )
-                if validation_result is not None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"error validating attributi: {validation_result}",
-                    )
-                run_in_db.attributo_values.append(
-                    json_attributo_to_run_orm_attributo(new_attributo),
-                )
-                attributo_ids_already_in_run.add(new_attributo.attributo_id)
-            if latest_config.auto_pilot:
-                latest_run = await retrieve_latest_run(session, beamtime_id)
-                if latest_run is not None:
-                    for latest_run_attributo in latest_run.attributo_values:
-                        if (
-                            latest_run_attributo.attributo_id
-                            not in attributo_ids_already_in_run
-                            and (
-                                await latest_run_attributo.awaitable_attrs.attributo
-                            ).group
-                            == ATTRIBUTO_GROUP_MANUAL
-                        ):
-                            run_in_db.attributo_values.append(
-                                duplicate_run_attributo(latest_run_attributo),
-                            )
-            if input_.files is not None:
-                for run_file in input_.files:
-                    run_in_db.files.append(
-                        orm.RunHasFiles(glob=run_file.glob, source=run_file.source)
-                    )
-            session.add(run_in_db)
-            # we might have a new run, and added a chemical to it, but the chemical relationship hasn't been loaded
-            # for that. That we do here by flushing
-            await session.flush()
-        else:
-            run_logger.info("run in DB, updating attributes")
-            await update_attributi_from_json(
+            run_in_db = await _create_new_run(
+                run_logger,
                 session,
-                db_item=run_in_db,
-                new_attributi=input_.attributi,
-                attributi_by_id={
-                    a.id: a
-                    for a in (
-                        await session.scalars(
-                            select(orm.Attributo).where(
-                                orm.Attributo.id.in_(
-                                    a.attributo_id for a in input_.attributi
-                                )
-                                & (
-                                    orm.Attributo.associated_table
-                                    == AssociatedTable.RUN
-                                ),
-                            ),
-                        )
-                    )
-                },
+                latest_config,
+                runExternalId,
+                experiment_type_id,
+                beamtime_id,
+                run_data,
             )
-            if input_.files is not None and input_.files:
-                # This only adds new files. If we wanted to replace, we need another flag
-                for f in input_.files:
-                    run_in_db.files.append(
-                        orm.RunHasFiles(glob=f.glob, source=f.source)
-                    )
-            if input_.started is not None:
-                run_in_db.started = utc_int_to_utc_datetime(input_.started)
-            if input_.stopped is not None:
-                run_in_db.stopped = utc_int_to_utc_datetime(input_.stopped)
+        else:
+            dependent_object_error = (
+                await _check_geometry_replacements_on_run_change_local(
+                    logger, session, run_in_db, run_data, delete_dependent_objects=False
+                )
+            )
+            if isinstance(dependent_object_error, ErrorMessage):
+                raise HTTPException(
+                    status_code=400, detail=dependent_object_error.message
+                )
+
+            await _update_run(run_logger, session, run_in_db, run_data)
 
         if input_.create_data_set:
-            await _create_data_set_for_run(session, latest_config, run_in_db)
+            new_data_set_id = await _create_data_set_for_run(
+                session, latest_config, run_in_db
+            )
+        else:
+            new_data_set_id = None
 
         async def _inner_create_new_event(text: str) -> None:
             run_logger.error(text)
@@ -423,6 +538,7 @@ async def create_or_update_run(
                 "API",
             )
 
+        new_indexing_parameters_id: int | None = None
         if not run_was_created:
             run_logger.info("CrystFEL online not needed, run is updated, not created")
             indexing_result_id = None
@@ -467,7 +583,7 @@ async def create_or_update_run(
                     else None
                 ),
                 command_line=current_online_indexing_parameters.command_line,
-                geometry_file=current_online_indexing_parameters.geometry_file,
+                geometry_id=current_online_indexing_parameters.geometry_id,
                 source=current_online_indexing_parameters.source,
             )
             session.add(new_indexing_result_parameters)
@@ -482,10 +598,7 @@ async def create_or_update_run(
                 frames=0,
                 hits=0,
                 indexed_frames=0,
-                # autodetect geometry file for online indexing
-                geometry_file=None,
-                geometry_hash="",
-                generated_geometry_file=None,
+                generated_geometry_id=None,
                 unit_cell_histograms_file_id=None,
                 job_id=None,
                 job_status=DBJobStatus.QUEUED,
@@ -494,6 +607,13 @@ async def create_or_update_run(
                 job_started=None,
                 job_stopped=None,
                 indexing_parameters_id=new_indexing_result_parameters.id,
+            )
+            new_indexing_parameters_id = new_indexing_result_parameters.id
+            current_online_indexing_geometry = (
+                await current_online_indexing_parameters.awaitable_attrs.geometry
+            )
+            await add_geometry_template_replacements_to_ir(
+                new_indexing_result, run_in_db, current_online_indexing_geometry
             )
             session.add(new_indexing_result)
             await session.flush()
@@ -504,6 +624,8 @@ async def create_or_update_run(
         indexing_result_id=indexing_result_id,
         error_message=None,
         run_internal_id=run_in_db.id,
+        new_indexing_parameters_id=new_indexing_parameters_id,
+        new_data_set_id=new_data_set_id,
         files=[
             JsonRunFile(id=f.id, glob=f.glob, source=f.source) for f in run_in_db.files
         ],
@@ -517,6 +639,7 @@ async def update_run(
 ) -> JsonUpdateRunOutput:
     async with session.begin():
         run_id = RunInternalId(input_.id)
+
         current_run = (
             await session.scalars(
                 select(orm.Run)
@@ -524,16 +647,36 @@ async def update_run(
                 .options(selectinload(orm.Run.files))
             )
         ).one()
-        if input_.files is not None:
+
+        run_data = await _convert_run_from_json(
+            logger,
+            session,
+            files=input_.files,
+            started=None,
+            stopped=None,
+            is_utc=False,
+            input_attributi=input_.attributi,
+        )
+        if isinstance(run_data, ErrorMessage):
+            raise HTTPException(status_code=400, detail=run_data.message)
+
+        dependent_object_error = await _check_geometry_replacements_on_run_change_local(
+            logger,
+            session,
+            current_run,
+            run_data,
+            delete_dependent_objects=input_.delete_dependent_objects,
+        )
+        if isinstance(dependent_object_error, ErrorMessage):
+            raise HTTPException(status_code=400, detail=dependent_object_error.message)
+
+        if run_data.files is not None:
             # clearing doesn't work because implicit IO
             # current_run.files.clear()
             for f in current_run.files:
                 await session.delete(f)
             await session.refresh(current_run)
-            for new_run_file in input_.files:
-                current_run.files.append(
-                    orm.RunHasFiles(glob=new_run_file.glob, source=new_run_file.source)
-                )
+            current_run.files.extend(run_data.files)
         await update_attributi_from_json(
             session,
             db_item=current_run,
@@ -561,6 +704,7 @@ async def update_run(
             JsonRunFile(id=f.id, source=f.source, glob=f.glob)
             for f in current_run.files
         ],
+        deleted_objects=dependent_object_error,
     )
 
 
@@ -744,6 +888,49 @@ async def update_runs_bulk(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonUpdateRunsBulkOutput:
     async with session.begin():
+        run_data = await _convert_run_from_json(
+            logger,
+            session,
+            files=None,
+            started=None,
+            stopped=None,
+            is_utc=False,
+            input_attributi=input_.attributi,
+        )
+        if isinstance(run_data, ErrorMessage):
+            raise HTTPException(status_code=400, detail=run_data.message)
+        for run_in_db in await session.scalars(
+            select(orm.Run)
+            .where(
+                (orm.Run.beamtime_id == input_.beamtime_id)
+                & (orm.Run.external_id.in_(input_.external_run_ids)),
+            )
+            .options(
+                selectinload(orm.Run.attributo_values).selectinload(
+                    orm.RunHasAttributoValue.attributo
+                )
+            )
+            .options(selectinload(orm.Run.files)),
+        ):
+            dependent_object_error = (
+                await _check_geometry_replacements_on_run_change_local(
+                    logger.bind(
+                        run_external_id=run_in_db.external_id,
+                        beamtime_id=input_.beamtime_id,
+                    ),
+                    session,
+                    run_in_db=run_in_db,
+                    run_data=run_data,
+                    delete_dependent_objects=input_.delete_dependent_objects,
+                )
+            )
+            if isinstance(dependent_object_error, ErrorMessage):
+                raise HTTPException(
+                    status_code=400, detail=dependent_object_error.message
+                )
+
+        # A little verbose to have two loops here, could just be one.
+        # But what the hell.
         for run in await session.scalars(
             select(orm.Run).where(
                 (orm.Run.beamtime_id == input_.beamtime_id)

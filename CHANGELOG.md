@@ -5,6 +5,21 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 ## Features
 
+### Geometries as first-class citizens ([\#445](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/445))
+
+Previously, CrystFEL geometry content was not not stored in the database. Instead, we stored a *path* to a geometry file, as well as a *hash* of the contents, so we could do an "is same" check on geometries safely and thus compare indexing parameters.
+
+This worked, but not having the geometry inside the database meant we couldn't *synthesize* geometry files for ourselves. However, one of the advantages of a central database system is that it logs parameters such as the detector distance and the X-ray energy, and it would be nice if we could "copy" that to the geometry.
+
+So now, geometry files are a first-class citizen, meaning you can create, update, inspect and delete geometries from AMARCORD's user interface. And of course, use geometries in your CrystFEL indexing jobs. Also, geometries can have *placeholders* for Run Attributi, so you can insert the run's detector distance directly into the geometry. See the new "user guide" for more information.
+
+<figure>
+![Geometry page](changelog-assets/455-add-geometry.png){width=622 height=510px}
+<figcaption>The "Add new geometry" form, showing (off) a `detector_distance` placeholder.</figcaption>
+</figure>
+
+
+
 ### Chemicals: Better "Copy from previous beamtime" input ([\#478](https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/issues/478))
 
 Since the list of chemicals across beamtimes keeps growing, and most of the time you actually know which chemical to copy (by name), you can now just click the drop-down and start typing!

@@ -48,6 +48,7 @@ from amarcord.web.json_models import JsonDataSetStatistics
 from amarcord.web.json_models import JsonDataSetWithIndexingResults
 from amarcord.web.json_models import JsonDetectorShift
 from amarcord.web.json_models import JsonExperimentTypeWithBeamtimeInformation
+from amarcord.web.json_models import JsonGeometryMetadata
 from amarcord.web.json_models import JsonIndexingParametersWithResults
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonMergeStatus
@@ -120,9 +121,7 @@ async def read_beamtime_geometry_details(
                             )
                             for g in ir.align_detector_groups
                         ],
-                        geometry_hash=(
-                            ir.geometry_hash if ir.geometry_hash is not None else ""
-                        ),
+                        geometry_id=ir.indexing_parameters.geometry_id,
                     ),
                 )
 
@@ -363,7 +362,17 @@ async def read_single_data_set_results(
             select(orm.IndexingResult)
             .join(orm.Run, orm.Run.id == orm.IndexingResult.run_id)
             .where(orm.Run.beamtime_id == beamtimeId)
-            .options(selectinload(orm.IndexingResult.indexing_parameters))
+            .options(selectinload(orm.IndexingResult.generated_geometry))
+            .options(
+                selectinload(orm.IndexingResult.template_replacements).selectinload(
+                    orm.GeometryTemplateReplacement.attributo
+                )
+            )
+            .options(
+                selectinload(orm.IndexingResult.indexing_parameters).selectinload(
+                    orm.IndexingParameters.geometry
+                )
+            )
             .options(selectinload(orm.IndexingResult.run)),
         ),
         lambda ir: ir.run_id,
@@ -379,6 +388,8 @@ async def read_single_data_set_results(
     # that).
     main_indexing_parameter_id: dict[int, int] = {}
 
+    geometry_id_to_name_and_created: dict[int, tuple[str, int]] = {}
+
     # In this dict, we store, for each main indexing parameter object,
     # all corresponding indexing results.
     ip_and_ix_results: dict[int, list[orm.IndexingResult]] = {}
@@ -390,7 +401,19 @@ async def read_single_data_set_results(
     ):
         new_ip = ir.indexing_parameters
 
-        # We either have a new indexing parmeter object, or this one
+        if new_ip.geometry is not None:
+            geometry_id_to_name_and_created[new_ip.geometry.id] = (
+                new_ip.geometry.name,
+                utc_datetime_to_local_int(new_ip.geometry.created),
+            )
+
+        if ir.generated_geometry is not None:
+            geometry_id_to_name_and_created[ir.generated_geometry.id] = (
+                ir.generated_geometry.name,
+                utc_datetime_to_local_int(ir.generated_geometry.created),
+            )
+
+        # We either have a new indexing parameter object, or this one
         # is equivalent to one of the previously selected "main" ones.
         # We don't know yet.
         main_parameter_id: None | int = None
@@ -501,6 +524,10 @@ async def read_single_data_set_results(
             await data_set.awaitable_attrs.experiment_type,
         ),
         data_set=_build_data_set_result(data_set),
+        geometries=[
+            JsonGeometryMetadata(id=gid, name=gname, created_local=created)
+            for gid, (gname, created) in geometry_id_to_name_and_created.items()
+        ],
     )
 
 

@@ -1,7 +1,7 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-24.11";
+  inputs.nixpkgs.url = "nixpkgs/nixos-25.05";
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
     url = "github:pmiddend/mkElmDerivation?ref=fix-makefile-presence";
@@ -87,12 +87,27 @@
       # in
       # mapAttrs (name: spec: prev.${name}.overrideAttrs (old: { nativeBuildInputs = old.nativeBuildInputs ++ resolveBuildSystem spec; })) buildSystemOverrides
 
+      elm-ems-issue-overlay = final: prev: {
+        elmPackages = prev.elmPackages // {
+          # see https://github.com/NixOS/nixpkgs/pull/414495
+          elm = prev.elmPackages.elm.overrideAttrs (old: {
+            src = prev.fetchFromGitHub {
+              owner = "bmillwood";
+              repo = "elm-compiler";
+              rev = "c8ca5e14650a77446a6577eb356ddd09c3928bac";
+              hash = "sha256-H9+dOILnszejlylsV7Dd7TFuXuKGc/+7kYeNhN4SVXg=";
+            };
+          });
+        };
+      };
+
       # This example is only using x86_64-linux
       pkgs = import nixpkgs {
         inherit system;
         overlays = [
           # overlay
           mkElmDerivation.overlays.mkElmDerivation
+          elm-ems-issue-overlay
         ];
       };
 
@@ -163,7 +178,7 @@
         rec {
           inherit amarcord-frontend;
 
-          amarcord-python-package = pythonSet.mkVirtualEnv "amarcord-serial-env" workspace.deps.default;
+          amarcord-python-package = pythonSet.mkVirtualEnv "amarcord-env" workspace.deps.default;
 
           amarcord-production-webserver = pkgs.writeShellScriptBin "amarcord-production-webserver" ''
             export AMARCORD_STATIC_PATH="${amarcord-frontend}"
@@ -190,7 +205,6 @@
             ];
           };
         };
-
       devShells.${system} = {
         # It is of course perfectly OK to keep using an impure virtualenv workflow and only use uv2nix to build packages.
         # This devShell simply adds Python and undoes the dependency leakage done by Nixpkgs Python infrastructure.
@@ -199,14 +213,24 @@
             python
             pkgs.uv
           ];
-          shellHook = ''
-            unset PYTHONPATH
-            export UV_PYTHON_DOWNLOADS=never
+          env = {
+            # Prevent uv from managing Python downloads
+            UV_PYTHON_DOWNLOADS = "never";
+            # Force uv to use nixpkgs Python interpreter
+            UV_PYTHON = python.interpreter;
             # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
-            export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
+            PYENCHANT_LIBRARY_PATH = "${pkgs.enchant}/lib/libenchant-2.so";
             # This is also more or less a hack, see
             # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
-            export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
+            ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
+          } // lib.optionalAttrs pkgs.stdenv.isLinux {
+            # Python libraries often load native shared objects using dlopen(3).
+            # Setting LD_LIBRARY_PATH makes the dynamic library loader aware of libraries without using RPATH for lookup.
+            LD_LIBRARY_PATH = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+          };
+          shellHook = ''
+            unset PYTHONPATH
+            PYTHONPATH=.
           '';
         };
 
@@ -225,12 +249,48 @@
             };
 
             # Override previous set with our overrideable overlay.
-            editablePythonSet = pythonSet.overrideScope editableOverlay;
+            editablePythonSet = pythonSet.overrideScope (
+              lib.composeManyExtensions [
+                editableOverlay
+
+                # Apply fixups for building an editable package of your workspace packages
+                (final: prev: {
+                  amarcord = prev.amarcord.overrideAttrs (old: {
+                    # It's a good idea to filter the sources going into an editable build
+                    # so the editable package doesn't have to be rebuilt on every change.
+                    src = lib.fileset.toSource {
+                      root = old.src;
+                      fileset = lib.fileset.unions [
+                        (old.src + "/pyproject.toml")
+                        (old.src + "/README.md")
+                      ];
+                    };
+
+                    # Hatchling (our build system) has a dependency on
+                    # the `editables` package when building editables.
+                    #
+                    # In normal Python flows this dependency is
+                    # dynamically handled, and doesn't need to be
+                    # explicitly declared. This behaviour is
+                    # documented in PEP-660.
+                    #
+                    # With Nix the dependency needs to be explicitly
+                    # declared.
+                    nativeBuildInputs =
+                      old.nativeBuildInputs
+                      ++ final.resolveBuildSystem {
+                        editables = [ ];
+                      };
+                  });
+
+                })
+              ]
+            );
 
             # Build virtual environment, with local packages being editable.
             #
             # Enable all optional dependencies for development.
-            virtualenv = editablePythonSet.mkVirtualEnv "amarcord-serial-dev-env" workspace.deps.all;
+            virtualenv = editablePythonSet.mkVirtualEnv "amarcord-dev-env" workspace.deps.all;
 
           in
           pkgs.mkShell {
@@ -249,30 +309,53 @@
               pkgs.schemacrawler
               pkgs.shellcheck
             ];
+            env = {
+              # Don't create venv using uv
+              UV_NO_SYNC = "1";
+
+              # Force uv to use Python interpreter from venv
+              UV_PYTHON = "${virtualenv}/bin/python";
+
+              # Prevent uv from downloading managed Python's
+              UV_PYTHON_DOWNLOADS = "never";
+              # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
+              PYENCHANT_LIBRARY_PATH = "${pkgs.enchant}/lib/libenchant-2.so";
+
+              # This is also more or less a hack, see
+              # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
+              ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
+            };
             shellHook = ''
               # Undo dependency propagation by nixpkgs.
               unset PYTHONPATH
-
-              # Don't create venv using uv
-              export UV_NO_SYNC=1
-
-              # Prevent uv from downloading managed Python's
-              export UV_PYTHON_DOWNLOADS=never
+              export PYTHONPATH=.
 
               # Get repository root using git. This is expanded at runtime by the editable `.pth` machinery.
               export REPO_ROOT=$(git rev-parse --show-toplevel)
-
-              # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
-              export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
-              # This is also more or less a hack, see
-              # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
-              export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
             '';
           };
 
         frontend =
           let
-            elm-language-server = (import ./frontend/elm-language-server { inherit pkgs; })."@elm-tooling/elm-language-server";
+            elm-language-server = pkgs.buildNpmPackage (finalAttrs: {
+              pname = "elm-language-server";
+              version = "2.8.0";
+
+              src = pkgs.fetchFromGitHub {
+                owner = "elm-tooling";
+                repo = "elm-language-server";
+                tag = "${finalAttrs.version}";
+                hash = "sha256-OU6VoMu5Qnawxt02vT0B/37VipiBzlLBlZbQbnu8PEE=";
+              };
+
+              # https://discourse.nixos.org/t/error-getaddrinfo-eai-again-github-com-when-using-nix-parcel-and-elm/29605/3
+              npmFlags = [ "--ignore-scripts" ];
+
+              # There _is_ no build script.
+              npmBuildScript = "compile";
+
+              npmDepsHash = "sha256-jb59LiP2EZpTkc4o/t+9j287W01tDgbwFpAsWZCCL/k=";
+            });
           in
           pkgs.mkShell {
             buildInputs = [
@@ -280,7 +363,7 @@
               pkgs.elmPackages.elm-review
               pkgs.elmPackages.elm-format
               pkgs.elmPackages.elm-json
-              pkgs.elmPackages.elm-test
+              pkgs.elmPackages.elm-test-rs
               elm-language-server
               pkgs.nodejs
               pkgs.elm2nix

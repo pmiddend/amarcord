@@ -9,6 +9,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.db_job_status import DBJobStatus
+from amarcord.db.geometry_type import GeometryType
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.merge_result import JsonMergeResultInternal
@@ -34,6 +35,62 @@ class JsonUpdateBeamtimeInput(BaseModel):
     start_local: int
     end_local: int
     analysis_output_path: str
+
+
+# In case you're wondering why geometries are a little different w.r.t
+# creation and updates: we tried a new scheme here that makes more sense.
+class JsonGeometryUpdate(BaseModel):
+    content: str
+    name: str
+
+
+class JsonGeometryCopyToBeamtime(BaseModel):
+    geometry_id: int
+    target_beamtime_id: BeamtimeId
+
+
+class JsonGeometryCreate(BaseModel):
+    beamtime_id: BeamtimeId
+    content: str
+    name: str
+
+
+class JsonGeometryWithUsages(BaseModel):
+    geometry_id: int
+    usages: int
+
+
+class JsonReadSingleGeometryOutput(BaseModel):
+    content: str
+    attributi: list[int]
+
+
+class JsonReadGeometriesForAllBeamtimes(BaseModel):
+    geometries: list["JsonGeometryWithoutContent"]
+    beamtimes: list["JsonBeamtimeOutput"]
+
+
+class JsonGeometryWithContent(BaseModel):
+    id: int
+    beamtime_id: BeamtimeId
+    content: str
+    hash: str
+    name: str
+    created: int
+    created_local: int
+    attributi: list[int]
+    geometry_type: GeometryType
+
+
+class JsonGeometryWithoutContent(BaseModel):
+    id: int
+    beamtime_id: BeamtimeId
+    hash: str
+    name: str
+    created: int
+    created_local: int
+    attributi: list[int]
+    geometry_type: GeometryType
 
 
 class JsonBeamtimeInput(BaseModel):
@@ -307,6 +364,12 @@ class JsonAttributo(BaseModel):
     attributo_type_boolean: None | JSONSchemaBoolean = None
 
 
+class JsonReadGeometriesForSingleBeamtime(BaseModel):
+    geometries: list["JsonGeometryWithoutContent"]
+    geometry_with_usage: list[JsonGeometryWithUsages]
+    attributi: list[JsonAttributo]
+
+
 class JsonReadChemicals(BaseModel):
     chemicals: list[JsonChemical]
     attributi: list[JsonAttributo]
@@ -338,12 +401,12 @@ class JsonIndexingParameters(BaseModel):
     cell_description: None | str = None
     is_online: bool
     command_line: str
-    geometry_file: str
+    geometry_id: None | int
 
 
 class JsonUpdateOnlineIndexingParametersInput(BaseModel):
     command_line: str
-    geometry_file: str
+    geometry_id: int
     source: str
 
 
@@ -358,6 +421,11 @@ class JsonAlignDetectorGroup(BaseModel):
     z_translation_mm: None | float = None
     x_rotation_deg: None | float = None
     y_rotation_deg: None | float = None
+
+
+class JsonGeometryPlaceholderReplacement(BaseModel):
+    placeholder_name: str
+    placeholder_replacement: str
 
 
 class JsonIndexingResult(BaseModel):
@@ -379,11 +447,10 @@ class JsonIndexingResult(BaseModel):
     indexed_crystals: int
     status: DBJobStatus
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
-    generated_geometry_file: str
+    generated_geometry_id: None | int
     unit_cell_histograms_file_id: None | int = None
     has_error: bool
+    geometry_placeholder_replacements: list[JsonGeometryPlaceholderReplacement]
     # Commented out, we retrieve the log separately
     # latest_log: str
 
@@ -392,7 +459,7 @@ class JsonCreateIndexingForDataSetInput(BaseModel):
     data_set_id: int
     is_online: bool
     cell_description: str
-    geometry_file: str
+    geometry_id: int
     command_line: str
     source: str
 
@@ -409,8 +476,7 @@ class JsonImportFinishedIndexingJobInput(BaseModel):
     hits: int
     indexed_frames: int
     align_detector_groups: list[AlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
+    geometry_contents: str
     generated_geometry_file: None | str = None
     job_log: str
 
@@ -419,15 +485,22 @@ class JsonImportFinishedIndexingJobOutput(BaseModel):
     indexing_result_id: int
 
 
+class JsonGeometryMetadata(BaseModel):
+    id: int
+    name: str
+    created_local: int
+
+
 class JsonReadIndexingParametersOutput(BaseModel):
     data_set_id: int
     cell_description: str
     sources: list[str]
+    geometries: list[JsonGeometryMetadata]
 
 
 class JsonCreateIndexingForDataSetOutput(BaseModel):
     jobs_started_run_external_ids: list[int]
-    indexing_result_id: int
+    indexing_result_ids: list[int]
     # used to display "job submitted" only on the specific data set
     data_set_id: int
     # we use that to scroll to the indexing job just created (and expand it)
@@ -451,9 +524,7 @@ class JsonIndexingResultFinishSuccessfully(BaseModel):
     indexed_frames: int
     indexed_crystals: int
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_file: str
-    geometry_hash: str
-    generated_geometry_file: str
+    generated_geometry_contents: str
     unit_cell_histograms_id: None | int = None
 
     # None, in this case, means "don't change/append to the log"
@@ -514,6 +585,8 @@ class JsonCreateOrUpdateRun(BaseModel):
 class JsonCreateOrUpdateRunOutput(BaseModel):
     run_created: bool
     indexing_result_id: None | int = None
+    new_indexing_parameters_id: None | int = None
+    new_data_set_id: None | int = None
     error_message: None | str = None
     run_internal_id: None | RunInternalId = None
     files: list[JsonRunFile]
@@ -523,11 +596,13 @@ class JsonUpdateRun(BaseModel):
     id: RunInternalId
     experiment_type_id: int
     attributi: list[JsonAttributoValue]
+    delete_dependent_objects: bool
     files: None | list[JsonRunFile] = None
 
 
 class JsonUpdateRunOutput(BaseModel):
     result: bool
+    deleted_objects: int
     files: list[JsonRunFile]
 
 
@@ -564,6 +639,7 @@ class JsonUpdateRunsBulkInput(BaseModel):
     beamtime_id: BeamtimeId
     external_run_ids: list[int]
     attributi: list[JsonAttributoValue]
+    delete_dependent_objects: bool
     new_experiment_type_id: None | int = None
 
 
@@ -593,8 +669,6 @@ class JsonIndexingResultStillRunning(BaseModel):
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    geometry_file: str
-    geometry_hash: str
     # can be missing, in case we don't have that information but still want to signal progress
     job_started: None | int = None
     # None, in this case, means "don't change/append to the log"
@@ -626,7 +700,7 @@ class JsonDetectorShift(BaseModel):
     run_end: None | int = None
     run_end_local: None | int = None
     align_detector_groups: list[JsonAlignDetectorGroup]
-    geometry_hash: str
+    geometry_id: None | int = None
 
 
 class JsonReadBeamtimeGeometryDetails(BaseModel):
@@ -990,6 +1064,12 @@ class JsonReadSingleDataSetResults(BaseModel):
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
     data_set: JsonDataSetWithIndexingResults
+    geometries: list[JsonGeometryMetadata]
+
+
+class JsonReadOnlineIndexingParametersOutput(BaseModel):
+    parameters: JsonIndexingParameters
+    geometries: list[JsonGeometryMetadata]
 
 
 class JsonMergeStatus(str, Enum):
@@ -1048,8 +1128,8 @@ class JsonIndexingJob(BaseModel):
     stream_file: None | str = None
     source: str
     cell_description: None | str = None
-    geometry_file_input: str
-    geometry_file_output: str
+    geometry_id: None | int = None
+    generated_geometry_id: None | int = None
     command_line: str
     run_internal_id: int
     run_external_id: int

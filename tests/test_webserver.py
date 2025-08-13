@@ -2,7 +2,6 @@
 # ruff: noqa: T201
 
 import asyncio
-import hashlib
 import os
 from dataclasses import replace
 from functools import partial
@@ -110,6 +109,10 @@ from amarcord.web.json_models import JsonDeleteRunOutput
 from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
 from amarcord.web.json_models import JsonEventTopLevelOutput
+from amarcord.web.json_models import JsonGeometryCopyToBeamtime
+from amarcord.web.json_models import JsonGeometryCreate
+from amarcord.web.json_models import JsonGeometryUpdate
+from amarcord.web.json_models import JsonGeometryWithoutContent
 from amarcord.web.json_models import JsonImportFinishedIndexingJobInput
 from amarcord.web.json_models import JsonImportFinishedIndexingJobOutput
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
@@ -128,6 +131,8 @@ from amarcord.web.json_models import JsonReadChemicals
 from amarcord.web.json_models import JsonReadDataSets
 from amarcord.web.json_models import JsonReadEvents
 from amarcord.web.json_models import JsonReadExperimentTypes
+from amarcord.web.json_models import JsonReadGeometriesForAllBeamtimes
+from amarcord.web.json_models import JsonReadGeometriesForSingleBeamtime
 from amarcord.web.json_models import JsonReadIndexingResultsOutput
 from amarcord.web.json_models import JsonReadMergeResultsOutput
 from amarcord.web.json_models import JsonReadNewAnalysisInput
@@ -137,6 +142,7 @@ from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonReadSingleDataSetResults
+from amarcord.web.json_models import JsonReadSingleGeometryOutput
 from amarcord.web.json_models import JsonRefinementResult
 from amarcord.web.json_models import JsonRunFile
 from amarcord.web.json_models import JsonStartRunOutput
@@ -147,6 +153,8 @@ from amarcord.web.json_models import JsonUpdateAttributoOutput
 from amarcord.web.json_models import JsonUpdateBeamtimeInput
 from amarcord.web.json_models import JsonUpdateBeamtimeScheduleInput
 from amarcord.web.json_models import JsonUpdateLiveStream
+from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersInput
+from amarcord.web.json_models import JsonUpdateOnlineIndexingParametersOutput
 from amarcord.web.json_models import JsonUpdateRun
 from amarcord.web.json_models import JsonUpdateRunOutput
 from amarcord.web.json_models import JsonUpdateRunsBulkInput
@@ -166,6 +174,9 @@ TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
 TEST_CHEMICAL_NAME = "chemicalname"
 TEST_CHEMICAL_RESPONSIBLE_PERSON = "Rosalind Franklin"
+_RUN_STRING_ATTRIBUTO_NAME = "run_string"
+_RUN_INT_ATTRIBUTO_NAME = "run_int"
+_SIMPLE_RUN_STRING_ATTRIBUTO_INITIAL_VALUE = "foobar"
 
 # Some of the tests compare ".local" time fields, which then depends
 # on the time zone you're using to run the test, which is suboptimal
@@ -248,6 +259,46 @@ def second_beamtime_id(client: TestClient) -> BeamtimeId:
             analysis_output_path="/",
         ),
     )
+
+
+# Stored in a variable so when we want to update it in a test, we can
+# reuse the old content (changing just the metadata)
+_GEOMETRY_ID_CONTENT = "hehe"
+
+
+@pytest.fixture
+def geometry_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id,
+                content=_GEOMETRY_ID_CONTENT,
+                name="geometry name",
+            ).model_dump(),
+        ).json(),
+    )
+    assert response.id > 0
+    return response.id
+
+
+@pytest.fixture
+def geometry_id_with_run_string_attributo(
+    client: TestClient, beamtime_id: BeamtimeId, run_string_attributo_id: int
+) -> int:
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id,
+                content="clen {{" + _RUN_STRING_ATTRIBUTO_NAME + "}}",
+                name="geometry name",
+            ).model_dump(),
+        ).json(),
+    )
+    assert response.id > 0
+    assert response.attributi == [run_string_attributo_id]
+    return response.id
 
 
 @pytest.fixture
@@ -346,7 +397,7 @@ def space_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int
 @pytest.fixture
 def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
-        name="run_string",
+        name=_RUN_STRING_ATTRIBUTO_NAME,
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
@@ -366,7 +417,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
 @pytest.fixture
 def run_int_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
-        name="run_int",
+        name=_RUN_INT_ATTRIBUTO_NAME,
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
@@ -594,6 +645,7 @@ def simple_run_id(
     beamtime_id: BeamtimeId,
     run_channel_1_chemical_attributo_id: int,
     chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
     lyso_chemical_id: int,
 ) -> RunInternalId:
     external_run_id = 1000
@@ -611,6 +663,10 @@ def simple_run_id(
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
+                    ),
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str=_SIMPLE_RUN_STRING_ATTRIBUTO_INITIAL_VALUE,
                     ),
                 ],
                 create_data_set=False,
@@ -678,7 +734,8 @@ def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
 @pytest.fixture
 def simple_indexing_result_id(
     client: TestClient,
-    simple_data_set_id: RunInternalId,
+    simple_data_set_id: int,
+    geometry_id: int,
 ) -> int:
     create_indexing_response = JsonCreateIndexingForDataSetOutput(
         **client.post(
@@ -687,21 +744,21 @@ def simple_indexing_result_id(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
         ).json(),
     )
 
+    assert len(create_indexing_response.indexing_result_ids) == 1
+
     client.post(
-        f"/api/indexing/{create_indexing_response.indexing_result_id}/success",
+        f"/api/indexing/{create_indexing_response.indexing_result_ids[0]}/success",
         json=JsonIndexingResultFinishSuccessfully(
             workload_manager_job_id=1,
             stream_file="/tmp/some-file.stream",  # noqa: S108
             program_version="",
-            geometry_file="/tmp/some.geom",  # noqa: S108
-            geometry_hash=hashlib.sha256(b"").hexdigest(),
             # More or less random values, we don't care about the specifics here
             frames=200,
             # Hit rate 50%
@@ -727,13 +784,75 @@ def simple_indexing_result_id(
                     y_rotation_deg=0,
                 ),
             ],
-            generated_geometry_file="",
+            generated_geometry_contents="",
             unit_cell_histograms_id=None,
             latest_log="",
         ).model_dump(),
     )
 
-    return create_indexing_response.indexing_result_id
+    return create_indexing_response.indexing_result_ids[0]
+
+
+@pytest.fixture
+def indexing_result_id_with_run_string_attributo_geometry(
+    client: TestClient,
+    simple_data_set_id: int,
+    geometry_id_with_run_string_attributo: int,
+) -> int:
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_id=geometry_id_with_run_string_attributo,
+                command_line="",
+                source="raw",
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert len(create_indexing_response.indexing_result_ids) == 1
+
+    client.post(
+        f"/api/indexing/{create_indexing_response.indexing_result_ids[0]}/success",
+        json=JsonIndexingResultFinishSuccessfully(
+            workload_manager_job_id=1,
+            stream_file="/tmp/some-file.stream",  # noqa: S108
+            program_version="",
+            # More or less random values, we don't care about the specifics here
+            frames=200,
+            # Hit rate 50%
+            hits=100,
+            # Indexing rate 20%
+            indexed_frames=20,
+            indexed_crystals=25,
+            align_detector_groups=[
+                JsonAlignDetectorGroup(
+                    group="all",
+                    x_translation_mm=0.5,
+                    y_translation_mm=-0.5,
+                    z_translation_mm=-0.8,
+                    x_rotation_deg=1,
+                    y_rotation_deg=2,
+                ),
+                JsonAlignDetectorGroup(
+                    group="panel0",
+                    x_translation_mm=0,
+                    y_translation_mm=0,
+                    z_translation_mm=0,
+                    x_rotation_deg=0,
+                    y_rotation_deg=0,
+                ),
+            ],
+            generated_geometry_contents="",
+            unit_cell_histograms_id=None,
+            latest_log="",
+        ).model_dump(),
+    )
+
+    return create_indexing_response.indexing_result_ids[0]
 
 
 @pytest.fixture
@@ -752,6 +871,249 @@ def run_without_files_data_set_id(
 
     assert create_data_set_response.data_set_id > 0
     return create_data_set_response.data_set_id
+
+
+def test_read_single_geometry(client: TestClient, geometry_id: int) -> None:
+    result_raw = client.get(f"/api/geometries/{geometry_id}/raw").text
+
+    assert result_raw == "hehe"
+
+    result_json = JsonReadSingleGeometryOutput(
+        **client.get(f"/api/geometries/{geometry_id}").json()
+    )
+
+    assert result_json.content == "hehe"
+
+
+def test_update_single_geometry_without_usage(
+    client: TestClient, geometry_id: int
+) -> None:
+    result = JsonGeometryWithoutContent(
+        **client.patch(
+            f"/api/geometries/{geometry_id}",
+            json=JsonGeometryUpdate(content="newcontent", name="newname").model_dump(),
+        ).json()
+    )
+
+    assert result.name == "newname"
+
+    single_result = client.get(f"/api/geometries/{geometry_id}/raw").text
+
+    assert single_result == "newcontent"
+
+
+def test_update_single_geometry_use_different_attributo(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    run_int_attributo_id: int,
+) -> None:
+    result = JsonGeometryWithoutContent(
+        **client.patch(
+            f"/api/geometries/{geometry_id_with_run_string_attributo}",
+            json=JsonGeometryUpdate(
+                # Before we had _RUN_STRING_ATTRIBUTO_NAME, and now we
+                # update it to the int attributo
+                content="clen {{" + _RUN_INT_ATTRIBUTO_NAME + "}}",
+                name="newname",
+            ).model_dump(),
+        ).json()
+    )
+    assert result.attributi == [run_int_attributo_id]
+
+
+def test_update_attributo_name_which_is_used_in_geometry(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    run_string_attributo_id: int,
+) -> None:
+    updated_attributo = JsonAttributo(
+        id=run_string_attributo_id,
+        name=_RUN_STRING_ATTRIBUTO_NAME + "new",
+        description="new description",
+        group="new group",
+        associated_table=AssociatedTable.RUN,
+        # even change the type to string here
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
+    )
+
+    attributo_update_response = JsonUpdateAttributoOutput(
+        **client.patch(
+            "/api/attributi",
+            json=JsonUpdateAttributoInput(
+                attributo=updated_attributo,
+                conversion_flags=JsonUpdateAttributoConversionFlags(ignore_units=True),
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert attributo_update_response.id == run_string_attributo_id
+
+    result_raw = client.get(
+        f"/api/geometries/{geometry_id_with_run_string_attributo}/raw"
+    ).text
+
+    assert "{{" + _RUN_STRING_ATTRIBUTO_NAME + "}}" not in result_raw
+    assert "{{" + _RUN_STRING_ATTRIBUTO_NAME + "new}}" in result_raw
+
+
+def test_delete_attributo_which_is_used_in_geometry(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,  # noqa: ARG001
+    run_string_attributo_id: int,
+) -> None:
+    response = client.request(
+        "DELETE",
+        "/api/attributi",
+        json=JsonDeleteAttributoInput(id=run_string_attributo_id).model_dump(),
+    )
+    assert response.status_code // 100 == 4
+
+
+def test_update_single_geometry_with_usage(
+    client: TestClient,
+    geometry_id: int,
+    # A little bit of domain knowledge needed here:
+    # simple_indexing_result_id is using geometry_id for its geometry,
+    # constituting a "usage" of the geometry
+    simple_indexing_result_id: int,  # noqa: ARG001
+) -> None:
+    response = client.patch(
+        f"/api/geometries/{geometry_id}",
+        json=JsonGeometryUpdate(
+            content=_GEOMETRY_ID_CONTENT + "newcontent", name="newname"
+        ).model_dump(),
+    )
+
+    # Should fail, because we're changing the content
+    assert response.status_code // 100 == 4
+
+    response = client.patch(
+        f"/api/geometries/{geometry_id}",
+        json=JsonGeometryUpdate(
+            content=_GEOMETRY_ID_CONTENT, name="newname"
+        ).model_dump(),
+    )
+
+    # Is fine, we're only changing metadata
+    assert response.status_code // 100 == 2
+
+
+def test_delete_single_geometry(client: TestClient, geometry_id: int) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.delete(f"/api/geometries/{geometry_id}").json()
+    )
+
+    assert not result.geometries
+
+
+def test_delete_single_geometry_with_usage(
+    client: TestClient,
+    geometry_id: int,
+    # A little bit of domain knowledge needed here:
+    # simple_indexing_result_id is using geometry_id for its geometry,
+    # constituting a "usage" of the geometry
+    simple_indexing_result_id: int,  # noqa: ARG001
+) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.delete(f"/api/geometries/{geometry_id}").json()
+    )
+
+    # Should work also, there is no test for usage in the backend yet when deleting geometries
+    assert not result.geometries
+
+
+def test_read_single_beamtime_geometry(
+    client: TestClient, beamtime_id: BeamtimeId, geometry_id: int
+) -> None:
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
+
+
+def test_copy_geometry_to_other_beamtime(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    second_beamtime_id: BeamtimeId,
+    geometry_id: int,
+) -> None:
+    # First, let's make sure the "for single beamtime" request doesn't mix up beamtimes
+    result_first = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+    assert len(result_first.geometries) == 1
+
+    result_second = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{second_beamtime_id}").json()
+    )
+    assert len(result_second.geometries) == 0
+
+    result_all = JsonReadGeometriesForAllBeamtimes(
+        **client.get("/api/all-geometries").json()
+    )
+    assert len(result_all.geometries) == 1
+
+    # Now copy the beamtime from "first" to "second"
+    client.post(
+        "/api/geometry-copy-to-beamtime",
+        json=JsonGeometryCopyToBeamtime(
+            geometry_id=geometry_id,
+            target_beamtime_id=second_beamtime_id,
+        ).model_dump(),
+    )
+    result_second_after_copy = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{second_beamtime_id}").json()
+    )
+    assert len(result_second_after_copy.geometries) == 1
+    assert result_second_after_copy.geometries[0] != geometry_id
+
+    result_first_after_copy = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+    assert len(result_first_after_copy.geometries) == 1
+
+
+def test_copy_geometry_to_other_beamtime_when_other_beamtime_has_one_with_the_same_name(
+    client: TestClient,
+    beamtime_id: BeamtimeId,  # noqa: ARG001
+    second_beamtime_id: BeamtimeId,
+    geometry_id: int,
+) -> None:
+    # create another geometry, in the other beamtime
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                # Note: same name as in the first BT
+                beamtime_id=second_beamtime_id,
+                content="hehe",
+                name="geometry name",
+            ).model_dump(),
+        ).json(),
+    )
+    assert response.id > 0
+
+    # Now copy the beamtime from "first" to "second"
+    copy_response = client.post(
+        "/api/geometry-copy-to-beamtime",
+        json=JsonGeometryCopyToBeamtime(
+            geometry_id=geometry_id,
+            target_beamtime_id=second_beamtime_id,
+        ).model_dump(),
+    )
+
+    assert copy_response.status_code // 100 == 4
+
+
+def test_read_all_geometries(client: TestClient, geometry_id: int) -> None:
+    result = JsonReadGeometriesForAllBeamtimes(
+        **client.get("/api/all-geometries").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
 
 
 def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
@@ -1375,11 +1737,23 @@ def set_auto_pilot(client: TestClient, beamtime_id: BeamtimeId, enabled: bool) -
     assert option_set_result.value_bool == enabled
 
 
-def enable_crystfel_online(client: TestClient, beamtime_id: BeamtimeId) -> None:
+def enable_crystfel_online(
+    client: TestClient, beamtime_id: BeamtimeId, geometry_id: int
+) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
         **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json(),
     )
 
+    set_geometry_result = JsonUpdateOnlineIndexingParametersOutput(
+        **client.patch(
+            f"/api/user-config/{beamtime_id}/online-indexing-parameters",
+            json=JsonUpdateOnlineIndexingParametersInput(
+                command_line="--multi", geometry_id=geometry_id, source=""
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert set_geometry_result.success
     assert option_set_result.value_bool
 
 
@@ -1541,10 +1915,11 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -1640,8 +2015,7 @@ def test_create_run_and_import_external_indexing_result(
                 hits=2,
                 indexed_frames=3,
                 align_detector_groups=[],
-                geometry_file="/tmp/geom",  # noqa: S108
-                geometry_hash="00000000000000000000000000",
+                geometry_contents="/tmp/geom",  # noqa: S108
                 generated_geometry_file=None,
                 job_log="test log",
             ).model_dump(),
@@ -1667,10 +2041,11 @@ def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -1786,6 +2161,7 @@ def test_create_and_update_run_with_patch(
                     ),
                 ],
                 files=new_files,
+                delete_dependent_objects=False,
             ).model_dump(),
         ).json(),
     )
@@ -1863,11 +2239,12 @@ def test_update_indexing_job(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -1905,8 +2282,6 @@ def test_update_indexing_job(
                 workload_manager_job_id=1,
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 # More or less random values, we don't care about the specifics here
                 frames=200,
                 # Hit rate 50%
@@ -1932,7 +2307,7 @@ def test_update_indexing_job(
                         y_rotation_deg=0,
                     ),
                 ],
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 unit_cell_histograms_id=None,
                 latest_log="",
             ).model_dump(),
@@ -2019,6 +2394,7 @@ def test_indexing_result_with_two_equal_parameter(
     lyso_chemical_id: int,  # noqa: ARG001
     simple_run_id: int,  # noqa: ARG001
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
@@ -2030,19 +2406,21 @@ def test_indexing_result_with_two_equal_parameter(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
         ).json(),
     )
 
-    ir_id = create_indexing_response.indexing_result_id
+    assert len(create_indexing_response.indexing_result_ids) == 1
+
+    ir_id = create_indexing_response.indexing_result_ids[0]
     ip_id = create_indexing_response.indexing_parameters_id
 
     finish_with_error_response = JsonIndexingJobUpdateOutput(
         **client.post(
-            f"/api/indexing/{create_indexing_response.indexing_result_id}/finish-with-error",
+            f"/api/indexing/{create_indexing_response.indexing_result_ids[0]}/finish-with-error",
             json=JsonIndexingResultFinishWithError(
                 error_message="",
                 latest_log="",
@@ -2059,14 +2437,15 @@ def test_indexing_result_with_two_equal_parameter(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),
         ).json(),
     )
 
-    new_ir_id = create_indexing_response_later.indexing_result_id
+    assert len(create_indexing_response_later.indexing_result_ids) == 1
+    new_ir_id = create_indexing_response_later.indexing_result_ids[0]
     new_ip_id = create_indexing_response_later.indexing_parameters_id
 
     # This is the important part: we get a new indexing parameters
@@ -2081,8 +2460,6 @@ def test_indexing_result_with_two_equal_parameter(
             workload_manager_job_id=1,
             stream_file="/tmp/some-file.stream",  # noqa: S108
             program_version="",
-            geometry_file="/tmp/some.geom",  # noqa: S108
-            geometry_hash=hashlib.sha256(b"").hexdigest(),
             # More or less random values, we don't care about the specifics here
             frames=200,
             # Hit rate 50%
@@ -2100,7 +2477,7 @@ def test_indexing_result_with_two_equal_parameter(
                     y_rotation_deg=2,
                 ),
             ],
-            generated_geometry_file="",
+            generated_geometry_contents="",
             unit_cell_histograms_id=None,
             latest_log="",
         ).model_dump(),
@@ -2347,11 +2724,12 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2381,6 +2759,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
         create_run_response.indexing_result_id is not None
         and create_run_response.indexing_result_id > 0
     )
+    assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
         **client.post(
@@ -2388,8 +2767,6 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
             json=JsonIndexingResultFinishSuccessfully(
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 workload_manager_job_id=1,
                 # More or less random values, we don't care about the specifics here
                 frames=200,
@@ -2417,7 +2794,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                     ),
                 ],
                 unit_cell_histograms_id=None,
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 latest_log="",
             ).model_dump(),
         ).json(),
@@ -2447,7 +2824,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                 strict_mode=False,
                 data_set_id=create_data_set_response.data_set_id,
                 # Literally random stuff here, doesn't matter.
-                indexing_parameters_id=1,
+                indexing_parameters_id=create_run_response.new_indexing_parameters_id,
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     # Deliberately left blank
@@ -2497,11 +2874,12 @@ def test_queue_then_start_then_finish_merge_job(
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
     test_file: int,
+    geometry_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
     # Enable CrystFEL online so an indexing job will be created
-    enable_crystfel_online(client, beamtime_id)
+    enable_crystfel_online(client, beamtime_id, geometry_id)
 
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -2531,6 +2909,7 @@ def test_queue_then_start_then_finish_merge_job(
         create_run_response.indexing_result_id is not None
         and create_run_response.indexing_result_id > 0
     )
+    assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
         **client.post(
@@ -2538,8 +2917,6 @@ def test_queue_then_start_then_finish_merge_job(
             json=JsonIndexingResultFinishSuccessfully(
                 stream_file="/tmp/some-file.stream",  # noqa: S108
                 program_version="",
-                geometry_file="/tmp/some.geom",  # noqa: S108
-                geometry_hash=hashlib.sha256(b"").hexdigest(),
                 workload_manager_job_id=1,
                 # More or less random values, we don't care about the specifics here
                 frames=200,
@@ -2567,7 +2944,7 @@ def test_queue_then_start_then_finish_merge_job(
                     ),
                 ],
                 unit_cell_histograms_id=None,
-                generated_geometry_file="",
+                generated_geometry_contents="",
                 latest_log="",
             ).model_dump(),
         ).json(),
@@ -2596,8 +2973,7 @@ def test_queue_then_start_then_finish_merge_job(
             json=JsonQueueMergeJobInput(
                 strict_mode=False,
                 data_set_id=create_data_set_response.data_set_id,
-                # Literally random stuff here, doesn't matter.
-                indexing_parameters_id=1,
+                indexing_parameters_id=create_run_response.new_indexing_parameters_id,
                 merge_parameters=JsonMergeParameters(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
@@ -2873,6 +3249,7 @@ def test_start_two_runs_and_enable_auto_pilot(
                 ),
             ],
             files=[],
+            delete_dependent_objects=False,
         ).model_dump(),
     )
     assert update_run_result.status_code // 100 == 2
@@ -2938,6 +3315,199 @@ def test_start_two_runs_and_enable_auto_pilot(
     assert fourth_manual_attributo[0].attributo_value_str == string_value + "new"
 
 
+def test_update_run_with_create_or_update_run_with_already_existing_indexing_results_and_no_value_change(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,  # noqa: ARG001
+    indexing_result_id_with_run_string_attributo_geometry: int,  # noqa: ARG001
+    simple_run_id: int,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
+    beamtime_id: BeamtimeId,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    update_run_result = client.patch(
+        "/api/runs",
+        json=JsonUpdateRun(
+            id=RunInternalId(simple_run_id),
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    # Here we're not really setting or updating an
+                    # attributo value. Rather, we set it to the same
+                    # value as before and expect this update to go
+                    # through.
+                    attributo_value_str=_SIMPLE_RUN_STRING_ATTRIBUTO_INITIAL_VALUE,
+                ),
+            ],
+            files=[],
+            delete_dependent_objects=False,
+        ).model_dump(),
+    )
+    print(update_run_result.text)
+    assert update_run_result.status_code // 100 == 2
+
+
+def test_update_run_with_create_or_update_run_with_already_existing_indexing_results_and_value_change(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,  # noqa: ARG001
+    indexing_result_id_with_run_string_attributo_geometry: int,  # noqa: ARG001
+    simple_run_id: int,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
+    beamtime_id: BeamtimeId,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    update_run_result = client.patch(
+        "/api/runs",
+        json=JsonUpdateRun(
+            id=RunInternalId(simple_run_id),
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    # Different from the existing value for which we also have indexing results!
+                    attributo_value_str="definitelyadifferentvalue",
+                ),
+            ],
+            files=[],
+            delete_dependent_objects=False,
+        ).model_dump(),
+    )
+    print(update_run_result.text)
+    assert update_run_result.status_code // 100 == 4
+
+
+def test_update_runs_with_patch_with_already_existing_indexing_results(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    run_channel_1_chemical_attributo_id: int,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
+    beamtime_id: BeamtimeId,
+    lyso_chemical_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    first_external_run_id = 1000
+
+    # We create two uns: both have the same experiment type and are in
+    # the same data set (indicated by the chemical ID: lyso). Both
+    # have the string attributo set, which is used in the geometry
+    # later on.
+    first_run_creation = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{first_external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                # Files are needed for indexing.
+                files=[JsonRunFile(id=0, glob="/tmp/test-input-file-1", source="raw")],  # noqa: S108
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="first-string",
+                    ),
+                ],
+                # saves us the data set creation
+                create_data_set=True,
+                started=1,
+                stopped=100,
+            ).model_dump(),
+        ).json()
+    )
+
+    assert first_run_creation.run_internal_id is not None
+    assert first_run_creation.run_internal_id > 0
+
+    data_set_id = first_run_creation.new_data_set_id
+    assert data_set_id is not None
+    assert data_set_id > 0
+
+    second_external_run_id = 1001
+
+    second_run_creation = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{second_external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                files=[JsonRunFile(id=0, glob="/tmp/test-input-file-2", source="raw")],  # noqa: S108
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    ),
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="second-string",
+                    ),
+                ],
+                create_data_set=False,
+                started=110,
+                stopped=120,
+            ).model_dump(),
+        ).json()
+    )
+
+    assert second_run_creation.run_internal_id is not None
+    assert second_run_creation.run_internal_id > 0
+
+    # Next, we create indexing jobs for the data set. This should
+    # create two indexing results, for the two runs.
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_id=geometry_id_with_run_string_attributo,
+                command_line="",
+                source="raw",
+            ).model_dump(),
+        ).json(),
+    )
+
+    assert len(create_indexing_response.indexing_result_ids) == 2
+
+    # Now try to edit the first run, with optional deletion of
+    # dependent objects (our indexing result).
+    update_first_run_response = JsonUpdateRunOutput(
+        **client.patch(
+            "/api/runs",
+            json=JsonUpdateRun(
+                id=first_run_creation.run_internal_id,
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="first string edited",
+                    ),
+                ],
+                files=None,
+                delete_dependent_objects=True,
+            ).model_dump(),
+        ).json(),
+    )
+    assert update_first_run_response.deleted_objects == 1
+
+    # Afterwards, we expect one indexing result to still be there.
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?status={DBJobStatus.QUEUED.value}&beamtimeId={beamtime_id}",
+        ).json(),
+    )
+    assert len(read_indexing_results_response.indexing_jobs) == 1
+
+
 def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
     client: TestClient,
     beamtime_id: BeamtimeId,
@@ -2978,6 +3548,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
                 ),
             ],
             files=[],
+            delete_dependent_objects=False,
         ).model_dump(),
     )
     assert update_run_result.status_code // 100 == 2
@@ -3161,6 +3732,7 @@ def test_read_and_update_runs_bulk(
                         attributo_value_str="qux",
                     ),
                 ],
+                delete_dependent_objects=False,
                 new_experiment_type_id=string_experiment_type_id,
             ).model_dump(),
         ).json(),
@@ -3962,6 +4534,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     client.post(
@@ -3970,7 +4543,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
             data_set_id=simple_data_set_id,
             is_online=False,
             cell_description="",
-            geometry_file="/mock/geometry.geom",
+            geometry_id=geometry_id,
             command_line="",
             source="raw",
         ).model_dump(),
@@ -4020,6 +4593,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     run_without_files_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     client.post(
@@ -4028,7 +4602,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
             data_set_id=run_without_files_data_set_id,
             is_online=False,
             cell_description="",
-            geometry_file="",
+            geometry_id=geometry_id,
             command_line="",
             source="raw",
         ).model_dump(),
@@ -4055,6 +4629,134 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
 
     assert not workload_manager.job_starts
     assert not list(await workload_manager.list_jobs())
+
+
+async def test_geometry_creation_with_invalid_attributo_names(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+) -> None:
+    geometry_with_invalid_attributo = """clen = {{invalid_name}}"""
+
+    response = client.post(
+        "/api/geometries",
+        json=JsonGeometryCreate(
+            beamtime_id=beamtime_id,
+            content=geometry_with_invalid_attributo,
+            name="geometry name",
+        ).model_dump(),
+    )
+
+    assert response.status_code == 400
+
+
+async def test_geometry_creation_with_valid_attributo_name(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_string_attributo_id: int,  # noqa: ARG001
+) -> None:
+    geometry_with_run_string_attributo = """clen = {{run_string}}"""
+
+    response = JsonGeometryWithoutContent(
+        **client.post(
+            "/api/geometries",
+            json=JsonGeometryCreate(
+                beamtime_id=beamtime_id,
+                content=geometry_with_run_string_attributo,
+                name="geometry name",
+            ).model_dump(),
+        ).json()
+    )
+
+    assert response.id > 0
+
+
+async def test_geometry_with_usage_in_result(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    geometry_id: int,
+    simple_indexing_result_id: int,  # noqa: ARG001
+) -> None:
+    # We have a geometry in the indexing parameters corresponding to
+    # the simple result we pass here. So we should have usages in the list of geometries
+    result = JsonReadGeometriesForSingleBeamtime(
+        **client.get(f"/api/geometry-for-beamtime/{beamtime_id}").json()
+    )
+
+    assert len(result.geometries) == 1
+    assert result.geometries[0].id == geometry_id
+    assert len(result.geometry_with_usage) == 1
+    assert result.geometry_with_usage[0].geometry_id == geometry_id
+    assert result.geometry_with_usage[0].usages == 1
+
+
+async def test_geometry_raw_with_variables(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,
+    indexing_result_id_with_run_string_attributo_geometry: int,
+) -> None:
+    result_raw = client.get(
+        f"/api/geometries/{geometry_id_with_run_string_attributo}/raw?indexingResultId={indexing_result_id_with_run_string_attributo_geometry}"
+    ).text
+
+    assert result_raw == "clen foobar"
+
+
+async def test_geometry_with_variables_then_change_run_attributo(
+    client: TestClient,
+    geometry_id_with_run_string_attributo: int,  # noqa: ARG001
+    indexing_result_id_with_run_string_attributo_geometry: int,  # noqa: ARG001
+    simple_run_id: int,
+    chemical_experiment_type_id: int,
+    run_string_attributo_id: int,
+    beamtime_id: BeamtimeId,
+) -> None:
+    # In this test, we have an indexing result which uses a geometry
+    # with placeholders in it. We will change the run, so that the
+    # indexing result doesn't make any sense anymore. By default, this
+    # should fail.
+    response = client.patch(
+        "/api/runs",
+        json=JsonUpdateRun(
+            id=RunInternalId(simple_run_id),
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    attributo_value_str="definitelyadifferentstring",
+                ),
+            ],
+            files=None,
+            delete_dependent_objects=False,
+        ).model_dump(),
+    )
+    print(response.text)
+    assert response.status_code // 100 == 4
+
+    update_response = JsonUpdateRunOutput(
+        **client.patch(
+            "/api/runs",
+            json=JsonUpdateRun(
+                id=RunInternalId(simple_run_id),
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str="definitelyadifferentstring",
+                    ),
+                ],
+                files=None,
+                delete_dependent_objects=True,
+            ).model_dump(),
+        ).json(),
+    )
+    assert update_response.deleted_objects == 1
+
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?beamtimeId={beamtime_id}",
+        ).json(),
+    )
+    assert not read_indexing_results_response.indexing_jobs
 
 
 async def test_merge_daemon(
@@ -4241,6 +4943,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     client: TestClient,
     daemon_session: aiohttp.ClientSession,
     simple_data_set_id: int,
+    geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     create_response = JsonCreateIndexingForDataSetOutput(
@@ -4250,7 +4953,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
                 data_set_id=simple_data_set_id,
                 is_online=False,
                 cell_description="",
-                geometry_file="/mock/geometry.geom",
+                geometry_id=geometry_id,
                 command_line="",
                 source="raw",
             ).model_dump(),

@@ -2,6 +2,9 @@ module Amarcord.API.Requests exposing
     ( BeamtimeId
     , ConversionFlags
     , ExperimentTypeId
+    , IndexingParametersId(..)
+    , IndexingParametersIdSet(..)
+    , IndexingResultId(..)
     , MergeResultId
     , RunEventDate(..)
     , RunEventDateFilter(..)
@@ -9,11 +12,18 @@ module Amarcord.API.Requests exposing
     , RunFilter(..)
     , RunInternalId(..)
     , beamtimeIdToString
+    , emptyIndexingParametersIdSet
     , emptyRunEventDateFilter
     , emptyRunFilter
     , firstRunId
     , increaseRunExternalId
+    , indexingParametersIdToInt
+    , indexingParametersIdToString
+    , indexingResultIdToString
+    , insertIndexingParametersIdSet
     , invalidBeamtimeId
+    , memberIndexingParametersIdSet
+    , removeIndexingParametersIdSet
     , runEventDateFilter
     , runEventDateToString
     , runExternalIdFromInt
@@ -23,6 +33,17 @@ module Amarcord.API.Requests exposing
     , runInternalIdToInt
     , specificRunEventDateFilter
     )
+
+import Set
+
+
+type IndexingParametersId
+    = IndexingParametersId Int
+
+
+indexingParametersIdToInt : IndexingParametersId -> Int
+indexingParametersIdToInt (IndexingParametersId i) =
+    i
 
 
 type alias BeamtimeId =
@@ -35,6 +56,44 @@ type alias ExperimentTypeId =
 
 type alias MergeResultId =
     Int
+
+
+type IndexingResultId
+    = IndexingResultId Int
+
+
+indexingResultIdToString : IndexingResultId -> String
+indexingResultIdToString (IndexingResultId i) =
+    String.fromInt i
+
+
+indexingParametersIdToString : IndexingParametersId -> String
+indexingParametersIdToString (IndexingParametersId i) =
+    String.fromInt i
+
+
+type IndexingParametersIdSet
+    = IndexingParametersIdSet (Set.Set Int)
+
+
+emptyIndexingParametersIdSet : IndexingParametersIdSet
+emptyIndexingParametersIdSet =
+    IndexingParametersIdSet Set.empty
+
+
+memberIndexingParametersIdSet : IndexingParametersId -> IndexingParametersIdSet -> Bool
+memberIndexingParametersIdSet (IndexingParametersId i) (IndexingParametersIdSet set) =
+    Set.member i set
+
+
+removeIndexingParametersIdSet : IndexingParametersId -> IndexingParametersIdSet -> IndexingParametersIdSet
+removeIndexingParametersIdSet (IndexingParametersId i) (IndexingParametersIdSet set) =
+    IndexingParametersIdSet (Set.remove i set)
+
+
+insertIndexingParametersIdSet : IndexingParametersId -> IndexingParametersIdSet -> IndexingParametersIdSet
+insertIndexingParametersIdSet (IndexingParametersId i) (IndexingParametersIdSet set) =
+    IndexingParametersIdSet (Set.insert i set)
 
 
 beamtimeIdToString : BeamtimeId -> String

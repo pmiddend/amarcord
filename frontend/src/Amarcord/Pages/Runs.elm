@@ -232,7 +232,7 @@ viewRunRow chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCo
                         [ tr_
                             [ td
                                 [ colspan attributoColumnCount ]
-                                [ Html.map RunAttributiFormMsg <| RunAttributiForm.view rei ]
+                                [ div [ class "container ms-0" ] [ Html.map RunAttributiFormMsg <| RunAttributiForm.view rei ] ]
                             ]
                         ]
 
@@ -340,8 +340,8 @@ viewRunsTable chosenColumns runEditInfo { runs, events, chemicals, experimentTyp
                 (chemicalIdDict <| List.map convertChemicalFromApi chemicals)
                 (experimentTypeIdDict experimentTypes)
                 chosenColumns
-                -- Why + 5? It's the chosen columns plus ID, Internal ID, started, stopped and actions, as you can see below
-                (List.length chosenColumns + 5)
+                -- Why + 7? It's the chosen columns plus ID, Internal ID, started date, started time, stopped, stopped time and actions, as you can see below
+                (List.length chosenColumns + 7)
                 runEditInfo
                 runs
                 events

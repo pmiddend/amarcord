@@ -29,6 +29,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Copy Chemical
+-}
 copyChemicalApiCopyChemicalPost : Api.Data.JsonCopyChemicalInput -> Api.Request Api.Data.JsonCopyChemicalOutput
 copyChemicalApiCopyChemicalPost jsonCopyChemicalInput_body =
     Api.request
@@ -41,6 +44,8 @@ copyChemicalApiCopyChemicalPost jsonCopyChemicalInput_body =
         Api.Data.jsonCopyChemicalOutputDecoder
 
 
+{-| Create Chemical
+-}
 createChemicalApiChemicalsPost : Api.Data.JsonChemicalWithoutId -> Api.Request Api.Data.JsonCreateChemicalOutput
 createChemicalApiChemicalsPost jsonChemicalWithoutId_body =
     Api.request
@@ -53,6 +58,8 @@ createChemicalApiChemicalsPost jsonChemicalWithoutId_body =
         Api.Data.jsonCreateChemicalOutputDecoder
 
 
+{-| Delete Chemical
+-}
 deleteChemicalApiChemicalsDelete : Api.Data.JsonDeleteChemicalInput -> Api.Request Api.Data.JsonDeleteChemicalOutput
 deleteChemicalApiChemicalsDelete jsonDeleteChemicalInput_body =
     Api.request
@@ -65,6 +72,8 @@ deleteChemicalApiChemicalsDelete jsonDeleteChemicalInput_body =
         Api.Data.jsonDeleteChemicalOutputDecoder
 
 
+{-| Read All Chemicals
+-}
 readAllChemicalsApiAllChemicalsGet : Api.Request Api.Data.JsonReadAllChemicals
 readAllChemicalsApiAllChemicalsGet =
     Api.request
@@ -77,6 +86,8 @@ readAllChemicalsApiAllChemicalsGet =
         Api.Data.jsonReadAllChemicalsDecoder
 
 
+{-| Read Chemicals
+-}
 readChemicalsApiChemicalsBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadChemicals
 readChemicalsApiChemicalsBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -89,6 +100,8 @@ readChemicalsApiChemicalsBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonReadChemicalsDecoder
 
 
+{-| Update Chemical
+-}
 updateChemicalApiChemicalsPatch : Api.Data.JsonChemicalWithId -> Api.Request Api.Data.JsonCreateChemicalOutput
 updateChemicalApiChemicalsPatch jsonChemicalWithId_body =
     Api.request
