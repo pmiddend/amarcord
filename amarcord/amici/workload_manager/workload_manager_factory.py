@@ -10,9 +10,7 @@ from amarcord.amici.workload_manager.local_workload_manager import LocalWorkload
 from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     SlurmRemoteWorkloadManager,
 )
-from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    MAXWELL_SLURM_URL,
-)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import MAXWELL_PREFIX
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     ConstantTokenRetriever,
 )
@@ -114,7 +112,7 @@ def parse_workload_manager_config(
                 portal_token=jcc.string_parameter("portal-token"),
                 user=user if user is not None else getuser(),
                 api_version=api_version,
-                url=f"{MAXWELL_SLURM_URL}/{api_version}",
+                url=MAXWELL_PREFIX,
             )
         case "slurm-rest":
             output_scheme = "http" if jcc.bool_parameter("use-http") else "https"

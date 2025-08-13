@@ -3,6 +3,7 @@ import datetime
 import getpass
 import json
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,7 @@ from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.json_types import JSONDict
 
 _SLURM_TOKEN_PREFIX = "SLURM_TOKEN="  # noqa: S105
-MAXWELL_PREFIX: Final = "https://max-portal.desy.de"
+MAXWELL_PREFIX: Final = "https://max-slurm-rest.desy.de"
 MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm"
 MAXWELL_SLURM_TOOLS_VERSION: Final = "4.6.0"
 
@@ -53,6 +54,7 @@ async def retrieve_jwt_token_externally(
                 auth=BasicAuth(user_name, portal_token),
             ) as session,
             session.get(
+                # This currently hard-codes dynamic token retrieval to DESY's Maxwell, but it should be easy to generalize.
                 f"{MAXWELL_PREFIX}/reservation/get_new_slurm_token?cli_api={MAXWELL_SLURM_TOOLS_VERSION}&lifespan={lifespan_seconds}&stu={user_name}",
             ) as response,
         ):
@@ -154,9 +156,17 @@ class JsonSlurmTime(BaseModel):
     number: int | float
 
 
+class JsonSlurmJobState(BaseModel):
+    current: list[str]
+
+
+class JsonSlurmJobTime(BaseModel):
+    start: int
+
+
 class JsonSlurmJob(BaseModel):
-    job_state: list[str]
-    start_time: JsonSlurmTime
+    time: JsonSlurmJobTime
+    state: JsonSlurmJobState
     job_id: int
 
 
@@ -176,9 +186,9 @@ def _convert_job(job_in: JSONDict) -> None | Job:
         try:
             job = JsonSlurmJob(**job_in)  # type: ignore
             return Job(
-                status=parse_job_state(job.job_state[0]),
+                status=parse_job_state(job.state.current[0]),
                 started=datetime.datetime.fromtimestamp(
-                    job.start_time.number,
+                    job.time.start,
                     tz=datetime.timezone.utc,
                 ),
                 metadata=JobMetadata({"job_id": job.job_id}),
@@ -245,7 +255,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         self.rest_url = rest_url
         self._rest_user = rest_user if rest_user is not None else getpass.getuser()
         self._request_wrapper = request_wrapper
-        self._api_version = api_version
+        self.api_version = api_version
 
     def name(self) -> str:
         return "Slurm REST"
@@ -270,7 +280,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        url = f"{self.rest_url}/job/submit"
+        url = f"{self.rest_url}/sapi/slurm/{self.api_version}/job/submit"
         headers_output = json.dumps(await self._headers())
         logger.info(
             f"sending the following script (excerpt) to {url} (headers {headers_output}): {script[0:50]}...",
@@ -283,7 +293,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         } | environment
         env_in_dict: dict[str, str] | list[str] = (
             environment_extended
-            if self._api_version <= "v0.0.39"
+            if self.api_version <= "v0.0.39"
             else [f"{k}={v}" for k, v in environment_extended.items()]
         )
         job_dict: dict[
@@ -297,7 +307,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         ] = {
             "current_working_directory": str(working_directory),
             "time_limit": time_limit_number
-            if self._api_version <= "v0.0.39"
+            if self.api_version <= "v0.0.39"
             else {"set": True, "number": time_limit_number},
             "name": name,
             "environment": env_in_dict,
@@ -353,15 +363,22 @@ class SlurmRestWorkloadManager(WorkloadManager):
         )
 
     async def list_jobs(self) -> list[Job]:
+        # The default is to get all jobs (for the user), but this
+        # might be years of job history. We artifically constrain this
+        # to "the last month" for now. Let's see if we get more
+        # requirements.
+        one_month_s = 30 * 24 * 60 * 60
+        start_time_s = time.time_ns() // 1000 // 1000 // 1000 - one_month_s
+        request_url = f"{self.rest_url}/sapi/slurmdb/{self.api_version}/jobs?users={self._rest_user}&start_time={start_time_s}"
         response = await self._request_wrapper.get(
-            f"{self.rest_url}/jobs",
+            request_url,
             headers=await self._headers(),
         )
         errors = response.get("errors", None)
         assert errors is None or isinstance(errors, list)
         if errors is not None and errors:
             raise Exception(
-                "list job request contained errors: "
+                f"list job request URL\n\n{request_url}\n\nContained errors: "
                 + ",".join(str(e) for e in errors),
             )
         if "jobs" not in response:
@@ -370,11 +387,6 @@ class SlurmRestWorkloadManager(WorkloadManager):
             )
         jobs = response.get("jobs", [])
         assert isinstance(jobs, list)
-        if not jobs:
-            logger.info(
-                f"jobs array actually empty (token expired probably): {json.dumps(response)}",
-            )
-            raise Exception("jobs array empty, token expired?")
         # pyright rightfully complains that this doesn't have to be a JSONDict
         return [
             j

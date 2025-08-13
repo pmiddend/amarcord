@@ -28,6 +28,7 @@ from tempfile import TemporaryDirectory
 from time import monotonic_ns
 from time import sleep
 from time import time
+from time import time_ns
 from typing import IO
 from typing import Any
 from typing import Callable
@@ -686,6 +687,7 @@ def initialize_db(
                         ),
                     )
                     images_total = 0
+                images_in_this_batch = 0
                 with Path(f"job-{indexamajig_job_id}.lst").open(
                     "w",
                     encoding="utf-8",
@@ -693,15 +695,17 @@ def initialize_db(
                     for event_line in event_batch:
                         input_file.write(f"{event_line}\n")
                         images_total += 1
+                        images_in_this_batch += 1
                 with db:
+                    start_idx = indexamajig_job_id * IMAGES_PER_JOB
                     db.execute(
                         "INSERT INTO IndexamajigJob (job_array_id, job_id, start_idx, state, images_total, images_processed) VALUES (?, ?, ?, ?, ?, ?)",
                         (
                             job_array_id,
                             indexamajig_job_id,
-                            indexamajig_job_id * IMAGES_PER_JOB,
+                            start_idx,
                             "queued",
-                            images_total,
+                            images_in_this_batch,
                             0,
                         ),
                     )
@@ -840,8 +844,14 @@ def get_all_slurm_job_stati(
     args: PrimaryArgs,
     job_array_id: JobArraySlurm,
 ) -> list[str]:
+    # The default is to get all jobs (for the user), but this
+    # might be years of job history. We artifically constrain this
+    # to "the last month" for now. Let's see if we get more
+    # requirements.
+    one_month_s = 30 * 24 * 60 * 60
+    start_time_s = time_ns() // 1000 // 1000 // 1000 - one_month_s
     req = request.Request(
-        f"{args.slurm_url}/jobs",
+        f"{args.slurm_url}/jobs?users={getpass.getuser()}&start_time={start_time_s}",
         method="GET",
         headers=args.maxwell_headers,
     )

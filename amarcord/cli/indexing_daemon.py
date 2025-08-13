@@ -176,7 +176,7 @@ async def start_offline_indexing_job(
                 amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
             ] = workload_manager.partition
             job_environment[amarcord.cli.crystfel_index.OFF_INDEX_SLURM_URL] = (
-                workload_manager.rest_url
+                f"{workload_manager.rest_url}/sapi/slurm/{workload_manager.api_version}"
             )
         bound_logger.info("environment for this job is " + " ".join(job_environment))
         job_start_result = await workload_manager.start_job(

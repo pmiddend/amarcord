@@ -177,10 +177,9 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
         {
             "jobs": [
                 {
-                    "user_id": 1,
                     "job_id": 1,
-                    "job_state": ["RUNNING"],
-                    "start_time": {"set": True, "infinite": False, "number": 10},
+                    "state": {"current": ["RUNNING"]},
+                    "time": {"start": 10},
                 },
             ],
         },
