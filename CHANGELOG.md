@@ -39,6 +39,7 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 - The indexing daemon didn't tell apart online and offline indexing jobs, so too many offline jobs were able to block online jobs from starting ([\#480](https://gitlab.desy.de/amarcord/amarcord/-/issues/480))
 - SLURM at DESY changed a bit, and we're now using a different HTTP REST interface endpoint to access it ([\#482](https://gitlab.desy.de/amarcord/amarcord/-/issues/482))
 - The indexing details used to show changes in the cell description when really, there were none ([\#483](https://gitlab.desy.de/amarcord/amarcord/-/issues/483))
+- The indexing daemon sometimes labeled jobs that are still running as failed ([\#485](https://gitlab.desy.de/amarcord/amarcord/-/issues/485))
 
 # v1.3 - Q2 2025
 

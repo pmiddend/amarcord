@@ -31,6 +31,7 @@ from amarcord.cli import merge_daemon
 from amarcord.cli.indexing_daemon import (
     INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR,
 )
+from amarcord.cli.indexing_daemon import INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR
 from amarcord.cli.indexing_daemon import indexing_daemon_start_new_jobs
 from amarcord.cli.indexing_daemon import indexing_daemon_update_jobs
 from amarcord.cli.merge_daemon import MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR
@@ -4537,6 +4538,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    os.environ[INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR] = "0.01"
     client.post(
         "/api/indexing",
         json=JsonCreateIndexingForDataSetInput(
@@ -4569,6 +4571,9 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
 
     # Remove the job from the workload manager
     workload_manager.jobs.clear()
+
+    # Wait a tiny bit to make the "minimum job age" logic work out
+    await asyncio.sleep(1)
 
     await indexing_daemon_update_jobs(
         workload_manager=workload_manager,
@@ -4946,6 +4951,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     geometry_id: int,
 ) -> None:
     os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    os.environ[INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR] = "0.01"
     create_response = JsonCreateIndexingForDataSetOutput(
         **client.post(
             "/api/indexing",
@@ -5051,6 +5057,8 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     print(
         "fourth iteration, job should be marked as failed, because it quit unexpectedly",
     )
+    # Sleep a tiny bit so the "minimum job age" logic works
+    await asyncio.sleep(1)
 
     await indexing_daemon_update_jobs(
         workload_manager=workload_manager,

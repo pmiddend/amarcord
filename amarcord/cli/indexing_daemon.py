@@ -27,6 +27,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
     parse_workload_manager_config,
 )
 from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingResultDone
@@ -44,10 +45,20 @@ INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR = (
     "INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS"
 )
 
+INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR = (
+    "INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS"
+)
+
 
 def _long_break_duration_seconds() -> float:
     return float(
         os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5"),
+    )
+
+
+def _minimum_job_age_seconds() -> float:
+    return float(
+        os.environ.get(INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR, "10"),
     )
 
 
@@ -489,6 +500,7 @@ async def indexing_daemon_update_jobs(
             **await response.json(),
         ).indexing_jobs
 
+    current_time = datetime.datetime.now(tz=datetime.timezone.utc)
     for indexing_result in indexing_results:
         assert indexing_result.job_id is not None
 
@@ -497,6 +509,21 @@ async def indexing_daemon_update_jobs(
             run_internal_id=indexing_result.run_internal_id,
             run_external_id=indexing_result.run_external_id,
         )
+
+        if indexing_result.started is None:
+            bound_logger.error(
+                f"indexing job has no started time stamp, how can that be? full job: {indexing_result}"
+            )
+        else:
+            job_age = current_time - utc_int_to_utc_datetime(indexing_result.started)
+            if job_age <= datetime.timedelta(seconds=_minimum_job_age_seconds()):
+                # We have two "concurrent" loops checking and starting
+                # jobs. It could be that the "start" loop just started a
+                # job and we don't want to immediately search for it in
+                # the workload manager job list, since we want to give the
+                # workload manager a little time to synchronize.
+                bound_logger.info(f"leaving job alone, too young (age {job_age})")
+                continue
 
         bound_logger.info("job still running, checking on workload manager")
 
@@ -521,7 +548,7 @@ async def indexing_daemon_update_jobs(
 
         if workload_job is None:
             bound_logger.info("finished because not in job list anymore")
-            job_error = f"job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results"
+            job_error = f"The job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results. This usually indicates an unexpected error of some kind (for example, a programming error or CrystFEL not behaving as expected). Please inform the AMARCORD people about this."
         else:
             job_error = f"job has finished on {workload_manager.name()} (status {workload_job.status}), but delivered no results"
             bound_logger.info(
