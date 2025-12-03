@@ -9,7 +9,7 @@ from amarcord.db.orm_utils import migrate
 
 
 @pytest_asyncio.fixture
-async def db() -> AsyncGenerator[AsyncSession, None]:
+async def db() -> AsyncGenerator[AsyncSession]:
     engine = create_async_engine("sqlite+aiosqlite://")
     await migrate(engine)
     async_session = async_sessionmaker(engine, expire_on_commit=False)

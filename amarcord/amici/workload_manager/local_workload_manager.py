@@ -132,7 +132,7 @@ class LocalWorkloadManager(WorkloadManager):
         self._processes.append(
             WrappedProcess(
                 process,
-                datetime.datetime.now(datetime.timezone.utc),
+                datetime.datetime.now(datetime.UTC),
                 script_path,
             ),
         )

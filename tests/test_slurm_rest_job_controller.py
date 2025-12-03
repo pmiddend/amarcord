@@ -51,7 +51,7 @@ class MockResponse:
         self.text = text
 
     def json(self) -> JSONDict:
-        return cast(JSONDict, self.json_data)
+        return cast("JSONDict", self.json_data)
 
 
 class MockHttpWrapper(SlurmHttpWrapper):

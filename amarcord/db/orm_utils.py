@@ -60,7 +60,7 @@ def default_user_configuration(beamtime_id: int) -> orm.UserConfiguration:
         auto_pilot=False,
         use_online_crystfel=False,
         current_experiment_type_id=None,
-        created=datetime.datetime.now(tz=datetime.timezone.utc),
+        created=datetime.datetime.now(tz=datetime.UTC),
         current_online_indexing_parameters_id=None,
     )
 
@@ -147,7 +147,7 @@ def update_file_with_contents(
         f.size_in_bytes_compressed = len(new_contents)
     else:
         f.contents = temp_file.read()
-    f.modified = datetime.datetime.now(datetime.timezone.utc)
+    f.modified = datetime.datetime.now(datetime.UTC)
 
 
 def create_file_in_db(
@@ -161,7 +161,7 @@ def create_file_in_db(
         type="placeholder",
         size_in_bytes=0,
         size_in_bytes_compressed=None,
-        modified=datetime.datetime.now(datetime.timezone.utc),
+        modified=datetime.datetime.now(datetime.UTC),
         file_name=external_file_name,
         original_path=None,
         description=description,
@@ -177,7 +177,7 @@ def create_new_user_configuration(
 ) -> orm.UserConfiguration:
     return orm.UserConfiguration(
         beamtime_id=user_configuration.beamtime_id,
-        created=datetime.datetime.now(datetime.timezone.utc),
+        created=datetime.datetime.now(datetime.UTC),
         auto_pilot=user_configuration.auto_pilot,
         use_online_crystfel=user_configuration.use_online_crystfel,
         current_experiment_type_id=user_configuration.current_experiment_type_id,
@@ -193,7 +193,7 @@ async def duplicate_file(f: orm.File, new_file_name: str) -> orm.File:
         size_in_bytes_compressed=f.size_in_bytes_compressed,
         original_path=f.original_path,
         sha256=f.sha256,
-        modified=datetime.datetime.now(datetime.timezone.utc),
+        modified=datetime.datetime.now(datetime.UTC),
         contents=await f.awaitable_attrs.contents,
         description=f.description,
     )
@@ -749,7 +749,7 @@ async def run_attributo_value_to_template_replacement(
 
 async def generate_geometry_replacements(
     run: orm.Run, geometry: orm.Geometry
-) -> AsyncGenerator[orm.GeometryTemplateReplacement, None]:
+) -> AsyncGenerator[orm.GeometryTemplateReplacement]:
     for attributo in await geometry.awaitable_attrs.attributi:
         replacement_found = False
         for run_attributo_value in run.attributo_values:

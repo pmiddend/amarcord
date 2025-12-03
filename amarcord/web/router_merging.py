@@ -65,10 +65,8 @@ async def merge_job_started(
         job_logger.info(f"merge result now has job id {json_result.job_id}, is running")
         await session.commit()
     return JsonMergeJobStartedOutput(
-        time=utc_datetime_to_utc_int(datetime.datetime.now(datetime.timezone.utc)),
-        time_local=utc_datetime_to_local_int(
-            datetime.datetime.now(datetime.timezone.utc)
-        ),
+        time=utc_datetime_to_utc_int(datetime.datetime.now(datetime.UTC)),
+        time_local=utc_datetime_to_local_int(datetime.datetime.now(datetime.UTC)),
     )
 
 
@@ -109,7 +107,7 @@ async def merge_job_finished(
                 "merge result has a stopped date already; this might be fine though",
             )
 
-        stopped_time = datetime.datetime.now(datetime.timezone.utc)
+        stopped_time = datetime.datetime.now(datetime.UTC)
 
         beamtime_id = current_merge_result_status.indexing_results[0].run.beamtime_id
 
@@ -139,9 +137,9 @@ async def merge_job_finished(
             current_merge_result_status.job_status = DBJobStatus.DONE
             return JsonMergeJobFinishOutput(result=False)
 
-        assert (
-            json_result.result is not None
-        ), f"both error and result are none in output: {json_result}"
+        assert json_result.result is not None, (
+            f"both error and result are none in output: {json_result}"
+        )
 
         await safe_create_new_event(
             job_logger,
@@ -510,7 +508,7 @@ async def queue_merge_job(
             + ", ".join(str(ir.id) for ir in indexing_results_matching_params),
         )
         new_merge_result = orm.MergeResult(
-            created=datetime.datetime.now(datetime.timezone.utc),
+            created=datetime.datetime.now(datetime.UTC),
             cell_description=cell_description,
             recent_log="",
             negative_handling=negative_handling,

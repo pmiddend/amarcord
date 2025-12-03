@@ -126,10 +126,10 @@ class DynamicTokenRetriever:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
         self._token: None | str = None
-        self._last_retrieval = datetime.datetime.now(datetime.timezone.utc)
+        self._last_retrieval = datetime.datetime.now(datetime.UTC)
 
     async def __call__(self) -> str:
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         if (
             self._token is None
             or (now - self._last_retrieval).total_seconds()
@@ -177,7 +177,7 @@ def _convert_job(job_in: JSONDict) -> None | Job:
             status=parse_job_state(job.job_state),
             started=datetime.datetime.fromtimestamp(
                 job.start_time,
-                tz=datetime.timezone.utc,
+                tz=datetime.UTC,
             ),
             metadata=JobMetadata({"job_id": job.job_id}),
             id=job.job_id,
@@ -189,7 +189,7 @@ def _convert_job(job_in: JSONDict) -> None | Job:
                 status=parse_job_state(job.state.current[0]),
                 started=datetime.datetime.fromtimestamp(
                     job.time.start,
-                    tz=datetime.timezone.utc,
+                    tz=datetime.UTC,
                 ),
                 metadata=JobMetadata({"job_id": job.job_id}),
                 id=job.job_id,

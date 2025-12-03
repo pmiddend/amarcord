@@ -35,7 +35,7 @@ from amarcord.db.scale_intensities import ScaleIntensities
 # see
 #
 # https://stackoverflow.com/questions/54026174/proper-autogenerate-of-str-implementation-also-for-sqlalchemy-classes
-def keyvalgen(obj: Any) -> Generator[tuple[str, Any], None, None]:
+def keyvalgen(obj: Any) -> Generator[tuple[str, Any]]:
     """Generate attr name/val pairs, filtering out SQLA attrs."""
     excl = ("_sa_adapter", "_sa_instance_state")
     for k, v in vars(obj).items():

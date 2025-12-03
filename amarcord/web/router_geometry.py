@@ -36,7 +36,7 @@ from amarcord.web.router_attributi import encode_attributo
 router = APIRouter()
 
 
-def _template_variable_names(content: str) -> Generator[str, None, None]:
+def _template_variable_names(content: str) -> Generator[str]:
     return (
         scope_key.decode("utf-8")
         for _, _, _, scope_key, _, _ in mstache.tokenize(content.encode("utf-8"))
@@ -80,7 +80,7 @@ async def create_geometry(
 ) -> JsonGeometryWithoutContent:
     async with session.begin():
         hash_ = sha256_bytes(input_.content.encode("utf-8"))
-        created = datetime.datetime.now(datetime.timezone.utc)
+        created = datetime.datetime.now(datetime.UTC)
 
         attributi = await _check_variable_names_are_valid_and_return_attributi(
             session, input_.beamtime_id, input_.content
@@ -158,7 +158,7 @@ async def copy_to_beamtime(
                 status_code=400,
                 detail=f"geometry with name {geometry_to_copy.name} already exists",
             )
-        created = datetime.datetime.now(datetime.timezone.utc)
+        created = datetime.datetime.now(datetime.UTC)
         attributi = await _check_variable_names_are_valid_and_return_attributi(
             session, input_.target_beamtime_id, geometry_to_copy.content
         )

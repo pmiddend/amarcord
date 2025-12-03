@@ -790,7 +790,7 @@ class Chunk:
 _INDEXED_BY_PREFIX: Final = "indexed_by = "
 
 
-def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
+def read_chunks(files: Iterable[Path]) -> Generator[Chunk]:
     for p in files:
         with p.open("r", encoding="utf-8") as f:
             start: None | int = None
@@ -836,7 +836,7 @@ def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
 T = TypeVar("T")
 
 
-def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
+def reservoir_sample[T](xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
     rng = Random(rng_seed)  # noqa: S311
 
     result: list[T] = []

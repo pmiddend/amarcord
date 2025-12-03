@@ -167,9 +167,9 @@ async def start_run(
             external_id=runExternalId,
             experiment_type_id=experiment_type_id,
             beamtime_id=beamtimeId,
-            started=datetime.datetime.now(datetime.timezone.utc),
+            started=datetime.datetime.now(datetime.UTC),
             stopped=None,
-            modified=datetime.datetime.now(datetime.timezone.utc),
+            modified=datetime.datetime.now(datetime.UTC),
         )
         if latest_config.auto_pilot:
             latest_run = await retrieve_latest_run(session, beamtimeId)
@@ -199,7 +199,7 @@ async def stop_latest_run(
         latest_run = await retrieve_latest_run(session, beamtimeId)
 
         if latest_run is not None:
-            latest_run.stopped = datetime.datetime.now(datetime.timezone.utc)
+            latest_run.stopped = datetime.datetime.now(datetime.UTC)
             await session.commit()
             return JsonStopRunOutput(result=True)
 
@@ -387,7 +387,7 @@ async def _create_new_run(
         experiment_type_id=experiment_type_id,
         beamtime_id=beamtime_id,
         started=(
-            datetime.datetime.now(datetime.timezone.utc)
+            datetime.datetime.now(datetime.UTC)
             if run_data.started is None
             else utc_int_to_utc_datetime(run_data.started)
             if run_data.is_utc
@@ -400,7 +400,7 @@ async def _create_new_run(
             if run_data.is_utc
             else local_int_to_utc_datetime(run_data.stopped)
         ),
-        modified=datetime.datetime.now(datetime.timezone.utc),
+        modified=datetime.datetime.now(datetime.UTC),
     )
 
     run_in_db.attributo_values.extend(run_data.attributo_values)
@@ -590,7 +590,7 @@ async def create_or_update_run(
             # Better to explicitly flush, creating the run and giving us the ID
             await session.flush()
             new_indexing_result = orm.IndexingResult(
-                created=datetime.datetime.now(datetime.timezone.utc),
+                created=datetime.datetime.now(datetime.UTC),
                 run_id=run_in_db.id,
                 stream_file=None,
                 # program version will be determined by the job itself and sent back
@@ -1438,7 +1438,7 @@ async def bulk_import_spreadsheet_template(
     workbook.save(workbook_bytes)
     workbook_bytes.seek(0)
 
-    def iterworkbook() -> Generator[bytes, None, None]:
+    def iterworkbook() -> Generator[bytes]:
         yield from workbook_bytes
 
     return StreamingResponse(

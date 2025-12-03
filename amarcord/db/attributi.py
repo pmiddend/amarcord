@@ -128,7 +128,7 @@ def schema_to_attributo_type(
 
 
 def utc_datetime_to_utc_int(d: datetime.datetime) -> int:
-    return int(d.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
+    return int(d.replace(tzinfo=datetime.UTC).timestamp() * 1000)
 
 
 def local_int_to_utc_datetime(d: int) -> datetime.datetime:
@@ -142,12 +142,12 @@ def local_int_to_utc_datetime(d: int) -> datetime.datetime:
     # "surprise, it was Europe/Berlin (or something) all along!", and
     # then make it convert to UTC properly.
     return (
-        datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc)
+        datetime.datetime.fromtimestamp(d // 1000, tz=datetime.UTC)
         .replace(
             microsecond=d % 1000 * 1000,
         )
         .replace(tzinfo=get_local_tz())
-        .astimezone(datetime.timezone.utc)
+        .astimezone(datetime.UTC)
     )
 
 
@@ -155,9 +155,9 @@ def utc_datetime_to_local_int(d: datetime.datetime) -> int:
     # See the comment for local_int_to_utc_datetime for more
     # information, we're just inverting what's been done there.
     return round(
-        d.replace(tzinfo=datetime.timezone.utc)
+        d.replace(tzinfo=datetime.UTC)
         .astimezone(get_local_tz())
-        .replace(tzinfo=datetime.timezone.utc)
+        .replace(tzinfo=datetime.UTC)
         .timestamp()
         * 1000
     )
@@ -169,7 +169,7 @@ def utc_int_to_utc_datetime(d: int) -> datetime.datetime:
         .replace(
             microsecond=d % 1000 * 1000,
         )
-        .astimezone(datetime.timezone.utc)
+        .astimezone(datetime.UTC)
     )
 
 
@@ -895,7 +895,7 @@ def nonmatching_run_dataset_attributi(
     data_set_attributi: Mapping[
         AttributoId, None | orm.DataSetHasAttributoValue | orm.RunHasAttributoValue
     ],
-) -> Generator[AttributoId, None, None]:
+) -> Generator[AttributoId]:
     for attributo_id, data_set_value in data_set_attributi.items():
         run_value_type = attributi[attributo_id]
         run_value = run_attributi.get(attributo_id)

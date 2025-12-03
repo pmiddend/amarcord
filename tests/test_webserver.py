@@ -190,7 +190,7 @@ async def init_db(url: str) -> None:
 
 
 @pytest.fixture
-async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
+async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession]:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
     await init_db(url)
@@ -208,7 +208,7 @@ async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> Generator[TestClient, None, None]:
+def client(tmp_path: Path) -> Generator[TestClient]:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
     asyncio.run(init_db(url))
@@ -2069,7 +2069,7 @@ def test_create_and_delete_run_after_setting_experiment_type_crystfel_online(
         ).model_dump(),
     )
     client.post(
-        f"/api/runs/{external_run_id+1}",
+        f"/api/runs/{external_run_id + 1}",
         json=JsonCreateOrUpdateRun(
             beamtime_id=beamtime_id,
             files=[],

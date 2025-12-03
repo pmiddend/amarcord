@@ -34,7 +34,7 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
 
                     beamtimes = JsonReadBeamtime(**(await resp.json()))
 
-                    now = datetime.datetime.now(datetime.timezone.utc)
+                    now = datetime.datetime.now(datetime.UTC)
                     current_beamtime = None
                     for beamtime in beamtimes.beamtimes:
                         if (

@@ -275,7 +275,7 @@ def upgrade() -> None:
                     "content": geometry.content,
                     "hash": hash_,
                     "name": geometry.filename,
-                    "created": datetime.datetime.now(datetime.timezone.utc),
+                    "created": datetime.datetime.now(datetime.UTC),
                     "geometry_type": "crystfel_string",
                 }
             )

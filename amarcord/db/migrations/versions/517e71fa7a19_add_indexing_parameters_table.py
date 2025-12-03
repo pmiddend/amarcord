@@ -1402,9 +1402,9 @@ def upgrade() -> None:
         # This works, but only for certain backends. But our backends are among it, so should be fine.
         inserted_parameters_id: int = prior_parameters_insert.lastrowid
 
-        assert (
-            inserted_parameters_id is not None
-        ), f"indexing result {indexing_result_id} has no valid parameters inserted for some reason"
+        assert inserted_parameters_id is not None, (
+            f"indexing result {indexing_result_id} has no valid parameters inserted for some reason"
+        )
 
         run_foms = INDEXING_RESULTS_WITH_PARAMETERS.get(run_id)
 

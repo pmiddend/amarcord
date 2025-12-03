@@ -159,7 +159,7 @@ async def _locate_or_create_geometry(
             content=contents,
             hash=geometry_hash,
             name=name,
-            created=datetime.datetime.now(datetime.timezone.utc),
+            created=datetime.datetime.now(datetime.UTC),
             geometry_type=(
                 GeometryType.CRYSTFEL_FILE
                 if contents.startswith("/")
@@ -229,7 +229,7 @@ async def import_finished_indexing_job(
     session.add(new_indexing_parameters)
     await session.flush()
     new_indexing_result = orm.IndexingResult(
-        created=datetime.datetime.now(datetime.timezone.utc),
+        created=datetime.datetime.now(datetime.UTC),
         run_id=RunInternalId(input_.run_internal_id),
         stream_file=input_.stream_file,
         program_version=input_.program_version,
@@ -373,7 +373,7 @@ async def indexing_job_queue_for_data_set(
             f"creating indexing result for run {run.id} (external ID {run.external_id})",
         )
         indexing_result = orm.IndexingResult(
-            created=datetime.datetime.now(datetime.timezone.utc),
+            created=datetime.datetime.now(datetime.UTC),
             run_id=run.id,
             stream_file=None,
             frames=0,
@@ -487,7 +487,7 @@ async def indexing_job_finish_with_error(
         if json_result.latest_log:
             current_indexing_result.job_latest_log = json_result.latest_log
         current_indexing_result.job_stopped = datetime.datetime.now(
-            tz=datetime.timezone.utc,
+            tz=datetime.UTC,
         )
         # Pathological case
         if current_indexing_result.job_started is None:
@@ -541,7 +541,7 @@ async def indexing_job_still_running(
         session.add(
             orm.IndexingResultHasStatistic(
                 indexing_result_id=current_indexing_result.id,
-                time=datetime.datetime.now(datetime.timezone.utc),
+                time=datetime.datetime.now(datetime.UTC),
                 frames=jr.frames,
                 hits=jr.hits,
                 indexed_frames=jr.indexed_frames,
@@ -594,7 +594,7 @@ async def indexing_job_finish_successfully(
             json_result.unit_cell_histograms_id
         )
         current_indexing_result.job_stopped = datetime.datetime.now(
-            tz=datetime.timezone.utc,
+            tz=datetime.UTC,
         )
         # Pathological case
         if current_indexing_result.job_started is None:
@@ -703,10 +703,6 @@ async def read_indexing_jobs(
                 .join(orm.Run, orm.IndexingResult.run_id == orm.Run.id)
                 .options(
                     selectinload(orm.IndexingResult.run).selectinload(orm.Run.beamtime)
-                    if not withFiles
-                    else selectinload(orm.IndexingResult.run).selectinload(
-                        orm.Run.beamtime,
-                    ),
                 )
                 .options(selectinload(orm.IndexingResult.indexing_parameters))
                 .where(

@@ -1,7 +1,7 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-25.05";
+  inputs.nixpkgs.url = "nixpkgs/nixos-25.11";
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
     url = "github:pmiddend/mkElmDerivation?ref=fix-makefile-presence";
@@ -74,6 +74,19 @@
           }
         );
 
+        asyncmy = prev.asyncmy.overrideAttrs (old: {
+          buildInputs = [ pkgs.poetry ];
+
+          nativeBuildInputs = old.nativeBuildInputs ++ [
+            (final.resolveBuildSystem {
+              poetry-core = [ ];
+              setuptools = [ ];
+              cython = [ ];
+            })
+          ];
+
+        });
+
         # pyenchant = prev.pyenchant.overrideAttrs (old: {
         #   buildInputs = [ prev.setuptools ];
         # });
@@ -111,8 +124,8 @@
         ];
       };
 
-      # Use Python 3.12 from nixpkgs
-      python = pkgs.python312;
+      # Use Python 3.13 from nixpkgs
+      python = pkgs.python313;
 
       # Construct package set
       pythonSet =

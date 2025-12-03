@@ -38,9 +38,9 @@ class DummyWorkloadManager(WorkloadManager):
         stderr: None | Path = None,  # noqa: ARG002
     ) -> JobStartResult:
         self.job_starts.append(JobStart(working_directory, script, time_limit))
-        assert (
-            self.job_start_results
-        ), "No job start results left, so there was one more job start than anticipated"
+        assert self.job_start_results, (
+            "No job start results left, so there was one more job start than anticipated"
+        )
         result = self.job_start_results.pop()
         if result is not None:
             self.jobs.append(

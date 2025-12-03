@@ -117,7 +117,7 @@ def test_update_orm_entity_has_attributo_value_datetime() -> None:
         datetime_value=None,
         list_value=None,
     )
-    t = datetime.datetime.now(datetime.timezone.utc)
+    t = datetime.datetime.now(datetime.UTC)
     update_orm_entity_has_attributo_value(
         result,
         AttributoTypeDateTime(),

@@ -428,7 +428,7 @@ async def indexing_daemon_start_new_jobs(
                     f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
                     json=JsonIndexingResultFinishWithError(
                         # If we start a job and it's immediately finished, then we must have an error
-                        error_message=cast(str, new_status.job_error),
+                        error_message=cast("str", new_status.job_error),
                         workload_manager_job_id=indexing_result.job_id,
                         latest_log="",
                     ).model_dump(),
@@ -449,7 +449,7 @@ async def indexing_daemon_start_new_jobs(
                 indexed_frames=0,
                 indexed_crystals=0,
                 job_started=utc_datetime_to_utc_int(
-                    datetime.datetime.now(tz=datetime.timezone.utc),
+                    datetime.datetime.now(tz=datetime.UTC),
                 ),
                 # Initialize log with the empty string (None would have indicated "no change")
                 latest_log="",
@@ -500,7 +500,7 @@ async def indexing_daemon_update_jobs(
             **await response.json(),
         ).indexing_jobs
 
-    current_time = datetime.datetime.now(tz=datetime.timezone.utc)
+    current_time = datetime.datetime.now(tz=datetime.UTC)
     for indexing_result in indexing_results:
         assert indexing_result.job_id is not None
 

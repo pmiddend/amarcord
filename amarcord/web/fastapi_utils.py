@@ -87,7 +87,7 @@ def get_orm_sessionmaker_with_url(db_url: str) -> async_sessionmaker[AsyncSessio
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-async def get_orm_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_orm_db() -> AsyncGenerator[AsyncSession]:
     async_session = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
 
     async with async_session() as session:
@@ -255,7 +255,7 @@ async def safe_create_new_event(
                 level=level,
                 source=source,
                 text=text,
-                created=datetime.datetime.now(datetime.timezone.utc),
+                created=datetime.datetime.now(datetime.UTC),
             ),
         )
     except:
@@ -472,7 +472,7 @@ def orm_encode_merge_result_to_json(
                         )
                         for rr in mr.refinement_results
                     ],
-                    mtz_file_id=cast(int, mr.mtz_file_id),
+                    mtz_file_id=cast("int", mr.mtz_file_id),
                     ambigator_fg_graph_file_id=mr.ambigator_fg_graph_file_id,
                     fom=JsonMergeResultFom(
                         snr=mr.fom_snr,  # type: ignore

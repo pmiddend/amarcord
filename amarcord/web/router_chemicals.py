@@ -50,7 +50,7 @@ async def create_chemical(
             name=input_.name,
             responsible_person=input_.responsible_person,
             type=input_.chemical_type,
-            modified=datetime.datetime.now(datetime.timezone.utc),
+            modified=datetime.datetime.now(datetime.UTC),
         )
 
         attributi_by_id: dict[int, orm.Attributo] = {
@@ -306,7 +306,7 @@ async def copy_chemical(
             name=c.name,
             responsible_person=c.responsible_person,
             type=c.type,
-            modified=datetime.datetime.now(datetime.timezone.utc),
+            modified=datetime.datetime.now(datetime.UTC),
         )
 
         for a in c.attributo_values:

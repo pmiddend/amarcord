@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias
 
 from amarcord.numeric_range import NumericRange
 
@@ -97,7 +96,7 @@ class AttributoTypeChoice:
         return "one of: " + ",".join(self.values)
 
 
-AttributoType: TypeAlias = (
+type AttributoType = (
     AttributoTypeInt
     | AttributoTypeBoolean
     | AttributoTypeString

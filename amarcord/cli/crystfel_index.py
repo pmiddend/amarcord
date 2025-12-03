@@ -227,7 +227,7 @@ class FpsKiller:
 
 
 @contextmanager
-def set_directory(path: str) -> Generator[None, Any, None]:
+def set_directory(path: str) -> Generator[None, Any]:
     origin = Path().absolute()
     try:
         os.chdir(path)
@@ -550,7 +550,7 @@ def clean_intermediate_files() -> None:
 
 # See
 # https://stackoverflow.com/questions/8991506/iterate-an-iterator-by-chunks-of-n-in-python
-def batched(iterable: Iterable[T], n: int) -> Generator[tuple[T, ...], None, None]:
+def batched[T](iterable: Iterable[T], n: int) -> Generator[tuple[T, ...]]:
     "Batch data into tuples of length n. The last batch may be shorter."
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
@@ -736,7 +736,7 @@ def start_job_array_slurm(
             "partition": args.slurm_partition_to_use,
             "name": f"ix_{args.amarcord_indexing_result_id}_{job_array_id}",
             "nodes": 1,
-            "array": f"0-{number_of_indexamajig_jobs-1}",
+            "array": f"0-{number_of_indexamajig_jobs - 1}",
             "current_working_directory": str(cwd),
             "environment": [f"{k}={v}" for k, v in environment.items()],
             # This is in minutes
@@ -1852,7 +1852,7 @@ def generate_graphs(
             ["grep", "Cell parameters", str(stream_file)],  # noqa: S607
             stdout=subprocess.PIPE,
         ) as grep_process:
-            subprocess.run(  # noqa: S603
+            subprocess.run(
                 ["awk", "{print($3, $4, $5, $7, $8, $9)}"],  # noqa: S607
                 stdin=grep_process.stdout,
                 stdout=cell_description_file,

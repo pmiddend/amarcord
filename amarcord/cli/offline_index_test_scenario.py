@@ -216,7 +216,7 @@ group_all = panel0
             content=geometry_content,
             name="first geometry",
             hash=sha256_bytes(geometry_content.encode("utf-8")),
-            created=datetime.datetime.now(datetime.timezone.utc),
+            created=datetime.datetime.now(datetime.UTC),
             geometry_type=GeometryType.CRYSTFEL_STRING,
         )
         session.add(geometry)

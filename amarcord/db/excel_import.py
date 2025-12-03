@@ -611,7 +611,7 @@ def create_runs_from_spreadsheet(
             beamtime_id=beamtime_id,
             started=run.started,
             stopped=run.stopped,
-            modified=datetime.datetime.now(datetime.timezone.utc),
+            modified=datetime.datetime.now(datetime.UTC),
             files=[orm.RunHasFiles(glob=f, source="raw") for f in run.files],
             attributo_values=attributo_values,
         )

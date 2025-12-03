@@ -41,14 +41,14 @@ async def _get_current_schedule(
                 f"{shift_dict.date} {shift_start}", "%Y-%m-%d %H:%M"
             )
             .replace(tzinfo=get_local_tz())
-            .astimezone(datetime.timezone.utc)
+            .astimezone(datetime.UTC)
         )
         stop_utc = (
             datetime.datetime.strptime(
                 f"{shift_dict.date} {shift_end}", "%Y-%m-%d %H:%M"
             )
             .replace(tzinfo=get_local_tz())
-            .astimezone(datetime.timezone.utc)
+            .astimezone(datetime.UTC)
         )
 
         return JsonBeamtimeScheduleRowOutput(
