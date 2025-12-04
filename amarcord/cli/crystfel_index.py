@@ -255,6 +255,64 @@ _cell_description_regex = re.compile(
 )
 
 
+def convert_to_cell_description(cell: str) -> str:
+    lattice_type: None | str = None
+    ua: None | str = None
+    centering: None | str = None
+    a: None | float = None
+    b: None | float = None
+    c: None | float = None
+    alpha: None | float = None
+    beta: None | float = None
+    gamma: None | float = None
+    for line in cell.split("\n"):
+        if line.startswith("lattice_type = "):
+            lattice_type = line[15:]
+        elif line.startswith("unique_axis = "):
+            ua = line[14:]
+        elif line.startswith("centering = "):
+            centering = line[12:]
+        elif line.startswith("a = "):
+            a = float(line.split(" ")[2])
+        elif line.startswith("b = "):
+            b = float(line.split(" ")[2])
+        elif line.startswith("c = "):
+            c = float(line.split(" ")[2])
+        elif line.startswith("al = "):
+            alpha = float(line.split(" ")[2])
+        elif line.startswith("be = "):
+            beta = float(line.split(" ")[2])
+        elif line.startswith("ga = "):
+            gamma = float(line.split(" ")[2])
+
+    if (
+        lattice_type is not None
+        and centering is not None
+        and a is not None
+        and b is not None
+        and c is not None
+        and alpha is not None
+        and beta is not None
+        and gamma is not None
+    ):
+        return coparse_cell_description(
+            CrystFELCellFile(
+                lattice_type=lattice_type,
+                centering=centering,
+                unique_axis=ua,
+                a=a,
+                b=b,
+                c=c,
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+            )
+        )
+    raise Exception(
+        f"couldn't parse cell file, one of the following items is missing and shouldn't be: {lattice_type=}, {centering=},{a=},{b=},{c=},{alpha=},{beta=},{gamma=}, original cell file was {cell}"
+    )
+
+
 def coparse_cell_description(s: CrystFELCellFile) -> str:
     ua = s.unique_axis if s.unique_axis is not None else "?"
     return f"{s.lattice_type} {s.centering} {ua} ({s.a} {s.b} {s.c}) ({s.alpha} {s.beta} {s.gamma})"

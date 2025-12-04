@@ -43,7 +43,6 @@ python amarcord/cli/id29_push_daemon.py \
        --run-id-file "$MY_BASE/run-id.txt"\
        --metadata-visited-file "$MY_BASE/metadata-visited.txt"\
        --attributo-config-file "$MY_BASE/attributo-config.json"\
-       --geometry-save-path "/data/visitor/$proposal/id29/$date/PROCESSED_DATA/$(whoami)/geometries"\
        --stream-visited-file "$MY_BASE/stream-visited.txt"\
        --amarcord-user $user\
        --amarcord-password $pw\
@@ -56,7 +55,6 @@ As you can see, there's quite a lot of parameters to give. Most of them hopefull
 - The `run-id-file` is a file that the daemon itself generates and updates. It contains the latest run ID in AMARCORD. ID29, as far as we can tell, doesn't have the concept of a numeric, monotonically increasing run ID, so we have to synthesize it.
 - The `metadata-visited-file` is also created and updated by the daemon; it stores which `metadata.json` files the daemon has already processed. Similar for `stream-visited-file`.
 - The daemon also gets an `attributo-config-file` which tells it which attributes are to be expected in the `metadata.json` and how to map these to AMARCORD attributi. Currently, there are three special attributi: `sample` (which maps to a real chemical name in AMARCORD), `tag` (which maps to the path segment that ESRF uses to identify runs), and `MX_directory`, which is used by the pull daemon (see below).
-- `geometry-save-path` is where the geometry files which are extracted from the finished `.stream` files are copied to, so they can be referenced in the indexing results
 
 An example `attributo-config.json` looks like this:
 
@@ -82,8 +80,6 @@ python amarcord/cli/id29_pull_daemon.py\
        --copy-raw-data\
        --path-prefix "/data/visitor/$proposal/id29/$date"\
        --path-prefix-replacement "/asap3/petra3/gpfs/external/$year/data/$external_id/processed/$date"\
-       --geom-path-prefix "/data/visitor/$proposal/id29/$date/PROCESSED_DATA/$(whoami)/geometries/"\
-       --geom-path-prefix-replacement "/asap3/petra3/gpfs/external/$year/data/$proposal/processed/$date/PROCESSED_DATA/$(whoami)/geometries"\
        --amarcord-beamtime-id 1337\
        --directory-attributo-name "MX_directory"\
        --dont-copy-attributo-name "do not copy"\
@@ -99,13 +95,13 @@ The daemon uses the database directly, instead of the AMARCORD API, which is why
 Since its job is to get the data from the ESRF file system and copy it to the local one, we need a replacement rule: how do we get from path $remote to path $local? In the daemon, we simply text-replace. A path like:
 
 ```
-/data/visitor/$proposal/id29/$date/PROCESSED_DATA/$(whoami)/geometries/foo.geom
+/data/visitor/$proposal/id29/$date/PROCESSED_DATA/$(whoami)/streams/foo.stream
 ```
 
-will be replaced via the given `geom-path-prefix` to `geom-path-prefix-replacement`:
+will be replaced via the given `path-prefix` to `path-prefix-replacement`:
 
 ```
-/asap3/petra3/gpfs/external/$year/data/$proposal/processed/$date/PROCESSED_DATA/$(whoami)/geometries
+/asap3/petra3/gpfs/external/$year/data/$proposal/processed/$date/PROCESSED_DATA/$(whoami)/streams
 ```
 
 Same goes for the `path-prefix` (for the actual raw files) and `path-prefix-replacement`.

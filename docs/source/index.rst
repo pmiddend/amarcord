@@ -17,6 +17,9 @@ Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn
    developer_guide/index
    admin_guide/index
    setups
+   nix
+   setups
+   documentation
    faq
 
 Indices and tables

@@ -32,7 +32,8 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 ### Miscellaneous things
 
 - When uploading a file in "Chemicals" (when adding or editing a chemical), you don't have to type in a description for the file. It will be automatically filled with the file name.
-- Updated to NixOS 25.11, Python 3.13 and updated all Python dependencies [see [GitLab MR 477](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/477)]
+- Updated to NixOS 25.11, Python 3.13 and updated all Python dependencies (see [GitLab MR 477](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/477))
+- If you have beamtime at ID29, you can now use two new AMARCORD daemons top pull data into the DESY filesystem and process it there (see [GitLab MR 441](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/441))
 
 ## Fixes
 
@@ -77,7 +78,6 @@ When merging, instead of just calling CrystFEL's `get_hkl` without any user inpu
 <figure>
 ![Runs table with the new columns](changelog-assets/runs-table-date-column.png){width=944 height=267px}
 </figure>
-
 
 ## Fixes
 

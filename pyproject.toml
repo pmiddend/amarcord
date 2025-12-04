@@ -48,7 +48,7 @@ dependencies = [
     # for async file opening functions
     "anyio==4.12.0",
     # for the geometry templates
-    "mstache==0.3.0",
+    "mstache==0.3.0"
 ]
 
 [dependency-groups]

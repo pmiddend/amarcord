@@ -28,3 +28,11 @@ Not really an executable you're supposed to call directly. This is transferred v
 ## `crystfel_index`
 
 Same as for `crystfel_merge`, see [](CrystFEL) for more information.
+
+## `id29_push_daemon`
+
+See [](ID29) for more information.
+
+## `id29_pull_daemon`
+
+See [](ID29) for more information.
