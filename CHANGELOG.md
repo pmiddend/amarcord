@@ -43,6 +43,10 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 - The indexing details used to show changes in the cell description when really, there were none ([\#483](https://gitlab.desy.de/amarcord/amarcord/-/issues/483))
 - The indexing daemon sometimes labeled jobs that are still running as failed ([\#485](https://gitlab.desy.de/amarcord/amarcord/-/issues/485))
 
+## Development changes
+
+- The AMARCORD docker image now contains all of the Python scripts (like the migration script) instead of just the web server starter ([\!478](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/478))
+
 # v1.3 - Q2 2025
 
 ## Features

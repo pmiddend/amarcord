@@ -215,6 +215,7 @@
 
             contents = [
               amarcord-production-webserver
+              amarcord-python-package
             ];
           };
         };
