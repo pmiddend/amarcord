@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "elm-review-tool-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1767647791,
+        "narHash": "sha256-ABFKpQCyeVG5NdmKcURWy++pZ+IL/1sWmZwzXOhePOM=",
+        "owner": "jfmengels",
+        "repo": "node-elm-review",
+        "rev": "4f7de73b74a8d97945020e6a415dbafe9ceb92d1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jfmengels",
+        "repo": "node-elm-review",
+        "type": "github"
+      }
+    },
     "elm-spa": {
       "inputs": {
         "nixpkgs": [
@@ -214,6 +230,7 @@
     },
     "root": {
       "inputs": {
+        "elm-review-tool-src": "elm-review-tool-src",
         "mkElmDerivation": "mkElmDerivation",
         "nixpkgs": "nixpkgs",
         "pyproject-build-systems": "pyproject-build-systems",

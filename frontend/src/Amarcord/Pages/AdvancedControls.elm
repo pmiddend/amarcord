@@ -1,4 +1,4 @@
-module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
+module Amarcord.Pages.AdvancedControls exposing (Model, Msg, init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests
@@ -57,8 +57,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Advanced Controls"
 
 
@@ -83,8 +83,8 @@ type Msg
     | UpdateOnlineIndexingParametersDone (Result HttpError JsonUpdateOnlineIndexingParametersOutput)
 
 
-subscriptions : Model -> List (Sub Msg)
-subscriptions _ =
+subscriptions : List (Sub Msg)
+subscriptions =
     [ Time.every 10000 Refresh ]
 
 

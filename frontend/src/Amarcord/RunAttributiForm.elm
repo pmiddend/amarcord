@@ -16,11 +16,8 @@ import Api.Request.Runs exposing (updateRunApiRunsPatch)
 import Html exposing (Html, a, button, div, form, h4, label, option, p, select, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, href, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List
 import List.Extra as ListExtra
-import Maybe
 import RemoteData exposing (RemoteData(..), isLoading, isSuccess)
-import String
 import Time exposing (Posix, millisToPosix)
 
 

@@ -12,7 +12,7 @@ import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
-import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
+import Amarcord.Util exposing (forgetMsgInput, scrollToTop)
 import Api.Data as Api exposing (JsonAttributoOutput, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
 import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
 import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
@@ -353,13 +353,13 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Attributi"
 
 
-init : HereAndNow -> BeamtimeId -> Maybe AssociatedTable -> ( Model, Cmd Msg )
-init _ beamtimeId tab =
+init : BeamtimeId -> Maybe AssociatedTable -> ( Model, Cmd Msg )
+init beamtimeId tab =
     ( { tab = Maybe.withDefault Run tab
       , attributiList = Loading
       , editAttributo = Nothing

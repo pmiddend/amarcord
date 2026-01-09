@@ -1,4 +1,4 @@
-module Amarcord.IndexingParametersEdit exposing (Model, Msg(..), convertCommandLineToModel, extractGeometryId, init, isEditOpen, noGeometrySelected, toCommandLine, update, view)
+module Amarcord.IndexingParametersEdit exposing (Model, Msg, convertCommandLineToModel, extractGeometryId, init, isEditOpen, noGeometrySelected, toCommandLine, update, view)
 
 import Amarcord.Bootstrap exposing (AlertProperty(..), viewAlert)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
@@ -18,10 +18,8 @@ import Dict exposing (Dict)
 import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, table, td, text, textarea, ul)
 import Html.Attributes exposing (checked, class, for, id, rows, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List
 import Maybe.Extra
 import Result.Extra
-import String
 
 
 knownIndexingMethods : List String
@@ -372,8 +370,8 @@ convertCommandLineToModel model cli =
                                             , toleranceBPercent = String.fromFloat b
                                             , toleranceCPercent = String.fromFloat c
                                             , toleranceAlphaDegrees = String.fromFloat al
-                                            , toleranceBetaDegrees = String.fromFloat 1.5
-                                            , toleranceGammaDegrees = String.fromFloat 1.5
+                                            , toleranceBetaDegrees = "1.5"
+                                            , toleranceGammaDegrees = "1.5"
                                             }
                                 }
 

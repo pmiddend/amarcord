@@ -9,7 +9,6 @@ module Amarcord.Dialog exposing (Config, view)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Maybe
 import Maybe.Extra exposing (isJust, unwrap)
 
 

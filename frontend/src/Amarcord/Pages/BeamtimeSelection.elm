@@ -1,4 +1,4 @@
-module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, pageTitle, update, view)
+module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
@@ -26,8 +26,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Beamtime Selection"
 
 

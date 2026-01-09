@@ -5,9 +5,7 @@ import Amarcord.HttpError exposing (HttpError, showError)
 import Html exposing (Html, a, button, div, i, span, sup, text)
 import Html.Attributes exposing (attribute, class, classList, href, style, title, type_)
 import Html.Events exposing (onClick)
-import List
 import RemoteData exposing (RemoteData(..))
-import String
 
 
 type alias Icon =

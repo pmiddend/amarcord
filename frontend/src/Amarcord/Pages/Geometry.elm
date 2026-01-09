@@ -1,4 +1,4 @@
-module Amarcord.Pages.Geometry exposing (Model, Msg(..), init, pageTitle, update, view)
+module Amarcord.Pages.Geometry exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
@@ -14,9 +14,7 @@ import Curve
 import Html exposing (Html, div, h4, label, table, text)
 import Html.Attributes exposing (checked, class, for, id, name, type_)
 import Html.Events exposing (onInput)
-import List
 import List.Extra
-import Maybe
 import Maybe.Extra
 import Path exposing (Path)
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -26,7 +24,6 @@ import Segment
 import Shape
 import Statistics
 import SubPath
-import Tuple
 import TypedSvg exposing (g, line, svg, text_)
 import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
 import TypedSvg.Attributes.InPx exposing (fontSize, strokeWidth, x, x1, x2, y, y1, y2)
@@ -51,8 +48,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Geometry"
 
 

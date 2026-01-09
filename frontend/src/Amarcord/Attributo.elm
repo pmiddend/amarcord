@@ -38,7 +38,6 @@ import Amarcord.NumericRange as NumericRange exposing (NumericRange, emptyNumeri
 import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaBoolean, JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaNumber, JSONSchemaString, JsonAttributoOutput, JsonAttributoValue)
 import Dict exposing (Dict)
 import List exposing (filterMap)
-import Maybe
 import Maybe.Extra as MaybeExtra
 import Time exposing (Posix, millisToPosix, posixToMillis)
 

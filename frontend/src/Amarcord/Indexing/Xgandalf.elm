@@ -4,7 +4,6 @@ import Amarcord.CommandLineParser exposing (CommandLineOption(..))
 import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitchCommandLine, integerToCommandLine, numberToCommandLine, viewCitation, viewFormCheck, viewNumericInput)
 import Dict
 import Html exposing (Html, div, p, text)
-import String
 
 
 type alias Model =

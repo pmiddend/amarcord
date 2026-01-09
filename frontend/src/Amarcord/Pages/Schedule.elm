@@ -40,8 +40,8 @@ type ScheduleMsg
     | Refresh Posix
 
 
-subscriptions : ScheduleModel -> List (Sub ScheduleMsg)
-subscriptions _ =
+subscriptions : List (Sub ScheduleMsg)
+subscriptions =
     [ Time.every 10000 Refresh ]
 
 
@@ -75,8 +75,8 @@ type alias ScheduleModel =
     }
 
 
-pageTitle : ScheduleModel -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Schedule"
 
 

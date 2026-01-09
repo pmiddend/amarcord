@@ -1,4 +1,4 @@
-module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, pageTitle, update, view)
+module Amarcord.Pages.RunAnalysis exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, convertAttributoFromApi, convertAttributoMapFromApi)
@@ -15,7 +15,6 @@ import Html exposing (Html, a, button, div, h4, span, table, tbody, text, th, th
 import Html.Attributes exposing (class, href, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
-import List
 import List.Extra
 import RemoteData exposing (RemoteData(..), fromResult)
 
@@ -35,8 +34,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Run Analysis"
 
 

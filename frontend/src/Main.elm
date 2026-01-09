@@ -49,23 +49,23 @@ pageSubscriptions rootModel =
         RunsPage model ->
             List.map (Sub.map RunsPageMsg) (Runs.subscriptions model)
 
-        SchedulePage model ->
-            List.map (Sub.map ScheduleMsg) (Schedule.subscriptions model)
+        SchedulePage _ ->
+            List.map (Sub.map ScheduleMsg) Schedule.subscriptions
 
-        AdvancedControlsPage model ->
-            List.map (Sub.map AdvancedControlsPageMsg) (AdvancedControls.subscriptions model)
+        AdvancedControlsPage _ ->
+            List.map (Sub.map AdvancedControlsPageMsg) AdvancedControls.subscriptions
 
-        RunOverviewPage model ->
-            List.map (Sub.map RunOverviewPageMsg) (RunOverview.subscriptions model)
+        RunOverviewPage _ ->
+            List.map (Sub.map RunOverviewPageMsg) RunOverview.subscriptions
 
-        SingleDataSetPage model ->
-            List.map (Sub.map SingleDataSetPageMsg) (SingleDataSet.subscriptions model)
+        SingleDataSetPage _ ->
+            List.map (Sub.map SingleDataSetPageMsg) SingleDataSet.subscriptions
 
-        AnalysisOverviewPage model ->
-            List.map (Sub.map AnalysisOverviewPageMsg) (AnalysisOverview.subscriptions model)
+        AnalysisOverviewPage _ ->
+            List.map (Sub.map AnalysisOverviewPageMsg) AnalysisOverview.subscriptions
 
-        EventLogPage model ->
-            List.map (Sub.map EventLogPageMsg) (EventLog.subscriptions model)
+        EventLogPage _ ->
+            List.map (Sub.map EventLogPageMsg) EventLog.subscriptions
 
         _ ->
             []
@@ -190,14 +190,14 @@ buildTitleForPage page =
         RootPage ->
             "Beamtime Selection"
 
-        AttributiPage model ->
-            Attributi.pageTitle model
+        AttributiPage _ ->
+            Attributi.pageTitle
 
-        ChemicalsPage model ->
-            Chemicals.pageTitle model
+        ChemicalsPage _ ->
+            Chemicals.pageTitle
 
-        GeometriesPage model ->
-            Geometries.pageTitle model
+        GeometriesPage _ ->
+            Geometries.pageTitle
 
         MergeResultPage model ->
             MergeResult.pageTitle model
@@ -205,41 +205,41 @@ buildTitleForPage page =
         RunOverviewPage model ->
             RunOverview.pageTitle model
 
-        GeometryPage model ->
-            Geometry.pageTitle model
+        GeometryPage _ ->
+            Geometry.pageTitle
 
-        ImportPage model ->
-            Import.pageTitle model
+        ImportPage _ ->
+            Import.pageTitle
 
-        RunsPage model ->
-            Runs.pageTitle model
+        RunsPage _ ->
+            Runs.pageTitle
 
-        AdvancedControlsPage model ->
-            AdvancedControls.pageTitle model
+        AdvancedControlsPage _ ->
+            AdvancedControls.pageTitle
 
-        BeamtimeSelectionPage model ->
-            BeamtimeSelection.pageTitle model
+        BeamtimeSelectionPage _ ->
+            BeamtimeSelection.pageTitle
 
-        DataSetsPage model ->
-            DataSets.pageTitle model
+        DataSetsPage _ ->
+            DataSets.pageTitle
 
-        SchedulePage model ->
-            Schedule.pageTitle model
+        SchedulePage _ ->
+            Schedule.pageTitle
 
-        EventLogPage model ->
-            EventLog.pageTitle model
+        EventLogPage _ ->
+            EventLog.pageTitle
 
-        ExperimentTypesPage model ->
-            ExperimentTypes.pageTitle model
+        ExperimentTypesPage _ ->
+            ExperimentTypes.pageTitle
 
-        AnalysisOverviewPage model ->
-            AnalysisOverview.pageTitle model
+        AnalysisOverviewPage _ ->
+            AnalysisOverview.pageTitle
 
         SingleDataSetPage model ->
             SingleDataSet.pageTitle model
 
-        RunAnalysisPage model ->
-            RunAnalysis.pageTitle model
+        RunAnalysisPage _ ->
+            RunAnalysis.pageTitle
 
 
 buildTitle : Model -> String
@@ -745,7 +745,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Attributi beamtimeId tab ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init hereAndNow beamtimeId tab
+                            Attributi.init beamtimeId tab
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 

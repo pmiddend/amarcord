@@ -1,4 +1,4 @@
-module Amarcord.PointGroupChooser exposing (Model, Msg(..), PointGroup(..), init, pointGroupToString, update, view)
+module Amarcord.PointGroupChooser exposing (Model, Msg, PointGroup(..), init, pointGroupToString, update, view)
 
 import Amarcord.Html exposing (div_, enumSelect, h3_, input_)
 import Html exposing (Html, div, label, p, text)

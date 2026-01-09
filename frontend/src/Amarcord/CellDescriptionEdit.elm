@@ -1,4 +1,4 @@
-module Amarcord.CellDescriptionEdit exposing (AsText(..), Model, Msg, init, modelAsText, parseModel, update, validateCellDescription, view)
+module Amarcord.CellDescriptionEdit exposing (AsText, Model, Msg, init, modelAsText, parseModel, update, validateCellDescription, view)
 
 import Amarcord.Crystallography exposing (CellDescription, Centering, allCenterings, bravaisLatticeCentering, bravaisLatticeToStringNoCentering, centeringFromString, centeringToString, centeringsForSystem, latticeSystemFromString, parseCellDescription, parseCentering, parseLatticeSystem, possibleIssue)
 import Amarcord.Html exposing (div_, input_)

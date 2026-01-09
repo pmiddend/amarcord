@@ -1,4 +1,4 @@
-module Amarcord.Pages.AnalysisOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
+module Amarcord.Pages.AnalysisOverview exposing (Model, Msg, init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue(..), ChemicalNameDict, attributoValueToJson, convertAttributoFromApi, convertAttributoMapFromApi, convertAttributoValueFromApi, prettyPrintAttributoValue)
@@ -26,8 +26,8 @@ import Task
 import Time exposing (Posix, millisToPosix, posixToMillis, utc)
 
 
-subscriptions : Model -> List (Sub Msg)
-subscriptions _ =
+subscriptions : List (Sub Msg)
+subscriptions =
     [ Time.every 10000 Refresh ]
 
 
@@ -63,8 +63,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Analysis Overview"
 
 

@@ -19,7 +19,6 @@ import Maybe.Extra exposing (isNothing)
 import Mustache
 import RemoteData exposing (RemoteData(..), fromResult, isFailure, isLoading, isNotAsked)
 import Set
-import String
 import Time exposing (millisToPosix, toMonth, toYear, utc)
 
 
@@ -49,8 +48,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Geometries"
 
 

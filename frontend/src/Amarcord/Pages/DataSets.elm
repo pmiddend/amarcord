@@ -19,7 +19,6 @@ import Html.Events exposing (onClick, onInput)
 import List.Extra as ListExtra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
-import String
 
 
 type Msg
@@ -65,8 +64,8 @@ type alias DataSetModel =
     }
 
 
-pageTitle : DataSetModel -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Data Sets"
 
 

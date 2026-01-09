@@ -26,14 +26,13 @@ import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List exposing (isEmpty, length, singleton)
+import List exposing (isEmpty, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
 import Select
 import Set exposing (Set)
-import String
 import Task
 import Time exposing (millisToPosix, toMonth, toYear, utc)
 
@@ -90,8 +89,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Chemicals"
 
 
@@ -224,7 +223,7 @@ viewFiles fileUploadError newFile files =
                 ]
             ]
     in
-    if length files == 0 then
+    if isEmpty files then
         uploadForm
 
     else

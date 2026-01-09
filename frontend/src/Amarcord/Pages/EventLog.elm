@@ -16,8 +16,8 @@ import Time exposing (Posix, millisToPosix, posixToMillis, utc)
 import Time.Extra exposing (partsToPosix)
 
 
-subscriptions : Model -> List (Sub Msg)
-subscriptions _ =
+subscriptions : List (Sub Msg)
+subscriptions =
     [ Time.every 10000 Refresh ]
 
 
@@ -35,8 +35,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Event Log"
 
 

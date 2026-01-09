@@ -1,4 +1,4 @@
-module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
+module Amarcord.Pages.SingleDataSet exposing (Model, Msg, init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingParametersId(..), IndexingParametersIdSet, IndexingResultId(..), emptyIndexingParametersIdSet, indexingParametersIdToString, indexingResultIdToString, insertIndexingParametersIdSet, memberIndexingParametersIdSet, removeIndexingParametersIdSet)
@@ -30,20 +30,18 @@ import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, s
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import List.Extra
-import Maybe
 import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result.Extra
 import Scroll exposing (scrollY)
 import Set exposing (Set)
-import String
 import Task
 import Time exposing (Posix, millisToPosix, posixToMillis)
 
 
-subscriptions : Model -> List (Sub Msg)
-subscriptions _ =
+subscriptions : List (Sub Msg)
+subscriptions =
     [ Time.every 10000 Refresh ]
 
 

@@ -1,4 +1,4 @@
-module Amarcord.RunFilesForm exposing (Model, Msg(..), init, retrieveFiles, update, view)
+module Amarcord.RunFilesForm exposing (Model, Msg, init, retrieveFiles, update, view)
 
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (input_, td_, tr_)

@@ -24,9 +24,13 @@
     inputs.uv2nix.follows = "uv2nix";
     inputs.nixpkgs.follows = "nixpkgs";
   };
+  inputs.elm-review-tool-src = {
+    url = "github:jfmengels/node-elm-review";
+    flake = false;
+  };
 
 
-  outputs = { self, nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, uglymol, mkElmDerivation }:
+  outputs = { self, nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, uglymol, mkElmDerivation, elm-review-tool-src }:
     let
       system = "x86_64-linux";
       inherit (nixpkgs) lib;
@@ -122,6 +126,39 @@
           mkElmDerivation.overlays.mkElmDerivation
           elm-ems-issue-overlay
         ];
+      };
+      elm-review-tool-derivation = { elm-review-tool-src, elmPackages, pkgs }:
+        pkgs.buildNpmPackage {
+          name = "elm-review";
+          src = elm-review-tool-src;
+          npmDepsHash =
+            # pkgs.lib.fakeHash;
+            "sha256-MviwszWO0Jv9ctdXXvPC1/Z0lhULddp31lWEs5xPxjs=";
+          nativeBuildInputs = with pkgs; [ coreutils ];
+          buildInputs = with elmPackages; [ elm elm-format ];
+          buildPhase = ''
+            substituteInPlace ./package.json --replace-fail '2.13.5' '2.15.0'
+            substituteInPlace ./package-lock.json --replace-fail '2.13.5' '2.15.0'
+            head -n 100 ./package-lock.json
+            substituteInPlace ./package.json \
+              --replace-fail '"elm-tooling install"' '"echo skipping elm-tooling"'
+            mkdir -p "$out"
+            cp -r * "$out"/
+            mv $out/bin/elm-review $out/bin/elm-review.js
+            cat << EOF > $out/bin/elm-review
+            #!${pkgs.bash}/bin/bash
+            ${pkgs.nodejs}/bin/node ./elm-review.js \
+              --namespace="elm-review-nix-from-src" \
+              --compiler="${elmPackages.elm}/bin/elm \
+              --elm-format-path="${elmPackages.elm-format}/bin/elm-format \
+              "$@"
+            EOF
+            chmod +x $out/bin/elm-review
+          '';
+        };
+
+      elm-review-tool = pkgs.callPackage elm-review-tool-derivation {
+        inherit elm-review-tool-src;
       };
 
       # Use Python 3.13 from nixpkgs
@@ -374,7 +411,7 @@
           pkgs.mkShell {
             buildInputs = [
               pkgs.elmPackages.elm
-              pkgs.elmPackages.elm-review
+              elm-review-tool
               pkgs.elmPackages.elm-format
               pkgs.elmPackages.elm-json
               pkgs.elmPackages.elm-test-rs
