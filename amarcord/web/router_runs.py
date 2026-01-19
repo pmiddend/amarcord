@@ -563,15 +563,26 @@ async def create_or_update_run(
                     detail=message,
                 )
 
-            run_logger.info(
-                f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}",
-            )
             latest_user_config = await retrieve_latest_config(session, beamtime_id)
             current_online_indexing_parameters = await latest_user_config.awaitable_attrs.current_online_indexing_parameters
             if current_online_indexing_parameters is None:
                 current_online_indexing_parameters = (
                     default_online_indexing_parameters()
                 )
+            current_online_indexing_geometry = (
+                await current_online_indexing_parameters.awaitable_attrs.geometry
+            )
+            if current_online_indexing_geometry is None:
+                message = "cannot start CrystFEL online: no geometry set"
+                await _inner_create_new_event(message)
+                raise HTTPException(
+                    status_code=400,
+                    detail=message,
+                )
+
+            run_logger.info(
+                f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}",
+            )
             # We _could_ re-use the same indexing parameters from the configuration each time. But
             # if we don't have one set in the config, then we'd have to create it here, and I was
             # too lazy to figure out the consequences.
@@ -609,9 +620,6 @@ async def create_or_update_run(
                 indexing_parameters_id=new_indexing_result_parameters.id,
             )
             new_indexing_parameters_id = new_indexing_result_parameters.id
-            current_online_indexing_geometry = (
-                await current_online_indexing_parameters.awaitable_attrs.geometry
-            )
             await add_geometry_template_replacements_to_ir(
                 new_indexing_result, run_in_db, current_online_indexing_geometry
             )
