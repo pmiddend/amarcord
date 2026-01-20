@@ -238,7 +238,9 @@ async def start_online_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting online indexing job")
 
-    job_base_directory = determine_output_directory(indexing_result.beamtime, {})
+    job_base_directory = (
+        determine_output_directory(indexing_result.beamtime, {}) / "indexing-results"
+    )
 
     output_base_name = _build_output_base_name(indexing_result)
     stream_file = job_base_directory / f"{output_base_name}.stream"
