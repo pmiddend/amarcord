@@ -41,7 +41,7 @@ class LocalWorkloadManagerConfig:
 
 @dataclass(frozen=True, eq=True)
 class SlurmRestWorkloadManagerConfig:
-    partition: str
+    partition: None | str
     reservation: None | str
     explicit_node: None | str
     token: None | str
@@ -94,10 +94,6 @@ def parse_workload_manager_config(
             )
         case "maxwell-rest":
             partition = jcc.string_parameter("partition")
-            if partition is None:
-                raise Exception(
-                    'invalid scheme for SLURM REST: "partition" is mandatory',
-                )
             user = jcc.string_parameter("user")
             api_version = jcc.string_parameter("api-version")
             if api_version is None:

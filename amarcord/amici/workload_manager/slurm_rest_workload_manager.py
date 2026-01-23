@@ -239,7 +239,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
     # Super class is Protocol which gives an error (protocols aren't instantiated)
     def __init__(
         self,
-        partition: str,
+        partition: None | str,
         reservation: None | str,
         explicit_node: None | str,
         token_retriever: TokenRetriever,
@@ -311,7 +311,6 @@ class SlurmRestWorkloadManager(WorkloadManager):
             else {"set": True, "number": time_limit_number},
             "name": name,
             "environment": env_in_dict,
-            "partition": self.partition,
             "standard_output": (
                 str(working_directory / "stdout.txt") if stdout is None else str(stdout)
             ),
@@ -319,6 +318,8 @@ class SlurmRestWorkloadManager(WorkloadManager):
                 str(working_directory / "stderr.txt") if stderr is None else str(stderr)
             ),
         }
+        if self.partition is not None:
+            job_dict["partition"] = self.partition
         if self._reservation is not None:
             job_dict["reservation"] = self._reservation
         if self._explicit_node is not None:

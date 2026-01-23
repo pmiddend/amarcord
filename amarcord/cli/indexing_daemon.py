@@ -191,9 +191,10 @@ async def start_offline_indexing_job(
         # token again, so we transmit it here.
         if isinstance(workload_manager, SlurmRestWorkloadManager):
             job_environment["SLURM_TOKEN"] = await workload_manager.get_token()
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
-            ] = workload_manager.partition
+            if workload_manager.partition is not None:
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
+                ] = workload_manager.partition
             job_environment[amarcord.cli.crystfel_index.OFF_INDEX_SLURM_URL] = (
                 f"{workload_manager.rest_url}/sapi/slurm/{workload_manager.api_version}"
             )
