@@ -2,15 +2,15 @@ module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg, init, pageTitle, u
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
-import Amarcord.Html exposing (div_, form_, h2_, h4_, p_, strongText)
+import Amarcord.Html exposing (div_, form_, h2_, h4_, p_, span_, strongText)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixDateTimeCompatible, formatPosixHumanFriendly, localDateTimeStringToPosix, scrollToTop)
 import Api.Data exposing (JsonBeamtimeInput, JsonBeamtimeOutput, JsonReadBeamtime)
 import Api.Request.Beamtimes exposing (createBeamtimeApiBeamtimesPost, readBeamtimesApiBeamtimesGet, updateBeamtimeApiBeamtimesPatch)
-import Html exposing (Html, a, button, div, input, label, li, p, span, table, tbody, td, text, textarea, th, thead, tr, ul)
-import Html.Attributes as Attrs exposing (attribute, class, for, href, id, style, type_, value)
+import Html exposing (Html, a, button, div, input, label, p, span, table, tbody, td, text, textarea, th, thead, tr)
+import Html.Attributes exposing (class, colspan, for, href, id, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -138,49 +138,55 @@ update msg model =
                     )
 
 
-viewBeamtimeTableRow : JsonBeamtimeOutput -> Html Msg
+viewBeamtimeTableRow : JsonBeamtimeOutput -> List (Html Msg)
 viewBeamtimeTableRow ({ beamline, comment, startLocal, endLocal, externalId, id, proposal, title, chemicalNames } as bt) =
-    tr []
-        [ td []
-            [ button
-                [ class "btn btn-link amarcord-small-link-button", class "amarcord-edit-button", onClick (EditBeamtimeStart bt) ]
-                [ icon { name = "pencil-square" } ]
-            ]
-        , td [] [ strongText externalId ]
-        , td [] [ text (String.fromInt id) ]
-        , td [] [ a [ href (makeLink (RunOverview id)) ] [ text title ] ]
-        , td [] [ text beamline ]
-        , td [ class "text-nowrap" ] [ text proposal ]
-        , td [] [ text (formatPosixHumanFriendly utc (millisToPosix startLocal)) ]
-        , td [] [ text (formatPosixHumanFriendly utc (millisToPosix endLocal)) ]
-        , td [] [ markupWithoutErrors comment ]
-        , td []
-            [ span [ class "accordion accordion-flush" ]
-                [ div [ class "accordion-item" ]
-                    [ div [ class "accordion-header" ]
-                        [ button
-                            [ class "accordion-button accordion-merge-parameters-header-button"
-                            , type_ "button"
-                            , attribute "data-bs-toggle" "collapse"
-                            , attribute "data-bs-target" ("#chemicals" ++ String.fromInt id)
-                            ]
-                            [ text "Show chemicals"
-                            ]
-                        ]
-                    , div [ class "accordion-collapse collapse", Attrs.id ("chemicals" ++ String.fromInt id) ]
-                        [ div [ class "accordion-body" ]
-                            [ ul [] (List.map (\chemicalName -> li [] [ text chemicalName ]) (sort chemicalNames))
-                            ]
-                        ]
+    let
+        firstRow =
+            tr []
+                [ td []
+                    [ button
+                        [ class "btn btn-link amarcord-small-link-button", class "amarcord-edit-button", onClick (EditBeamtimeStart bt) ]
+                        [ icon { name = "pencil-square" } ]
+                    ]
+                , td [] [ strongText externalId ]
+                , td [] [ text (String.fromInt id) ]
+                , td [] [ a [ href (makeLink (RunOverview id)) ] [ text title ] ]
+                , td [] [ text beamline ]
+                , td [ class "text-nowrap" ] [ text proposal ]
+                , td [] [ text (formatPosixHumanFriendly utc (millisToPosix startLocal)) ]
+                , td [] [ text (formatPosixHumanFriendly utc (millisToPosix endLocal)) ]
+                ]
+
+        secondRow =
+            [ tr []
+                [ td [ colspan 8 ]
+                    [ p []
+                        ((if comment /= "" then
+                            [ p [] [ strongText "Comment: ", markupWithoutErrors comment ] ]
+
+                          else
+                            []
+                         )
+                            ++ [ strongText "Chemicals: "
+                               , span_
+                                    (List.map
+                                        (\chemicalName ->
+                                            span [ class "badge text-bg-light me-2" ] [ text chemicalName ]
+                                        )
+                                        (sort chemicalNames)
+                                    )
+                               ]
+                        )
                     ]
                 ]
             ]
-        ]
+    in
+    firstRow :: secondRow
 
 
 viewBeamtimes : List JsonBeamtimeOutput -> Html Msg
 viewBeamtimes beamtimes =
-    table [ class "table table-striped", id "beamtime-table" ]
+    table [ class "table table-striped amarcord-table-fix-head", id "beamtime-table" ]
         [ thead []
             [ tr []
                 [ th [] [ text "Actions" ]
@@ -191,11 +197,9 @@ viewBeamtimes beamtimes =
                 , th [] [ text "Proposal" ]
                 , th [] [ text "Start" ]
                 , th [] [ text "End" ]
-                , th [] [ text "Comment" ]
-                , th [] [ text "Chemicals" ]
                 ]
             ]
-        , tbody [] (List.map viewBeamtimeTableRow beamtimes)
+        , tbody [] (List.concatMap viewBeamtimeTableRow beamtimes)
         ]
 
 
