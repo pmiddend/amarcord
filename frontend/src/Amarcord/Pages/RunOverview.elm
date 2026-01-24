@@ -217,7 +217,17 @@ dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentTypeMay
                                         []
                                     ]
                                 ]
-                            , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
+                            , div [ class "d-flex justify-content-center" ]
+                                [ em
+                                    [ class "amarcord-small-text"
+                                    ]
+                                    [ text <|
+                                        "Indexed frames (whole dataset): "
+                                            ++ formatIntHumanFriendly progressSummary.indexedFrames
+                                            ++ "/"
+                                            ++ formatIntHumanFriendly 10000
+                                    ]
+                                ]
                             , case etaFor10kFrames of
                                 Nothing ->
                                     text ""
@@ -235,7 +245,11 @@ dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentTypeMay
                                 ]
                             ]
                     in
-                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
+                    [ Maybe.withDefault
+                        (text "")
+                        (Maybe.map .indexingStatistics rrc.latestIndexingResult
+                            |> Maybe.map (viewHitRateAndIndexingGraphs (Maybe.map .foms rrc.latestIndexingResult))
+                        )
                     , div [ class "mb-3" ] indexingProgress
                     , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]

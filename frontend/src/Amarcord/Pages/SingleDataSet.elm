@@ -17,7 +17,7 @@ import Amarcord.Html exposing (br_, code_, div_, em_, h5_, input_, li_, p_, smal
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
-import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
+import Amarcord.Util exposing (HereAndNow, lineBreakFilePath, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
 import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributoOutput, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
@@ -888,7 +888,7 @@ viewIndexingResults now showErroneous parameters results =
                                         [ tr_
                                             [ td_ [ strongText "Stream file" ]
                                             , td_
-                                                [ span [ class "text-break" ] [ text streamFile ]
+                                                [ lineBreakFilePath streamFile
                                                 , copyToClipboardButton (CopyToClipboard streamFile)
                                                 ]
                                             ]

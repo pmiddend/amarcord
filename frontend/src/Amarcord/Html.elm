@@ -1,6 +1,6 @@
 module Amarcord.Html exposing (..)
 
-import Html exposing (Attribute, Html, code, div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, option, p, select, small, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Attribute, Html, code, div, em, form, h1, h2, h3, h4, h5, h6, hr, img, input, li, option, p, select, small, span, strong, sup, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes exposing (selected, value)
 import Html.Events exposing (stopPropagationOn, targetValue)
 import Html.Events.Extra exposing (targetValueIntParse)
@@ -120,6 +120,11 @@ h4_ x =
 h5_ : List (Html msg) -> Html msg
 h5_ x =
     h5 [] x
+
+
+h6_ : List (Html msg) -> Html msg
+h6_ x =
+    h6 [] x
 
 
 input_ : List (Html.Attribute msg) -> Html msg

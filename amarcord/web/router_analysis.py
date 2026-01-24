@@ -156,6 +156,7 @@ async def read_run_analysis(
         await session.scalars(select(orm.Run).where(orm.Run.beamtime_id == beamtimeId))
     ).all()
     run: None | orm.Run = None
+    data_set: None | orm.DataSet = None
     if run_id is not None:
         for r in runs:
             if r.id == run_id:
@@ -176,8 +177,6 @@ async def read_run_analysis(
             ):
                 data_set = ds
                 break
-    else:
-        data_set = None
     indexing_results = await session.scalars(
         select(orm.IndexingResult)
         .where(orm.IndexingResult.run_id == run_id)

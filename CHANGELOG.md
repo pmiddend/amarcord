@@ -35,6 +35,8 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 - Updated to NixOS 25.11, Python 3.13 and updated all Python dependencies (see [GitLab MR 477](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/477))
 - If you have beamtime at ID29, you can now use two new AMARCORD daemons top pull data into the DESY filesystem and process it there (see [GitLab MR 441](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/441))
 - The "beamtime overview" page has been reworked a bit to include the chemicals directly, and the table is now more "vertical", less "horizontal" ([\#489](https://gitlab.desy.de/amarcord/amarcord/-/issues/489))
+- Filesystem paths are now broken with the `wbr` HTML tag, allowing the browser to layout stuff a little more easily ([\#491](https://gitlab.desy.de/amarcord/amarcord/-/issues/491))
+- The run-based analysis view, as well as the "Current Run" view now show the number of indexed frames in the run, not just the overall ([\#491](https://gitlab.desy.de/amarcord/amarcord/-/issues/491))
 
 ## Fixes
 
