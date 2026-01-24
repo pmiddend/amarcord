@@ -1569,7 +1569,7 @@ def run_online(args: OnlineArgs) -> None:
         )
     logger.info("process completed")
 
-    generated_geometry_file_contents: str
+    generated_geometry_file_contents = ""
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
@@ -1590,8 +1590,6 @@ def run_online(args: OnlineArgs) -> None:
             final_fom = replace(
                 final_fom, align_detector_groups=align_detector_groups_or_none
             )
-    else:
-        generated_geometry_file_contents = ""
 
     if final_fom.indexed_frames > 100:
         logger.info("generating histograms")
