@@ -45,6 +45,7 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 - The indexing daemon sometimes labeled jobs that are still running as failed ([\#485](https://gitlab.desy.de/amarcord/amarcord/-/issues/485))
 - Offline indexing jobs and online ones used different output directories. Offline results were in `$output_path/indexing-results` whereas online ones were simply in `$output_path`. ([\#488](https://gitlab.desy.de/amarcord/amarcord/-/issues/488))
 - When specifying a SLURM REST workload manager, you can omit the partition now (if you have a reservation for, example) ([GitLab MR 484](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/484))
+- When millepede fails to give a proper new geometry in _online_ indexing, don't make the whole job fail ([\#490](https://gitlab.desy.de/amarcord/amarcord/-/issues/490))
 
 ## Development changes
 

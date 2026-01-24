@@ -1573,7 +1573,7 @@ def run_online(args: OnlineArgs) -> None:
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
-        align_detector_groups = run_align_detector(
+        align_detector_groups_or_none = run_align_detector(
             args,
             mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files",
@@ -1581,13 +1581,16 @@ def run_online(args: OnlineArgs) -> None:
             geometry_path=geometry_path,
             geometry_file_destination=Path(geometry_file_destination),
         )
-        try:
-            with Path(geometry_file_destination).open("r", encoding="utf-8") as f:
-                generated_geometry_file_contents = f.read()
-        except:
-            generated_geometry_file_contents = ""
+        if align_detector_groups_or_none is not None:
+            try:
+                with Path(geometry_file_destination).open("r", encoding="utf-8") as f:
+                    generated_geometry_file_contents = f.read()
+            except:
+                generated_geometry_file_contents = ""
+            final_fom = replace(
+                final_fom, align_detector_groups=align_detector_groups_or_none
+            )
     else:
-        align_detector_groups = {}
         generated_geometry_file_contents = ""
 
     if final_fom.indexed_frames > 100:
@@ -1601,8 +1604,6 @@ def run_online(args: OnlineArgs) -> None:
         except:
             logger.exception("could not generate graphs")
             graphs_output = None
-
-        final_fom = replace(final_fom, align_detector_groups=align_detector_groups)
     else:
         logger.info(
             f"not generating histograms, not enough indexed frames: {final_fom.indexed_frames}",
