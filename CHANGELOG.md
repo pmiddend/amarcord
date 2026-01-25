@@ -37,6 +37,7 @@ Since the list of chemicals across beamtimes keeps growing, and most of the time
 - The "beamtime overview" page has been reworked a bit to include the chemicals directly, and the table is now more "vertical", less "horizontal" ([\#489](https://gitlab.desy.de/amarcord/amarcord/-/issues/489))
 - Filesystem paths are now broken with the `wbr` HTML tag, allowing the browser to layout stuff a little more easily ([\#491](https://gitlab.desy.de/amarcord/amarcord/-/issues/491))
 - The run-based analysis view, as well as the "Current Run" view now show the number of indexed frames in the run, not just the overall ([\#491](https://gitlab.desy.de/amarcord/amarcord/-/issues/491))
+- Show the indexing result with the most indexed frames in the overview ([GitLab MR 488](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/488))
 
 ## Fixes
 

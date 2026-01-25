@@ -1,6 +1,7 @@
 import json
 from typing import Annotated
 from typing import Iterable
+from typing import cast
 
 import sqlalchemy as sa
 import structlog
@@ -491,29 +492,34 @@ async def read_single_data_set_results(
             point_group=point_group_for_ds,
             space_group=space_group_for_ds,
             cell_description=cell_description_for_ds,
-            indexing_results=[
-                JsonIndexingParametersWithResults(
-                    parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),
-                    indexing_results=[
-                        orm_indexing_result_to_json(result) for result in results
-                    ],
-                    merge_results=sorted(
-                        [
-                            orm_encode_merge_result_to_json(
-                                mr,
-                                run_id_formatter=lambda rid: run_external_id_for_internal_id[
-                                    rid
-                                ],
-                            )
-                            for mr in merge_results_per_indexing_parameters.get(
-                                ip_id, []
-                            )
+            indexing_results=sorted(
+                [
+                    JsonIndexingParametersWithResults(
+                        parameters=orm_indexing_parameters_to_json(main_ips[ip_id]),
+                        indexing_results=[
+                            orm_indexing_result_to_json(result) for result in results
                         ],
-                        key=lambda x: x.id,
-                    ),
-                )
-                for ip_id, results in ip_and_ix_results.items()
-            ],
+                        merge_results=sorted(
+                            [
+                                orm_encode_merge_result_to_json(
+                                    mr,
+                                    run_id_formatter=lambda rid: run_external_id_for_internal_id[
+                                        rid
+                                    ],
+                                )
+                                for mr in merge_results_per_indexing_parameters.get(
+                                    ip_id, []
+                                )
+                            ],
+                            key=lambda x: x.id,
+                            reverse=True,
+                        ),
+                    )
+                    for ip_id, results in ip_and_ix_results.items()
+                ],
+                # We know we only have indexing parameter IDs that are not zero here.
+                key=lambda ipwr: cast("int", ipwr.parameters.id),
+            ),
         )
 
     return JsonReadSingleDataSetResults(

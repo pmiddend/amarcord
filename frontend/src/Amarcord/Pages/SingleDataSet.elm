@@ -29,7 +29,8 @@ import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, 
 import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
-import List.Extra
+import List exposing (sum)
+import List.Extra exposing (maximumBy)
 import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
@@ -37,7 +38,12 @@ import Result.Extra
 import Scroll exposing (scrollY)
 import Set exposing (Set)
 import Task
-import Time exposing (Posix, millisToPosix, posixToMillis)
+import Time
+    exposing
+        ( Posix
+        , millisToPosix
+        , posixToMillis
+        )
 
 
 subscriptions : List (Sub Msg)
@@ -1049,6 +1055,9 @@ optionalCellDescriptionsAlmostEqualStrings l r =
         ( Nothing, Nothing ) ->
             True
 
+        ( Just "", Just "" ) ->
+            True
+
         _ ->
             Maybe.map2 cellDescriptionsAlmostEqualStrings l r |> Maybe.withDefault False
 
@@ -1130,70 +1139,50 @@ viewCommandLineDiff priorCmdLine newCmdLine =
                                     Dict.get optionName priorLongOptions /= Dict.get optionName newLongOptions
                                 )
                                 (Set.intersect priorLongOptionNames newLongOptionNames)
+
+                        badgedList textClass items =
+                            case items of
+                                [] ->
+                                    text ""
+
+                                _ ->
+                                    div
+                                        [ class "hstack gap-2 mb-1" ]
+                                        (List.map (\item -> span [ class ("badge " ++ textClass) ] [ text item ]) items)
                     in
                     div_
-                        [ if not (Set.isEmpty newOptions) || not (Set.isEmpty newSwitches) then
-                            div_
-                                [ text
-                                    ("New options: "
-                                        ++ String.join ", "
-                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions)) (Set.toList newOptions))
-                                        ++ (if Set.isEmpty newSwitches then
-                                                ""
-
-                                            else
-                                                (if Set.isEmpty newOptions then
-                                                    ""
-
-                                                 else
-                                                    ", "
-                                                )
-                                                    ++ String.join ", " (Set.toList newSwitches)
-                                           )
-                                    )
-                                ]
-
-                          else
-                            text ""
-                        , if not (Set.isEmpty droppedOptions) || not (Set.isEmpty droppedSwitches) then
-                            div_
-                                [ text
-                                    ("Dropped options: "
-                                        ++ String.join ", "
-                                            (List.map (\optionName -> optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions)) (Set.toList droppedOptions))
-                                        ++ (if Set.isEmpty droppedSwitches then
-                                                ""
-
-                                            else
-                                                (if Set.isEmpty droppedOptions then
-                                                    ""
-
-                                                 else
-                                                    ", "
-                                                )
-                                                    ++ String.join ", " (Set.toList droppedSwitches)
-                                           )
-                                    )
-                                ]
-
-                          else
-                            text ""
-                        , if not (Set.isEmpty changedOptions) then
-                            div_
-                                [ text
-                                    ("Changed options: "
-                                        ++ String.join ", "
-                                            (List.map (\optionName -> optionName ++ " “" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions) ++ "” → “" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions) ++ "”") (Set.toList changedOptions))
-                                    )
-                                ]
-
-                          else
-                            text ""
+                        [ badgedList
+                            "text-bg-success"
+                            (List.map
+                                (\optionName -> "+ " ++ optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions))
+                                (Set.toList newOptions)
+                                ++ Set.toList newSwitches
+                            )
+                        , badgedList
+                            "text-bg-danger"
+                            (List.map
+                                (\optionName -> "- " ++ optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions))
+                                (Set.toList droppedOptions)
+                                ++ Set.toList droppedSwitches
+                            )
+                        , badgedList
+                            "text-bg-light"
+                            (List.map
+                                (\optionName ->
+                                    optionName
+                                        ++ " “"
+                                        ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions)
+                                        ++ "” → “"
+                                        ++ Maybe.withDefault "" (Dict.get optionName newLongOptions)
+                                        ++ "”"
+                                )
+                                (Set.toList changedOptions)
+                            )
                         ]
 
 
-viewRowDiff : IndexingParametersData -> IndexingParametersData -> Html msg
-viewRowDiff pparams params =
+viewRowDiff : IndexingParametersData -> IndexingParametersData -> Html msg -> Html msg
+viewRowDiff pparams params headline =
     let
         viewCellDescription d =
             case d of
@@ -1210,8 +1199,14 @@ viewRowDiff pparams params =
     tr_
         [ td [ colspan 5 ]
             [ div [ class "alert alert-dark" ]
-                [ if pparams.geometry /= params.geometry then
-                    div_ [ em_ [ text "Geometry changed" ] ]
+                [ headline
+                , if pparams.commandLine /= params.commandLine then
+                    viewCommandLineDiff pparams.commandLine params.commandLine
+
+                  else
+                    text ""
+                , if pparams.geometry /= params.geometry then
+                    div_ [ span [ class "badge text-bg-light" ] [ text "Geometry changed" ] ]
 
                   else
                     text ""
@@ -1220,18 +1215,15 @@ viewRowDiff pparams params =
 
                   else
                     div_
-                        [ text "Cell description: "
-                        , viewCellDescription pparams.cellDescription
-                        , span [ class "ms-1 me-1" ] [ text "→" ]
-                        , viewCellDescription params.cellDescription
+                        [ span [ class "badge text-bg-light" ]
+                            [ text "Cell description: "
+                            , viewCellDescription pparams.cellDescription
+                            , span [ class "ms-1 me-1" ] [ text "→" ]
+                            , viewCellDescription params.cellDescription
+                            ]
                         ]
                 , if pparams.isOnline /= params.isOnline then
-                    div_ [ text "Online → Offline" ]
-
-                  else
-                    text ""
-                , if pparams.commandLine /= params.commandLine then
-                    viewCommandLineDiff pparams.commandLine params.commandLine
+                    div [ class "mb-1" ] [ span [ class "badge text-bg-light" ] [ text "Online → Offline" ] ]
 
                   else
                     text ""
@@ -1247,10 +1239,11 @@ viewSingleIndexingResultRow :
     -> String
     -> String
     -> String
+    -> IndexingParametersId
     -> Maybe IndexingParametersWithResults
     -> IndexingParametersWithResults
     -> List (Html Msg)
-viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs priorParametersAndResults ({ parameters, indexingResults, mergeResults } as p) =
+viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs mostIxedParameterId priorParametersAndResults ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             memberIndexingParametersIdSet parametersId model.expandedIndexingParameterIds
@@ -1316,7 +1309,14 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
                     text ""
 
                 Just priorParametersAndResultsReal ->
-                    viewRowDiff priorParametersAndResultsReal.parameters parameters
+                    viewRowDiff priorParametersAndResultsReal.parameters
+                        parameters
+                        (if parameters.id == mostIxedParameterId then
+                            span [ class "badge text-bg-success mb-2" ] [ text "⭐ Most ixed!" ]
+
+                         else
+                            text ""
+                        )
     in
     [ priorRowDiff
     , tr_
@@ -1359,13 +1359,20 @@ indexingAndMergeResultHeaders =
 
 viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List IndexingParametersWithResults -> String -> String -> String -> Html Msg
 viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
+    let
+        mostIxedParameterId : IndexingParametersId
+        mostIxedParameterId =
+            Maybe.withDefault (IndexingParametersId 0) <|
+                Maybe.map (\ipar -> ipar.parameters.id) <|
+                    maximumBy (\ipar -> sum (List.map .indexedFrames ipar.indexingResults)) indexingParametersAndResults
+    in
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
         , tbody_ <|
             List.concat <|
                 List.reverse <|
-                    withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs)
+                    withLeftNeighbor indexingParametersAndResults (viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs pointGroupForDs spaceGroupForDs mostIxedParameterId)
         ]
 
 
