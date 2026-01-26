@@ -12,6 +12,7 @@ import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
 import Time.Extra exposing (partsToPosix)
 import Tuple exposing (first, second)
+import String exposing (startsWith)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -423,6 +424,8 @@ listMinMax l =
 
 lineBreakFilePath : String -> Html msg
 lineBreakFilePath string =
+    if startsWith "/" string
+    then
     case split "/" string of
         [] ->
             text ""
@@ -435,3 +438,4 @@ lineBreakFilePath string =
 
         xs ->
             span [] (List.intersperse (wbr [] []) (List.map (\t -> text ("/" ++ t)) xs))
+    else text string
