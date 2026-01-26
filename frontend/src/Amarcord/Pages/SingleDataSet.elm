@@ -1156,14 +1156,14 @@ viewCommandLineDiff priorCmdLine newCmdLine =
                             (List.map
                                 (\optionName -> "+ " ++ optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions))
                                 (Set.toList newOptions)
-                                ++ Set.toList newSwitches
+                                ++ List.map (\x -> "- " ++ x) (Set.toList newSwitches)
                             )
                         , badgedList
                             "text-bg-danger"
                             (List.map
                                 (\optionName -> "- " ++ optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName priorLongOptions))
                                 (Set.toList droppedOptions)
-                                ++ Set.toList droppedSwitches
+                                ++ List.map (\x -> "- " ++ x) (Set.toList droppedSwitches)
                             )
                         , badgedList
                             "text-bg-light"
@@ -1249,7 +1249,7 @@ viewSingleIndexingResultRow :
     -> String
     -> String
     -> String
-    -> IndexingParametersId
+    -> Maybe IndexingParametersId
     -> Maybe IndexingParametersWithResults
     -> IndexingParametersWithResults
     -> List (Html Msg)
@@ -1316,12 +1316,16 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
         priorRowDiff =
             case priorParametersAndResults of
                 Nothing ->
-                    text ""
+                    if Just parameters.id == mostIxedParameterId then
+                        span [ class "badge text-bg-success mb-2" ] [ text "⭐ Most ixed!" ]
+
+                    else
+                        text ""
 
                 Just priorParametersAndResultsReal ->
                     viewRowDiff priorParametersAndResultsReal.parameters
                         parameters
-                        (if parameters.id == mostIxedParameterId then
+                        (if Just parameters.id == mostIxedParameterId then
                             span [ class "badge text-bg-success mb-2" ] [ text "⭐ Most ixed!" ]
 
                          else
@@ -1370,11 +1374,30 @@ indexingAndMergeResultHeaders =
 viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List IndexingParametersWithResults -> String -> String -> String -> Html Msg
 viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults cellDescriptionForDs pointGroupForDs spaceGroupForDs =
     let
-        mostIxedParameterId : IndexingParametersId
+        hasCellDescription : IndexingParametersWithResults -> Bool
+        hasCellDescription ipar =
+            case ipar.parameters.cellDescription of
+                Nothing ->
+                    False
+
+                Just "" ->
+                    False
+
+                _ ->
+                    True
+
+        mostIxedParameterId : Maybe IndexingParametersId
         mostIxedParameterId =
-            Maybe.withDefault (IndexingParametersId 0) <|
+            let
+                filteredIpars =
+                    List.filter hasCellDescription indexingParametersAndResults
+            in
+            if List.length filteredIpars == 1 then
+                Nothing
+
+            else
                 Maybe.map (\ipar -> ipar.parameters.id) <|
-                    maximumBy (\ipar -> sum (List.map .indexedFrames ipar.indexingResults)) indexingParametersAndResults
+                    maximumBy (\ipar -> sum (List.map .indexedFrames ipar.indexingResults)) filteredIpars
     in
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
