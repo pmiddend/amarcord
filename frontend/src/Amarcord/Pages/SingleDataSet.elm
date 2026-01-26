@@ -1156,7 +1156,7 @@ viewCommandLineDiff priorCmdLine newCmdLine =
                             (List.map
                                 (\optionName -> "+ " ++ optionName ++ "=" ++ Maybe.withDefault "" (Dict.get optionName newLongOptions))
                                 (Set.toList newOptions)
-                                ++ List.map (\x -> "- " ++ x) (Set.toList newSwitches)
+                                ++ List.map (\x -> "+ " ++ x) (Set.toList newSwitches)
                             )
                         , badgedList
                             "text-bg-danger"
