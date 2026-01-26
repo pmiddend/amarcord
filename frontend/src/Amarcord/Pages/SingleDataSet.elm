@@ -1147,8 +1147,8 @@ viewCommandLineDiff priorCmdLine newCmdLine =
 
                                 _ ->
                                     div
-                                        [ class "hstack gap-2 mb-1" ]
-                                        (List.map (\item -> span [ class ("badge " ++ textClass) ] [ text item ]) items)
+                                        [ class "mb-1" ]
+                                        (List.map (\item -> span [ class ("badge me-1 " ++ textClass) ] [ text item ]) items)
                     in
                     div_
                         [ badgedList
@@ -1223,7 +1223,17 @@ viewRowDiff pparams params headline =
                             ]
                         ]
                 , if pparams.isOnline /= params.isOnline then
-                    div [ class "mb-1" ] [ span [ class "badge text-bg-light" ] [ text "Online → Offline" ] ]
+                    div [ class "mb-1" ]
+                        [ span [ class "badge text-bg-light" ]
+                            [ text
+                                (if pparams.isOnline then
+                                    "Online → Offline"
+
+                                 else
+                                    "Offline → Online"
+                                )
+                            ]
+                        ]
 
                   else
                     text ""
