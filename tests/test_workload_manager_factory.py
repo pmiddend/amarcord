@@ -2,9 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    MAXWELL_SLURM_URL,
-)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import MAXWELL_PREFIX
 from amarcord.amici.workload_manager.workload_manager_factory import (
     LocalWorkloadManagerConfig,
 )
@@ -33,7 +31,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 explicit_node=None,
                 token=None,
                 user="user",
-                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                url=MAXWELL_PREFIX,
                 api_version="v0.0.40",
                 portal_token=None,
             ),
@@ -46,7 +44,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 explicit_node=None,
                 token="blub",  # noqa: S106
                 user="user",
-                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                url=MAXWELL_PREFIX,
                 api_version="v0.0.40",
                 portal_token=None,
             ),
@@ -59,7 +57,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 explicit_node=None,
                 token=None,
                 user="user",
-                url=f"{MAXWELL_SLURM_URL}/v0.0.40",
+                url=MAXWELL_PREFIX,
                 api_version="v0.0.40",
                 portal_token="blub",  # noqa: S106
             ),

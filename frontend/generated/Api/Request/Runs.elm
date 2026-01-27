@@ -35,6 +35,9 @@ import Json.Decode
 import Json.Encode
 import File exposing (File)
 
+
+{-| Bulk Import
+-}
 bulkImportApiRunBulkImportBeamtimeIdPost : Int -> Bool -> Bool -> File -> Api.Request Api.Data.JsonRunsBulkImportOutput
 bulkImportApiRunBulkImportBeamtimeIdPost beamtimeId_path simulate_query createDataSets_query file =
     Api.request
@@ -47,6 +50,8 @@ bulkImportApiRunBulkImportBeamtimeIdPost beamtimeId_path simulate_query createDa
         Api.Data.jsonRunsBulkImportOutputDecoder
 
 
+{-| Bulk Import Info
+-}
 bulkImportInfoApiRunBulkImportBeamtimeIdGet : Int -> Api.Request Api.Data.JsonRunsBulkImportInfo
 bulkImportInfoApiRunBulkImportBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -59,6 +64,8 @@ bulkImportInfoApiRunBulkImportBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonRunsBulkImportInfoDecoder
 
 
+{-| Create Or Update Run
+-}
 createOrUpdateRunApiRunsRunExternalIdPost : Int -> Api.Data.JsonCreateOrUpdateRun -> Api.Request Api.Data.JsonCreateOrUpdateRunOutput
 createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateRun_body =
     Api.request
@@ -71,6 +78,8 @@ createOrUpdateRunApiRunsRunExternalIdPost runExternalId_path jsonCreateOrUpdateR
         Api.Data.jsonCreateOrUpdateRunOutputDecoder
 
 
+{-| Delete Run
+-}
 deleteRunApiRunsBeamtimeIdRunIdDelete : Int -> Int -> Api.Request Api.Data.JsonDeleteRunOutput
 deleteRunApiRunsBeamtimeIdRunIdDelete beamtimeId_path runId_path =
     Api.request
@@ -83,6 +92,8 @@ deleteRunApiRunsBeamtimeIdRunIdDelete beamtimeId_path runId_path =
         Api.Data.jsonDeleteRunOutputDecoder
 
 
+{-| Read Runs
+-}
 readRunsApiRunsBeamtimeIdGet : Int -> Maybe String -> Maybe String -> Maybe String -> Api.Request Api.Data.JsonReadRuns
 readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query runRanges_query =
     Api.request
@@ -95,6 +106,8 @@ readRunsApiRunsBeamtimeIdGet beamtimeId_path date_query filter_query runRanges_q
         Api.Data.jsonReadRunsDecoder
 
 
+{-| Read Runs Bulk
+-}
 readRunsBulkApiRunsBulkPost : Api.Data.JsonReadRunsBulkInput -> Api.Request Api.Data.JsonReadRunsBulkOutput
 readRunsBulkApiRunsBulkPost jsonReadRunsBulkInput_body =
     Api.request
@@ -107,6 +120,8 @@ readRunsBulkApiRunsBulkPost jsonReadRunsBulkInput_body =
         Api.Data.jsonReadRunsBulkOutputDecoder
 
 
+{-| Read Runs Overview
+-}
 readRunsOverviewApiRunsOverviewBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadRunsOverview
 readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -119,6 +134,8 @@ readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonReadRunsOverviewDecoder
 
 
+{-| Start Run
+-}
 startRunApiRunsRunExternalIdStartBeamtimeIdGet : Int -> Int -> Api.Request Api.Data.JsonStartRunOutput
 startRunApiRunsRunExternalIdStartBeamtimeIdGet runExternalId_path beamtimeId_path =
     Api.request
@@ -131,6 +148,8 @@ startRunApiRunsRunExternalIdStartBeamtimeIdGet runExternalId_path beamtimeId_pat
         Api.Data.jsonStartRunOutputDecoder
 
 
+{-| Stop Latest Run
+-}
 stopLatestRunApiRunsStopLatestBeamtimeIdGet : Int -> Api.Request Api.Data.JsonStopRunOutput
 stopLatestRunApiRunsStopLatestBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -143,6 +162,8 @@ stopLatestRunApiRunsStopLatestBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonStopRunOutputDecoder
 
 
+{-| Update Run
+-}
 updateRunApiRunsPatch : Api.Data.JsonUpdateRun -> Api.Request Api.Data.JsonUpdateRunOutput
 updateRunApiRunsPatch jsonUpdateRun_body =
     Api.request
@@ -155,6 +176,8 @@ updateRunApiRunsPatch jsonUpdateRun_body =
         Api.Data.jsonUpdateRunOutputDecoder
 
 
+{-| Update Runs Bulk
+-}
 updateRunsBulkApiRunsBulkPatch : Api.Data.JsonUpdateRunsBulkInput -> Api.Request Api.Data.JsonUpdateRunsBulkOutput
 updateRunsBulkApiRunsBulkPatch jsonUpdateRunsBulkInput_body =
     Api.request

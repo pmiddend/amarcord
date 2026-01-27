@@ -33,7 +33,11 @@ import Http
 import Json.Decode
 import Json.Encode
 
-{-| This will import an already finished indexing job, from another beamline for example.  It's not possible to do this with the other methods here, since you'd have to queue something for a whole dataset and then finish something with a concrete indexing job ID.
+
+{-| Import Finished Indexing Job
+
+This will import an already finished indexing job, from another beamline for example.  It's not possible to do this with the other methods here, since you'd have to queue something for a whole dataset and then finish something with a concrete indexing job ID.
+
 -}
 importFinishedIndexingJobApiIndexingImportPost : Api.Data.JsonImportFinishedIndexingJobInput -> Api.Request Api.Data.JsonImportFinishedIndexingJobOutput
 importFinishedIndexingJobApiIndexingImportPost jsonImportFinishedIndexingJobInput_body =
@@ -47,6 +51,8 @@ importFinishedIndexingJobApiIndexingImportPost jsonImportFinishedIndexingJobInpu
         Api.Data.jsonImportFinishedIndexingJobOutputDecoder
 
 
+{-| Indexing Job Finish Successfully
+-}
 indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost : Int -> Api.Data.JsonIndexingResultFinishSuccessfully -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
 indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost indexingResultId_path jsonIndexingResultFinishSuccessfully_body =
     Api.request
@@ -59,6 +65,8 @@ indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost indexingResu
         Api.Data.jsonIndexingJobUpdateOutputDecoder
 
 
+{-| Indexing Job Finish With Error
+-}
 indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost : Int -> Api.Data.JsonIndexingResultFinishWithError -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
 indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost indexingResultId_path jsonIndexingResultFinishWithError_body =
     Api.request
@@ -71,6 +79,8 @@ indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost indexin
         Api.Data.jsonIndexingJobUpdateOutputDecoder
 
 
+{-| Indexing Job Get Errorlog
+-}
 indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet : Int -> Api.Request String
 indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet indexingResultId_path =
     Api.request
@@ -83,6 +93,8 @@ indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet indexingResultId_pa
         Json.Decode.string
 
 
+{-| Indexing Job Get Log
+-}
 indexingJobGetLogApiIndexingIndexingResultIdLogGet : Int -> Api.Request String
 indexingJobGetLogApiIndexingIndexingResultIdLogGet indexingResultId_path =
     Api.request
@@ -95,6 +107,8 @@ indexingJobGetLogApiIndexingIndexingResultIdLogGet indexingResultId_path =
         Json.Decode.string
 
 
+{-| Indexing Job Queue For Data Set
+-}
 indexingJobQueueForDataSetApiIndexingPost : Api.Data.JsonCreateIndexingForDataSetInput -> Api.Request Api.Data.JsonCreateIndexingForDataSetOutput
 indexingJobQueueForDataSetApiIndexingPost jsonCreateIndexingForDataSetInput_body =
     Api.request
@@ -107,6 +121,8 @@ indexingJobQueueForDataSetApiIndexingPost jsonCreateIndexingForDataSetInput_body
         Api.Data.jsonCreateIndexingForDataSetOutputDecoder
 
 
+{-| Indexing Job Still Running
+-}
 indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost : Int -> Api.Data.JsonIndexingResultStillRunning -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
 indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost indexingResultId_path jsonIndexingResultStillRunning_body =
     Api.request
@@ -119,6 +135,8 @@ indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost indexingResul
         Api.Data.jsonIndexingJobUpdateOutputDecoder
 
 
+{-| Merge Job Get Log
+-}
 mergeJobGetLogApiMergingMergeResultIdLogGet : Int -> Api.Request String
 mergeJobGetLogApiMergingMergeResultIdLogGet mergeResultId_path =
     Api.request
@@ -131,6 +149,8 @@ mergeJobGetLogApiMergingMergeResultIdLogGet mergeResultId_path =
         Json.Decode.string
 
 
+{-| Read Indexing Jobs
+-}
 readIndexingJobsApiIndexingGet : Maybe DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput
 readIndexingJobsApiIndexingGet status_query beamtimeId_query withFiles_query =
     Api.request
@@ -143,6 +163,8 @@ readIndexingJobsApiIndexingGet status_query beamtimeId_query withFiles_query =
         Api.Data.jsonReadIndexingResultsOutputDecoder
 
 
+{-| Read Indexing Parameters
+-}
 readIndexingParametersApiIndexingParametersDataSetIdGet : Int -> Api.Request Api.Data.JsonReadIndexingParametersOutput
 readIndexingParametersApiIndexingParametersDataSetIdGet dataSetId_path =
     Api.request

@@ -1,9 +1,10 @@
 module Amarcord.RunStatistics exposing (..)
 
+import Amarcord.AttributoHtml exposing (formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (viewCloseHelpButton, viewHelpButton)
 import Amarcord.Html exposing (h5_, p_)
 import Amarcord.Util exposing (foldPairs)
-import Api.Data exposing (JsonIndexingStatistic)
+import Api.Data exposing (JsonIndexingFom, JsonIndexingStatistic)
 import Basics.Extra exposing (safeDivide)
 import Chart as C
 import Chart.Attributes as CA
@@ -11,8 +12,8 @@ import Html exposing (Html, div, em, img, text)
 import Html.Attributes exposing (class, id, src)
 
 
-viewHitRateAndIndexingGraphs : List JsonIndexingStatistic -> Html msg
-viewHitRateAndIndexingGraphs stats =
+viewHitRateAndIndexingGraphs : Maybe JsonIndexingFom -> List JsonIndexingStatistic -> Html msg
+viewHitRateAndIndexingGraphs fom stats =
     let
         graphMarginMagnitude =
             30
@@ -75,4 +76,15 @@ viewHitRateAndIndexingGraphs stats =
                 [ C.interpolated .rate [ CA.color CA.red ] [] ]
                 (makeRate .indexed)
             ]
+        , case fom of
+            Nothing ->
+                text ""
+
+            Just { indexedFrames } ->
+                p_
+                    [ em [ class "amarcord-small-text" ]
+                        [ text "Indexed frames (this run): "
+                        , text (formatIntHumanFriendly indexedFrames)
+                        ]
+                    ]
         ]

@@ -10,9 +10,7 @@ from amarcord.amici.workload_manager.local_workload_manager import LocalWorkload
 from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     SlurmRemoteWorkloadManager,
 )
-from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    MAXWELL_SLURM_URL,
-)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import MAXWELL_PREFIX
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     ConstantTokenRetriever,
 )
@@ -43,7 +41,7 @@ class LocalWorkloadManagerConfig:
 
 @dataclass(frozen=True, eq=True)
 class SlurmRestWorkloadManagerConfig:
-    partition: str
+    partition: None | str
     reservation: None | str
     explicit_node: None | str
     token: None | str
@@ -96,10 +94,6 @@ def parse_workload_manager_config(
             )
         case "maxwell-rest":
             partition = jcc.string_parameter("partition")
-            if partition is None:
-                raise Exception(
-                    'invalid scheme for SLURM REST: "partition" is mandatory',
-                )
             user = jcc.string_parameter("user")
             api_version = jcc.string_parameter("api-version")
             if api_version is None:
@@ -114,7 +108,7 @@ def parse_workload_manager_config(
                 portal_token=jcc.string_parameter("portal-token"),
                 user=user if user is not None else getuser(),
                 api_version=api_version,
-                url=f"{MAXWELL_SLURM_URL}/{api_version}",
+                url=MAXWELL_PREFIX,
             )
         case "slurm-rest":
             output_scheme = "http" if jcc.bool_parameter("use-http") else "https"

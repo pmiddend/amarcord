@@ -3,7 +3,6 @@ from functools import partial
 from typing import Any
 from typing import Callable
 from typing import Final
-from typing import TypeAlias
 
 from lark.lark import Lark
 from lark.lexer import Token
@@ -71,7 +70,7 @@ class FilterInput:
     chemical_names: dict[str, int]
 
 
-RunFilterFunction: TypeAlias = Callable[[FilterInput], bool]
+type RunFilterFunction = Callable[[FilterInput], bool]
 ComparisonOperator = Callable[[Any, Any], bool]
 LogicalOperator = Callable[[bool, bool], bool]
 LogicalCombinator = Callable[[RunFilterFunction, RunFilterFunction], bool]

@@ -12,9 +12,7 @@ import File.Select
 import Html exposing (Html, button, div, h4, input, label, p, table, text, textarea, tr)
 import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List
 import RemoteData exposing (RemoteData(..), isLoading)
-import String
 
 
 type alias Model =

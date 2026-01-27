@@ -1,21 +1,21 @@
 <div align="center">
   <p>
-	<a href="http://cfel-sc.pages.desy.de/amarcord-parent/amarcord-serial/"><img src="/docs/source/amarcord-logo-with-title.png" alt="AMARCORD Logo with Title Text"></a>
+	<a href="https://amarcord.pages.desy.de/amarcord/"><img src="/docs/source/amarcord-logo-with-title.png" alt="AMARCORD Logo with Title Text"></a>
   </p>
   <p>
 	  <em>A Flexible Database for Multi-Dimensional Serial Crystallography</em>
   </p>
 
-  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/badges/main/pipeline.svg" alt="Pipeline Status Badge" />
-  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/badges/main/coverage.svg?min_good=79" alt="Test Coverage Badge" />
-  <img src="https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial/-/badges/release.svg" alt="Latest Release Badge" />
+  <img src="https://gitlab.desy.de/amarcord/amarcord/badges/main/pipeline.svg" alt="Pipeline Status Badge" />
+  <img src="https://gitlab.desy.de/amarcord/amarcord/badges/main/coverage.svg?min_good=79" alt="Test Coverage Badge" />
+  <img src="https://gitlab.desy.de/amarcord/amarcord/-/badges/release.svg" alt="Latest Release Badge" />
 </div>
 
 ---
 
-**Documentation**: We have extensive documentation in the form of *GitLab pages* on https://cfel-sc.pages.desy.de/amarcord-parent/amarcord-serial/
+**Documentation**: We have extensive documentation in the form of *GitLab pages* on https://amarcord.pages.desy.de/amarcord/
 
-**Source Code**: https://gitlab.desy.de/cfel-sc/amarcord-parent/amarcord-serial
+**Source Code**: https://gitlab.desy.de/amarcord/amarcord
 
 ---
 

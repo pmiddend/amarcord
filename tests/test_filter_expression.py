@@ -43,7 +43,7 @@ def _create_attributo_value(
     result = (
         orm.RunHasAttributoValue(
             attributo_id=attributo_id,
-            chemical_value=cast(int, value),
+            chemical_value=cast("int", value),
             integer_value=None,
             float_value=None,
             list_value=None,
@@ -55,7 +55,7 @@ def _create_attributo_value(
         else (
             orm.RunHasAttributoValue(
                 attributo_id=attributo_id,
-                float_value=cast(float, value),
+                float_value=cast("float", value),
                 integer_value=None,
                 list_value=None,
                 string_value=None,
@@ -67,7 +67,7 @@ def _create_attributo_value(
             else (
                 orm.RunHasAttributoValue(
                     attributo_id=attributo_id,
-                    bool_value=cast(bool, value),
+                    bool_value=cast("bool", value),
                     integer_value=None,
                     list_value=None,
                     string_value=None,

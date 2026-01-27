@@ -159,7 +159,7 @@ async def start_merge_job(
             )
             return MergeJobStartError(
                 job_error=f"Indexing result {ir.id} is not finished yet! Status is {ir.job_status}",
-                time=datetime.datetime.now(datetime.timezone.utc),
+                time=datetime.datetime.now(datetime.UTC),
             )
         # The stream file could be None due to an error - skip this then
         if ir.stream_file is not None:
@@ -182,15 +182,15 @@ async def start_merge_job(
     )
     parent_logger.info("All indexing results have finished, we can start merging")
 
-    assert (
-        merge_result.cell_description is not None
-    ), f"the merge result {merge_result.id} has no cell description"
+    assert merge_result.cell_description is not None, (
+        f"the merge result {merge_result.id} has no cell description"
+    )
 
     parsed_cell_description = parse_cell_description(merge_result.cell_description)
 
-    assert (
-        parsed_cell_description is not None
-    ), f'the merge result {merge_result.id} has no valid cell description: "{merge_result.cell_description}"'
+    assert parsed_cell_description is not None, (
+        f'the merge result {merge_result.id} has no valid cell description: "{merge_result.cell_description}"'
+    )
 
     cell_file_contents = StringIO()
     coparse_cell_file(parsed_cell_description, cell_file_contents)
@@ -313,13 +313,13 @@ async def start_merge_job(
         job_logger.info(f"job start successful, ID {job_start_result.job_id}")
         return MergeJobStartSuccess(
             job_id=job_start_result.job_id,
-            time=datetime.datetime.now(datetime.timezone.utc),
+            time=datetime.datetime.now(datetime.UTC),
         )
     except JobStartError as e:
         logger.error(f"job start errored: {e}")
         return MergeJobStartError(
             job_error=e.message,
-            time=datetime.datetime.now(datetime.timezone.utc),
+            time=datetime.datetime.now(datetime.UTC),
         )
 
 

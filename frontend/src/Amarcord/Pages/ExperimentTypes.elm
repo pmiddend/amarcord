@@ -18,7 +18,6 @@ import List.Extra as ListExtra
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Set exposing (Set)
-import String
 import Time exposing (Zone, millisToPosix, toMonth, toYear, utc)
 
 
@@ -197,8 +196,8 @@ type alias Model =
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Experiment Types"
 
 

@@ -13,17 +13,12 @@ Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn
 
    intro
    quickstart
-   directories
-   executables
-   database
-   pythonsetup
-   timestamps
-   backend_frontend_openapi
-   backend
-   frontend
-   tests
+   user_guide
+   developer_guide/index
+   admin_guide/index
    setups
    nix
+   setups
    documentation
    faq
 

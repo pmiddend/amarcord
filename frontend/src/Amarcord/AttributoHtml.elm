@@ -1,4 +1,4 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractCellDescriptionAttributo, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
+module Amarcord.AttributoHtml exposing (AttributoEditValue, AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractCellDescriptionAttributo, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
 
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), ChemicalNameDict, createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, prettyPrintAttributoValue, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
@@ -7,7 +7,7 @@ import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
-import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeStringToPosix)
+import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, lineBreakFilePath, localDateTimeStringToPosix)
 import Api.Data exposing (ChemicalType)
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
@@ -159,7 +159,7 @@ viewAttributoValue props chemicalIds type_ value =
                     text (formatIntHumanFriendly int)
 
         ValueString string ->
-            text string
+            lineBreakFilePath string
 
         ValueList attributoValues ->
             case type_ of

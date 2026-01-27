@@ -1,21 +1,21 @@
-module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, pageTitle, update, view)
+module Amarcord.Pages.RunAnalysis exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (div_, h1_, h4_, h5_, input_, p_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, h1_, h5_, h6_, input_, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Route exposing (Route(..), makeLink)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
-import Api.Data exposing (JsonAnalysisRun, JsonFileOutput, JsonIndexingStatistic, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult, JsonRunFile)
+import Amarcord.Util exposing (lineBreakFilePath, listMinMax)
+import Api.Data exposing (JsonAnalysisRun, JsonFileOutput, JsonIndexingFom, JsonIndexingStatistic, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult, JsonRunFile, JsonRunId)
 import Api.Request.Analysis exposing (readRunAnalysisApiRunAnalysisBeamtimeIdGet)
-import Html exposing (Html, a, button, div, h4, span, table, tbody, text, th, thead, tr)
+import Html exposing (Html, a, button, div, h4, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class, href, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
-import List
 import List.Extra
 import RemoteData exposing (RemoteData(..), fromResult)
 
@@ -31,11 +31,12 @@ type alias Model =
     { runIdInput : String
     , runAnalysisRequest : RemoteData HttpError JsonReadRunAnalysis
     , beamtimeId : BeamtimeId
+    , runDoesntExist : Maybe Int
     }
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Run Analysis"
 
 
@@ -44,14 +45,15 @@ init beamtimeId =
     ( { runIdInput = ""
       , runAnalysisRequest = Loading
       , beamtimeId = beamtimeId
+      , runDoesntExist = Nothing
       }
     , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId Nothing)
     )
 
 
-viewRunStatistics : List JsonIndexingStatistic -> Html msg
-viewRunStatistics originalStats =
-    viewHitRateAndIndexingGraphs originalStats
+viewRunStatistics : JsonIndexingFom -> List JsonIndexingStatistic -> Html msg
+viewRunStatistics fom originalStats =
+    viewHitRateAndIndexingGraphs (Just fom) originalStats
 
 
 viewRunFiles : List JsonRunFile -> Html msg
@@ -62,10 +64,10 @@ viewRunFiles files =
 
         _ ->
             div_
-                [ h5_ [ text "Files" ]
+                [ h6_ [ strongText "Files" ]
                 , table [ class "table table-sm table-striped" ]
                     [ thead_ [ tr_ [ th_ [ text "Source" ], th_ [ text "Glob" ] ] ]
-                    , tbody_ (List.map (\{ glob, source } -> tr_ [ td_ [ text source ], td_ [ text glob ] ]) files)
+                    , tbody_ (List.map (\{ glob, source } -> tr_ [ td_ [ text source ], td_ [ lineBreakFilePath glob ] ]) files)
                     ]
                 ]
 
@@ -75,9 +77,9 @@ viewRunTableRow :
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> JsonAnalysisRun
-    -> JsonRunAnalysisIndexingResult
+    -> Maybe JsonRunAnalysisIndexingResult
     -> Html msg
-viewRunTableRow beamtimeId attributi chemicals run rar =
+viewRunTableRow beamtimeId attributi chemicals run rarMaybe =
     let
         viewRun r =
             div_
@@ -92,11 +94,16 @@ viewRunTableRow beamtimeId attributi chemicals run rar =
                 ]
     in
     tr_
-        [ td_
+        [ td [ style "width" "50%" ]
             [ viewRun run
             ]
         , td_
-            [ h4_ [ text ("Indexing Result " ++ String.fromInt rar.indexingResultId) ]
+            [ case rarMaybe of
+                Nothing ->
+                    strongText "No indexing results."
+
+                Just rar ->
+                    h5_ [ text ("Indexing Result " ++ String.fromInt rar.indexingResultId) ]
             , case run.dataSetId of
                 Nothing ->
                     text ""
@@ -106,7 +113,12 @@ viewRunTableRow beamtimeId attributi chemicals run rar =
                         [ href (makeLink (AnalysisDataSet beamtimeId dataSetIdReal))
                         ]
                         [ text ("→ Data Set " ++ String.fromInt dataSetIdReal) ]
-            , viewRunStatistics rar.indexingStatistics
+            , case rarMaybe of
+                Nothing ->
+                    text ""
+
+                Just rar ->
+                    viewRunStatistics rar.foms rar.indexingStatistics
             ]
         ]
 
@@ -116,12 +128,24 @@ viewRunGraphs :
     -> String
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
+    -> List JsonRunId
     -> Maybe JsonAnalysisRun
     -> List JsonRunAnalysisIndexingResult
     -> Html Msg
-viewRunGraphs beamtimeId runIdInput attributi chemicals run rars =
+viewRunGraphs beamtimeId runIdInput attributi chemicals runIds run rars =
     div_
-        [ div [ class "hstack gap-3" ]
+        [ case listMinMax (List.map .externalRunId runIds) of
+            Nothing ->
+                p_ [ strongText "No runs yet!" ]
+
+            Just ( min, max ) ->
+                p_
+                    [ text "Lowest run ID: "
+                    , strongText (String.fromInt min)
+                    , text ", Highest run ID: "
+                    , strongText (String.fromInt max)
+                    ]
+        , div [ class "hstack gap-3" ]
             [ button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r - 1)) ] [ icon { name = "arrow-left" } ]
             , span [ class "form-text text-nowrap" ] [ text "Run ID" ]
             , input_
@@ -138,14 +162,22 @@ viewRunGraphs beamtimeId runIdInput attributi chemicals run rars =
                 text ""
 
             Just runReal ->
-                table [ class "table table-striped" ]
+                let
+                    tableBody =
+                        if List.isEmpty rars then
+                            [ viewRunTableRow beamtimeId attributi chemicals runReal Nothing ]
+
+                        else
+                            List.map (viewRunTableRow beamtimeId attributi chemicals runReal << Just) rars
+                in
+                table [ class "table" ]
                     [ thead []
                         [ tr []
                             [ th [] [ text "Run Information" ]
                             , th [ style "width" "100%" ] [ text "Statistics" ]
                             ]
                         ]
-                    , tbody [] (List.map (viewRunTableRow beamtimeId attributi chemicals runReal) rars)
+                    , tbody [] tableBody
                     ]
         ]
 
@@ -154,6 +186,12 @@ viewInner : Model -> List (Html Msg)
 viewInner model =
     [ h1_ [ text "Indexing Details" ]
     , p_ [ text "Enter a run ID to see details. Press Return to update." ]
+    , case model.runDoesntExist of
+        Nothing ->
+            text ""
+
+        Just _ ->
+            div [ class "alert alert-warning" ] [ text "This run ID does not exist." ]
     , case model.runAnalysisRequest of
         NotAsked ->
             text ""
@@ -164,12 +202,13 @@ viewInner model =
         Failure e ->
             makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run analysis" ], showError e ]
 
-        Success { attributi, chemicals, run, indexingResults } ->
+        Success { attributi, chemicals, run, runIds, indexingResults } ->
             viewRunGraphs
                 model.beamtimeId
                 model.runIdInput
                 (List.map convertAttributoFromApi attributi)
                 (List.map convertChemicalFromApi chemicals)
+                runIds
                 run
                 indexingResults
     ]
@@ -221,10 +260,13 @@ update msg model =
                         Just realRunId ->
                             case List.Extra.find (\runIdIntExt -> runIdIntExt.externalRunId == realRunId) runIds of
                                 Nothing ->
-                                    ( model, Cmd.none )
+                                    ( { model | runDoesntExist = Just realRunId }, Cmd.none )
 
                                 Just { internalRunId } ->
-                                    ( model, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+                                    ( { model | runDoesntExist = Nothing }
+                                    , send RunAnalysisResultsReceived
+                                        (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId))
+                                    )
 
                 _ ->
                     ( model, Cmd.none )

@@ -1,4 +1,4 @@
-module Amarcord.Pages.MergeResult exposing (Model, Msg(..), init, pageTitle, update, view)
+module Amarcord.Pages.MergeResult exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
@@ -16,7 +16,6 @@ import Html exposing (Html, a, div, h4, img, li, nav, node, ol, p, sup, table, t
 import Html.Attributes exposing (attribute, class, href, src)
 import Html.Extra exposing (nothing)
 import RemoteData exposing (RemoteData(..), fromResult)
-import String
 
 
 type Msg

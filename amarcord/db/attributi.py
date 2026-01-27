@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import Mapping
 
 from pint import UnitRegistry
@@ -127,11 +128,7 @@ def schema_to_attributo_type(
 
 
 def utc_datetime_to_utc_int(d: datetime.datetime) -> int:
-    return int(d.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
-
-
-def datetime_from_float_in_seconds(d: float) -> datetime.datetime:
-    return datetime.datetime.fromtimestamp(d, tz=datetime.timezone.utc)
+    return int(d.replace(tzinfo=datetime.UTC).timestamp() * 1000)
 
 
 def local_int_to_utc_datetime(d: int) -> datetime.datetime:
@@ -145,12 +142,12 @@ def local_int_to_utc_datetime(d: int) -> datetime.datetime:
     # "surprise, it was Europe/Berlin (or something) all along!", and
     # then make it convert to UTC properly.
     return (
-        datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc)
+        datetime.datetime.fromtimestamp(d // 1000, tz=datetime.UTC)
         .replace(
             microsecond=d % 1000 * 1000,
         )
         .replace(tzinfo=get_local_tz())
-        .astimezone(datetime.timezone.utc)
+        .astimezone(datetime.UTC)
     )
 
 
@@ -158,9 +155,9 @@ def utc_datetime_to_local_int(d: datetime.datetime) -> int:
     # See the comment for local_int_to_utc_datetime for more
     # information, we're just inverting what's been done there.
     return round(
-        d.replace(tzinfo=datetime.timezone.utc)
+        d.replace(tzinfo=datetime.UTC)
         .astimezone(get_local_tz())
-        .replace(tzinfo=datetime.timezone.utc)
+        .replace(tzinfo=datetime.UTC)
         .timestamp()
         * 1000
     )
@@ -172,7 +169,7 @@ def utc_int_to_utc_datetime(d: int) -> datetime.datetime:
         .replace(
             microsecond=d % 1000 * 1000,
         )
-        .astimezone(datetime.timezone.utc)
+        .astimezone(datetime.UTC)
     )
 
 
@@ -878,8 +875,27 @@ def run_matches_dataset(
         AttributoId,
         None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
     ],
-    data_set_attributi: Mapping[AttributoId, None | orm.DataSetHasAttributoValue],
+    data_set_attributi: Mapping[
+        AttributoId, None | orm.DataSetHasAttributoValue | orm.RunHasAttributoValue
+    ],
 ) -> bool:
+    for _ in nonmatching_run_dataset_attributi(
+        attributi, run_attributi, data_set_attributi
+    ):
+        return False
+    return True
+
+
+def nonmatching_run_dataset_attributi(
+    attributi: Mapping[AttributoId, AttributoType],
+    run_attributi: Mapping[
+        AttributoId,
+        None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
+    ],
+    data_set_attributi: Mapping[
+        AttributoId, None | orm.DataSetHasAttributoValue | orm.RunHasAttributoValue
+    ],
+) -> Generator[AttributoId]:
     for attributo_id, data_set_value in data_set_attributi.items():
         run_value_type = attributi[attributo_id]
         run_value = run_attributi.get(attributo_id)
@@ -890,14 +906,14 @@ def run_matches_dataset(
             if not run_has_bool_value and data_set_value.bool_value is False:
                 continue
             if not run_has_bool_value and data_set_value.bool_value is True:
-                return False
+                yield attributo_id
         if isinstance(run_value_type, AttributoTypeDecimal):
             if not decimal_attributi_match(
                 run_value_type,
                 run_value.float_value if run_value is not None else None,
                 data_set_value.float_value if data_set_value is not None else None,
             ):
-                return False
+                yield attributo_id
         else:
             resolved_run_value = (
                 attributo_value_from_run_or_ds_orm(run_value)
@@ -910,5 +926,4 @@ def run_matches_dataset(
                 else None
             )
             if resolved_run_value != resolved_ds_value:
-                return False
-    return True
+                yield attributo_id

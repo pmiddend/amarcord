@@ -27,6 +27,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
     parse_workload_manager_config,
 )
 from amarcord.db.attributi import utc_datetime_to_utc_int
+from amarcord.db.attributi import utc_int_to_utc_datetime
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingResultDone
@@ -44,10 +45,20 @@ INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR = (
     "INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS"
 )
 
+INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR = (
+    "INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS"
+)
+
 
 def _long_break_duration_seconds() -> float:
     return float(
         os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5"),
+    )
+
+
+def _minimum_job_age_seconds() -> float:
+    return float(
+        os.environ.get(INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR, "10"),
     )
 
 
@@ -90,6 +101,7 @@ def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
 
 async def start_offline_indexing_job(
     bound_logger: BoundLogger,
+    session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     args: Arguments,
     indexing_result: JsonIndexingJob,
@@ -161,22 +173,30 @@ async def start_offline_indexing_job(
                 indexing_result.input_file_globs,
             ),
         }
-        # An explicit geometry file may be missing for a new job - it
-        # will then be found dynamically in the beamtime directory.
-        if indexing_result.geometry_file_input:
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-            ] = indexing_result.geometry_file_input
+        if indexing_result.geometry_id is None:
+            raise JobStartError("job has no geometry ID")
+
+        try:
+            async with session.get(
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
+            ) as response:
+                response_text = await response.text()
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+                ] = response_text
+        except Exception as e:
+            raise JobStartError(f"error retrieving geometry: {e}")
         # Offline indexing jobs, if configured that way, can emit
         # other jobs in a job array. For that, we need the SLURM REST
         # token again, so we transmit it here.
         if isinstance(workload_manager, SlurmRestWorkloadManager):
             job_environment["SLURM_TOKEN"] = await workload_manager.get_token()
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
-            ] = workload_manager.partition
+            if workload_manager.partition is not None:
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
+                ] = workload_manager.partition
             job_environment[amarcord.cli.crystfel_index.OFF_INDEX_SLURM_URL] = (
-                workload_manager.rest_url
+                f"{workload_manager.rest_url}/sapi/slurm/{workload_manager.api_version}"
             )
         bound_logger.info("environment for this job is " + " ".join(job_environment))
         job_start_result = await workload_manager.start_job(
@@ -198,7 +218,7 @@ async def start_offline_indexing_job(
             fom=empty_indexing_fom,
         )
     except JobStartError as e:
-        bound_logger.error(f"job start errored: {e}")
+        bound_logger.exception(f"job start errored: {e}")
         return DBIndexingResultDone(
             stream_file=stream_file,
             job_error=e.message,
@@ -211,6 +231,7 @@ def _build_output_base_name(indexing_result: JsonIndexingJob) -> str:
 
 
 async def start_online_indexing_job(
+    session: aiohttp.ClientSession,
     bound_logger: BoundLogger,
     workload_manager: WorkloadManager,
     args: Arguments,
@@ -218,7 +239,9 @@ async def start_online_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting online indexing job")
 
-    job_base_directory = determine_output_directory(indexing_result.beamtime, {})
+    job_base_directory = (
+        determine_output_directory(indexing_result.beamtime, {}) / "indexing-results"
+    )
 
     output_base_name = _build_output_base_name(indexing_result)
     stream_file = job_base_directory / f"{output_base_name}.stream"
@@ -276,12 +299,20 @@ async def start_online_indexing_job(
                 indexing_result.run_external_id,
             ),
         }
-        # An explicit geometry file may be missing for a new job - it
-        # will then be found dynamically in the beamtime directory.
-        if indexing_result.geometry_file_input:
-            job_environment[
-                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
-            ] = indexing_result.geometry_file_input
+        try:
+            if indexing_result.geometry_id is None:
+                raise JobStartError(
+                    f"indexing result result {indexing_result.id} doesn't have a geometry ID set"
+                )
+            async with session.get(
+                f"{args.amarcord_url}/api/geometries/{indexing_result.geometry_id}/raw?indexingResultId={indexing_result.id}"
+            ) as response:
+                response_text = await response.text()
+                job_environment[
+                    amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+                ] = response_text
+        except Exception as e:
+            raise JobStartError(f"error retrieving geometry: {e}")
         bound_logger.info("environment for this job is " + " ".join(job_environment))
         job_start_result = await workload_manager.start_job(
             working_directory=job_base_directory,
@@ -338,21 +369,33 @@ async def indexing_daemon_start_new_jobs(
         + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else ""),
     ) as response:
         number_of_running_jobs = len(
-            JsonReadIndexingResultsOutput(**await response.json()).indexing_jobs,
+            [
+                x
+                for x in JsonReadIndexingResultsOutput(
+                    **await response.json()
+                ).indexing_jobs
+                if not x.is_online
+            ],
         )
 
-    max_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
-
-    if max_jobs_to_start <= 0:
-        return
+    max_offline_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
 
     if indexing_results:
         logger.info(
-            f"there are {len(indexing_results)} job(s) to start, will start {max_jobs_to_start} (because of limit)",
+            f"there are {len(indexing_results)} job(s) to start, will start {max_offline_jobs_to_start} offline jobs (because of limit)",
         )
 
     number_of_started_jobs = 0
     for indexing_result in indexing_results:
+        if (
+            not indexing_result.is_online
+            and number_of_started_jobs >= max_offline_jobs_to_start
+        ):
+            logger.info(
+                f"not starting offline job for ix ID {indexing_result.id}, since we have a {args.max_parallel_offline_jobs} limit set",
+            )
+            continue
+
         bound_logger = logger.bind(
             run_internal_id=indexing_result.run_internal_id,
             run_external_id=indexing_result.run_external_id,
@@ -360,6 +403,7 @@ async def indexing_daemon_start_new_jobs(
         )
         new_status = (
             await start_online_indexing_job(
+                session,
                 bound_logger,
                 (
                     online_workload_manager
@@ -372,6 +416,7 @@ async def indexing_daemon_start_new_jobs(
             if indexing_result.is_online
             else await start_offline_indexing_job(
                 bound_logger,
+                session,
                 workload_manager,
                 args,
                 indexing_result,
@@ -381,16 +426,23 @@ async def indexing_daemon_start_new_jobs(
         assert new_status is not None
 
         if isinstance(new_status, DBIndexingResultDone):
-            async with session.post(
-                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
-                json=JsonIndexingResultFinishWithError(
-                    # If we start a job and it's immediately finished, then we must have an error
-                    error_message=cast(str, new_status.job_error),
-                    workload_manager_job_id=indexing_result.job_id,
-                    latest_log="",
-                ).model_dump(),
-            ) as update_response:
-                bound_logger.info(f"indexing job errored, result: {update_response}")
+            try:
+                async with session.post(
+                    f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+                    json=JsonIndexingResultFinishWithError(
+                        # If we start a job and it's immediately finished, then we must have an error
+                        error_message=cast("str", new_status.job_error),
+                        workload_manager_job_id=indexing_result.job_id,
+                        latest_log="",
+                    ).model_dump(),
+                ) as update_response:
+                    bound_logger.info(
+                        f"indexing job errored, result: {update_response}"
+                    )
+            except:
+                bound_logger.exception(
+                    'sending the "job finished with error" request failed'
+                )
         else:
             update_request = JsonIndexingResultStillRunning(
                 workload_manager_job_id=new_status.job_id,
@@ -399,37 +451,28 @@ async def indexing_daemon_start_new_jobs(
                 frames=0,
                 indexed_frames=0,
                 indexed_crystals=0,
-                geometry_file="",
-                geometry_hash="",
                 job_started=utc_datetime_to_utc_int(
-                    datetime.datetime.now(tz=datetime.timezone.utc),
+                    datetime.datetime.now(tz=datetime.UTC),
                 ),
                 # Initialize log with the empty string (None would have indicated "no change")
                 latest_log="",
             )
 
-            async with session.post(
-                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
-                json=update_request.model_dump(),
-            ) as update_response:
-                if update_response.status // 200 != 1:
-                    bound_logger.error(
-                        f"didn't receive status 200 but {update_response.status}",
-                    )
-                else:
+            try:
+                async with session.post(
+                    f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
+                    json=update_request.model_dump(),
+                ) as update_response:
                     bound_logger.info(
                         f"new indexing job started, result: {update_response}",
                     )
+            except:
+                bound_logger.exception('sending the "job still running" request failed')
 
         bound_logger.info(
             f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break",
         )
         await asyncio.sleep(_long_break_duration_seconds())
-        if number_of_started_jobs > max_jobs_to_start:
-            logger.info(
-                f"not starting any more jobs, since we have a {args.max_parallel_offline_jobs} limit set",
-            )
-            break
     if number_of_started_jobs == 0:
         # Usually too spammy
         # logger.info(
@@ -460,6 +503,7 @@ async def indexing_daemon_update_jobs(
             **await response.json(),
         ).indexing_jobs
 
+    current_time = datetime.datetime.now(tz=datetime.UTC)
     for indexing_result in indexing_results:
         assert indexing_result.job_id is not None
 
@@ -468,6 +512,21 @@ async def indexing_daemon_update_jobs(
             run_internal_id=indexing_result.run_internal_id,
             run_external_id=indexing_result.run_external_id,
         )
+
+        if indexing_result.started is None:
+            bound_logger.error(
+                f"indexing job has no started time stamp, how can that be? full job: {indexing_result}"
+            )
+        else:
+            job_age = current_time - utc_int_to_utc_datetime(indexing_result.started)
+            if job_age <= datetime.timedelta(seconds=_minimum_job_age_seconds()):
+                # We have two "concurrent" loops checking and starting
+                # jobs. It could be that the "start" loop just started a
+                # job and we don't want to immediately search for it in
+                # the workload manager job list, since we want to give the
+                # workload manager a little time to synchronize.
+                bound_logger.info(f"leaving job alone, too young (age {job_age})")
+                continue
 
         bound_logger.info("job still running, checking on workload manager")
 
@@ -492,22 +551,27 @@ async def indexing_daemon_update_jobs(
 
         if workload_job is None:
             bound_logger.info("finished because not in job list anymore")
-            job_error = f"job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results"
+            job_error = f"The job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results. This usually indicates an unexpected error of some kind (for example, a programming error or CrystFEL not behaving as expected). Please inform the AMARCORD people about this."
         else:
             job_error = f"job has finished on {workload_manager.name()} (status {workload_job.status}), but delivered no results"
             bound_logger.info(
                 f"finished because {workload_manager.name()} job status is {workload_job.status}",
             )
 
-        async with session.post(
-            f"{amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
-            json=JsonIndexingResultFinishWithError(
-                error_message=job_error,
-                workload_manager_job_id=indexing_result.job_id,
-                latest_log="",
-            ).model_dump(),
-        ) as update_response:
-            bound_logger.info(f"indexing job finished, result: {update_response}")
+        try:
+            async with session.post(
+                f"{amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+                json=JsonIndexingResultFinishWithError(
+                    error_message=job_error,
+                    workload_manager_job_id=indexing_result.job_id,
+                    latest_log="",
+                ).model_dump(),
+            ) as update_response:
+                bound_logger.info(f"indexing job finished, result: {update_response}")
+        except:
+            bound_logger.exception(
+                'sending the "job finished with error" request failed'
+            )
 
     # this is usually too spammy
     # logger.info("indexing jobs stati updated, take a (longer) break")
@@ -570,7 +634,7 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
     # structured concurrency. In our case it's a lazy way of
     # starting two tasks and waiting for the results.
     async with (
-        aiohttp.ClientSession(connector=connector) as session,
+        aiohttp.ClientSession(connector=connector, raise_for_status=True) as session,
         asyncio.TaskGroup() as tg,
     ):
         _ = tg.create_task(

@@ -79,3 +79,20 @@ in your browser.
 
 You won't see much when you point your browser to http://localhost:5000 though, because we haven't built the front-end yet, and we don't have a prebuilt version of the front-end in the repository. But, read on.
 
+### Local indexing test scenario
+
+There is another test you can perform, or rather, a scenario to create. In it, we create:
+
+- A few run and chemical _Attributi_
+- A few runs and chemicals, with the runs pointing to HDF5 files you can specify
+- An experiment type which just contains the chemical in the run
+- A few data sets based on this experiment type
+- A geometry
+
+You can create this scenario by running the `offline_index_test_scenario.py` script. For example, like this:
+
+```
+python amarcord/cli/offline_index_test_scenario.py --db-connection-url 'sqlite+aiosqlite:////tmp/test.db' --h5-glob "$HOME/*.h5"
+```
+
+This creates an SQLite DB in `/tmp/test.db` and creates a run with its raw files pointing to `$HOME/*.h5`. You can then start the web server with the given `db-connection-url`, and the frontend, and see what you've created.

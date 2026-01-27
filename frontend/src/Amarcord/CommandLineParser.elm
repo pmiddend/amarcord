@@ -1,6 +1,5 @@
 module Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
 
-import Char
 import Parser exposing ((|.), (|=), DeadEnd, Parser, Step(..), andThen, backtrackable, chompIf, chompWhile, getChompedString, loop, map, oneOf, problem, run, spaces, succeed, symbol, variable)
 import Set
 

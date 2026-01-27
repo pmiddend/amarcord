@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Geometries as Geometries
 import Amarcord.Pages.Geometry as Geometry
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.Import as Import
@@ -48,23 +49,23 @@ pageSubscriptions rootModel =
         RunsPage model ->
             List.map (Sub.map RunsPageMsg) (Runs.subscriptions model)
 
-        SchedulePage model ->
-            List.map (Sub.map ScheduleMsg) (Schedule.subscriptions model)
+        SchedulePage _ ->
+            List.map (Sub.map ScheduleMsg) Schedule.subscriptions
 
-        AdvancedControlsPage model ->
-            List.map (Sub.map AdvancedControlsPageMsg) (AdvancedControls.subscriptions model)
+        AdvancedControlsPage _ ->
+            List.map (Sub.map AdvancedControlsPageMsg) AdvancedControls.subscriptions
 
-        RunOverviewPage model ->
-            List.map (Sub.map RunOverviewPageMsg) (RunOverview.subscriptions model)
+        RunOverviewPage _ ->
+            List.map (Sub.map RunOverviewPageMsg) RunOverview.subscriptions
 
-        SingleDataSetPage model ->
-            List.map (Sub.map SingleDataSetPageMsg) (SingleDataSet.subscriptions model)
+        SingleDataSetPage _ ->
+            List.map (Sub.map SingleDataSetPageMsg) SingleDataSet.subscriptions
 
-        AnalysisOverviewPage model ->
-            List.map (Sub.map AnalysisOverviewPageMsg) (AnalysisOverview.subscriptions model)
+        AnalysisOverviewPage _ ->
+            List.map (Sub.map AnalysisOverviewPageMsg) AnalysisOverview.subscriptions
 
-        EventLogPage model ->
-            List.map (Sub.map EventLogPageMsg) (EventLog.subscriptions model)
+        EventLogPage _ ->
+            List.map (Sub.map EventLogPageMsg) EventLog.subscriptions
 
         _ ->
             []
@@ -85,6 +86,7 @@ main =
 type Msg
     = AttributiPageMsg Attributi.Msg
     | ChemicalsPageMsg Chemicals.Msg
+    | GeometriesPageMsg Geometries.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | GeometryPageMsg Geometry.Msg
@@ -109,6 +111,7 @@ type Page
     = RootPage
     | AttributiPage Attributi.Model
     | ChemicalsPage Chemicals.Model
+    | GeometriesPage Geometries.Model
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
     | GeometryPage Geometry.Model
@@ -187,11 +190,14 @@ buildTitleForPage page =
         RootPage ->
             "Beamtime Selection"
 
-        AttributiPage model ->
-            Attributi.pageTitle model
+        AttributiPage _ ->
+            Attributi.pageTitle
 
-        ChemicalsPage model ->
-            Chemicals.pageTitle model
+        ChemicalsPage _ ->
+            Chemicals.pageTitle
+
+        GeometriesPage _ ->
+            Geometries.pageTitle
 
         MergeResultPage model ->
             MergeResult.pageTitle model
@@ -199,41 +205,41 @@ buildTitleForPage page =
         RunOverviewPage model ->
             RunOverview.pageTitle model
 
-        GeometryPage model ->
-            Geometry.pageTitle model
+        GeometryPage _ ->
+            Geometry.pageTitle
 
-        ImportPage model ->
-            Import.pageTitle model
+        ImportPage _ ->
+            Import.pageTitle
 
-        RunsPage model ->
-            Runs.pageTitle model
+        RunsPage _ ->
+            Runs.pageTitle
 
-        AdvancedControlsPage model ->
-            AdvancedControls.pageTitle model
+        AdvancedControlsPage _ ->
+            AdvancedControls.pageTitle
 
-        BeamtimeSelectionPage model ->
-            BeamtimeSelection.pageTitle model
+        BeamtimeSelectionPage _ ->
+            BeamtimeSelection.pageTitle
 
-        DataSetsPage model ->
-            DataSets.pageTitle model
+        DataSetsPage _ ->
+            DataSets.pageTitle
 
-        SchedulePage model ->
-            Schedule.pageTitle model
+        SchedulePage _ ->
+            Schedule.pageTitle
 
-        EventLogPage model ->
-            EventLog.pageTitle model
+        EventLogPage _ ->
+            EventLog.pageTitle
 
-        ExperimentTypesPage model ->
-            ExperimentTypes.pageTitle model
+        ExperimentTypesPage _ ->
+            ExperimentTypes.pageTitle
 
-        AnalysisOverviewPage model ->
-            AnalysisOverview.pageTitle model
+        AnalysisOverviewPage _ ->
+            AnalysisOverview.pageTitle
 
         SingleDataSetPage model ->
             SingleDataSet.pageTitle model
 
-        RunAnalysisPage model ->
-            RunAnalysis.pageTitle model
+        RunAnalysisPage _ ->
+            RunAnalysis.pageTitle
 
 
 buildTitle : Model -> String
@@ -350,6 +356,12 @@ currentView model =
             div []
                 [ Chemicals.view pageModel
                     |> Html.map ChemicalsPageMsg
+                ]
+
+        GeometriesPage pageModel ->
+            div []
+                [ Geometries.view pageModel
+                    |> Html.map GeometriesPageMsg
                 ]
 
         MergeResultPage pageModel ->
@@ -503,6 +515,15 @@ updateInner hereAndNow msg model =
             , Cmd.map ChemicalsPageMsg updatedCmd
             )
 
+        ( GeometriesPageMsg subMsg, GeometriesPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Geometries.update subMsg pageModel
+            in
+            ( { model | page = GeometriesPage updatedPageModel }
+            , Cmd.map GeometriesPageMsg updatedCmd
+            )
+
         ( MergeResultPageMsg subMsg, MergeResultPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -631,7 +652,14 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path || contains "run-bulk-import-template" url.path then
+                    if
+                        contains "api/files/" url.path
+                            || contains "api/geometries/" url.path
+                            || endsWith "/log" url.path
+                            || endsWith "/errorlog" url.path
+                            || contains "spreadsheet.zip" url.path
+                            || contains "run-bulk-import-template" url.path
+                    then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -717,7 +745,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Attributi beamtimeId tab ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init hereAndNow beamtimeId tab
+                            Attributi.init beamtimeId tab
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 
@@ -734,6 +762,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             Chemicals.init beamtimeId
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
+
+                Route.Geometries beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Geometries.init beamtimeId
+                    in
+                    ( GeometriesPage pageModel, Cmd.map GeometriesPageMsg pageCmds )
 
                 Route.MergeResult beamtimeId experimentTypeId dataSetId mergeResultId ->
                     let

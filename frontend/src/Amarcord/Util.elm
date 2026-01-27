@@ -1,15 +1,18 @@
 module Amarcord.Util exposing (..)
 
 import Browser.Dom
-import List exposing (foldr)
+import Html exposing (Html, span, text, wbr)
+import List exposing (foldr, maximum, minimum)
 import List.Extra as ListExtra
+import Maybe exposing (map2)
 import Maybe.Extra exposing (isJust)
 import Parser exposing ((|.), (|=), DeadEnd, Problem(..), run)
-import String exposing (fromInt, padLeft)
+import String exposing (fromInt, padLeft, split)
 import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
 import Time.Extra exposing (partsToPosix)
 import Tuple exposing (first, second)
+import String exposing (startsWith)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -412,3 +415,27 @@ problemToString p =
 
         BadRepeat ->
             "bad repeat"
+
+
+listMinMax : List comparable -> Maybe ( comparable, comparable )
+listMinMax l =
+    map2 (\minValue maxValue -> ( minValue, maxValue )) (minimum l) (maximum l)
+
+
+lineBreakFilePath : String -> Html msg
+lineBreakFilePath string =
+    if startsWith "/" string
+    then
+    case split "/" string of
+        [] ->
+            text ""
+
+        [ x ] ->
+            text x
+
+        "" :: remainder ->
+            span [] (List.intersperse (wbr [] []) (List.map (\t -> text ("/" ++ t)) remainder))
+
+        xs ->
+            span [] (List.intersperse (wbr [] []) (List.map (\t -> text ("/" ++ t)) xs))
+    else text string

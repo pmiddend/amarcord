@@ -15,7 +15,6 @@ class JobStart:
     working_directory: Path
     script: str
     time_limit: datetime.timedelta
-    extra_files: list[Path]
 
 
 class DummyWorkloadManager(WorkloadManager):
@@ -38,10 +37,10 @@ class DummyWorkloadManager(WorkloadManager):
         stdout: None | Path = None,  # noqa: ARG002
         stderr: None | Path = None,  # noqa: ARG002
     ) -> JobStartResult:
-        self.job_starts.append(JobStart(working_directory, script, time_limit, []))
-        assert (
-            self.job_start_results
-        ), "No job start results left, so there was one more job start than anticipated"
+        self.job_starts.append(JobStart(working_directory, script, time_limit))
+        assert self.job_start_results, (
+            "No job start results left, so there was one more job start than anticipated"
+        )
         result = self.job_start_results.pop()
         if result is not None:
             self.jobs.append(

@@ -46,7 +46,7 @@ async def download_spreadsheet(
             )
     zipfile_bytes.seek(0)
 
-    def iterzipfile() -> Generator[bytes, None, None]:
+    def iterzipfile() -> Generator[bytes]:
         yield from zipfile_bytes
 
     return StreamingResponse(

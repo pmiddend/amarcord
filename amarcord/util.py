@@ -41,11 +41,11 @@ def rfind_regex(s: str, regex: str, start: int) -> int:
 
 
 # See https://stackoverflow.com/a/17016257
-def remove_duplicates_stable(seq: Iterable[T]) -> list[T]:
+def remove_duplicates_stable[T](seq: Iterable[T]) -> list[T]:
     return list(dict.fromkeys(seq))
 
 
-def dict_union(a: Sequence[dict[K, V]]) -> dict[K, V]:
+def dict_union[K, V](a: Sequence[dict[K, V]]) -> dict[K, V]:
     if not a:
         return {}
     result = a[0].copy()
@@ -84,7 +84,7 @@ def retuple_dict(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> dict[X, W]:
     }
 
 
-def create_intervals(xs: list[int]) -> Generator[tuple[int, int], None, None]:
+def create_intervals(xs: list[int]) -> Generator[tuple[int, int]]:
     if not xs:
         return
     sorted_xs = sorted(xs)
@@ -119,7 +119,7 @@ def natural_key(string_: str) -> list[int | str]:
 def path_mtime(p: Path) -> datetime.datetime:
     return datetime.datetime.fromtimestamp(
         p.stat().st_mtime,
-        tz=datetime.timezone.utc,
+        tz=datetime.UTC,
     )
 
 
@@ -192,9 +192,7 @@ def group_by(xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
 
 def now_utc_unix_integer_millis() -> int:
     return int(
-        datetime.datetime.now(datetime.timezone.utc)
-        .replace(tzinfo=datetime.timezone.utc)
-        .timestamp()
+        datetime.datetime.now(datetime.UTC).replace(tzinfo=datetime.UTC).timestamp()
         * 1000,
     )
 
@@ -222,9 +220,7 @@ def safe_variance(xs: list[float]) -> float | None:
 def utc_datetime_to_local(value: datetime.datetime) -> datetime.datetime:
     current_tz = get_local_tz()
     return (
-        value.replace(tzinfo=datetime.timezone.utc)
-        .astimezone(current_tz)
-        .replace(tzinfo=None)
+        value.replace(tzinfo=datetime.UTC).astimezone(current_tz).replace(tzinfo=None)
     )
 
 
@@ -238,7 +234,7 @@ def maybe_you_meant(s: str, strs: Iterable[str]) -> str:
     return f', maybe you meant "{max_match}"?' if ratio > 0.5 else ""
 
 
-def first(xs: Iterable[T]) -> None | T:
+def first[T](xs: Iterable[T]) -> None | T:
     for x in xs:
         return x
     return None

@@ -27,6 +27,9 @@ import Json.Decode
 import Json.Encode
 import File exposing (File)
 
+
+{-| Create File
+-}
 createFileApiFilesPost : File -> String -> String -> Maybe String -> Api.Request Api.Data.JsonCreateFileOutput
 createFileApiFilesPost file description deduplicate compress =
     Api.request
@@ -39,7 +42,10 @@ createFileApiFilesPost file description deduplicate compress =
         Api.Data.jsonCreateFileOutputDecoder
 
 
-{-| This endpoint was specifically crafted to upload files in a simple way from external scripts, such as the CrystFEL scripts.     It doesn't need a multipart request and the file extension can be set using the path parameter (which is used to generate nice     .mtz and .pdb download URLs).
+{-| Create File Simple
+
+This endpoint was specifically crafted to upload files in a simple way from external scripts, such as the CrystFEL scripts.     It doesn't need a multipart request and the file extension can be set using the path parameter (which is used to generate nice     .mtz and .pdb download URLs).
+
 -}
 createFileSimpleApiFilesSimpleExtensionPost : String -> Api.Request Api.Data.JsonCreateFileOutput
 createFileSimpleApiFilesSimpleExtensionPost extension_path =
@@ -53,6 +59,8 @@ createFileSimpleApiFilesSimpleExtensionPost extension_path =
         Api.Data.jsonCreateFileOutputDecoder
 
 
+{-| Delete File
+-}
 deleteFileApiFilesDelete : Api.Data.JsonDeleteFileInput -> Api.Request Api.Data.JsonDeleteFileOutput
 deleteFileApiFilesDelete jsonDeleteFileInput_body =
     Api.request

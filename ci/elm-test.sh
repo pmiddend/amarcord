@@ -4,4 +4,4 @@ set -eu
 set -o pipefail
 
 cd frontend
-nix develop '..#frontend' --command elm-test
+nix develop '..#frontend' --command elm-test-rs

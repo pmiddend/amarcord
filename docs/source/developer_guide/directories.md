@@ -1,4 +1,4 @@
-# Directory Structure
+# Project Directory Structure
 
 The following directories are important for understanding the AMARCORD source code:
 

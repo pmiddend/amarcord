@@ -27,6 +27,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Merge Job Finished
+-}
 mergeJobFinishedApiMergingMergeResultIdFinishPost : Int -> Api.Data.JsonMergeJobFinishedInput -> Api.Request Api.Data.JsonMergeJobFinishOutput
 mergeJobFinishedApiMergingMergeResultIdFinishPost mergeResultId_path jsonMergeJobFinishedInput_body =
     Api.request
@@ -39,6 +42,8 @@ mergeJobFinishedApiMergingMergeResultIdFinishPost mergeResultId_path jsonMergeJo
         Api.Data.jsonMergeJobFinishOutputDecoder
 
 
+{-| Merge Job Started
+-}
 mergeJobStartedApiMergingMergeResultIdStartPost : Int -> Api.Data.JsonMergeJobStartedInput -> Api.Request Api.Data.JsonMergeJobStartedOutput
 mergeJobStartedApiMergingMergeResultIdStartPost mergeResultId_path jsonMergeJobStartedInput_body =
     Api.request
@@ -51,6 +56,8 @@ mergeJobStartedApiMergingMergeResultIdStartPost mergeResultId_path jsonMergeJobS
         Api.Data.jsonMergeJobStartedOutputDecoder
 
 
+{-| Queue Merge Job
+-}
 queueMergeJobApiMergingPost : Api.Data.JsonQueueMergeJobInput -> Api.Request Api.Data.JsonQueueMergeJobOutput
 queueMergeJobApiMergingPost jsonQueueMergeJobInput_body =
     Api.request
@@ -63,6 +70,8 @@ queueMergeJobApiMergingPost jsonQueueMergeJobInput_body =
         Api.Data.jsonQueueMergeJobOutputDecoder
 
 
+{-| Read Merge Jobs
+-}
 readMergeJobsApiMergingGet : Maybe DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
 readMergeJobsApiMergingGet status_query =
     Api.request

@@ -3,16 +3,16 @@ module Amarcord.RunsBulkUpdate exposing (Model, Msg, init, update, view)
 import Amarcord.API.Requests exposing (BeamtimeId, RunExternalId, runExternalIdFromInt, runExternalIdToInt)
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoValueFromApi)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
-import Amarcord.Bootstrap exposing (icon, viewRemoteData)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, convertChemicalFromApi)
 import Amarcord.Html exposing (form_, h3_, hr_, input_, li_, onIntInput, p_, strongText)
-import Amarcord.HttpError exposing (HttpError, send)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (HereAndNow)
 import Api.Data exposing (JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
 import Api.Request.Runs exposing (readRunsBulkApiRunsBulkPost, updateRunsBulkApiRunsBulkPatch)
 import Dict
-import Html exposing (Html, button, div, label, option, select, text, ul)
-import Html.Attributes exposing (class, disabled, for, id, placeholder, selected, type_, value)
+import Html exposing (Html, button, div, h4, label, option, select, text, ul)
+import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
 import Parser exposing ((|.), (|=))
@@ -35,6 +35,7 @@ type alias Model =
     , runsBulkUpdateRequest : RemoteData HttpError JsonUpdateRunsBulkOutput
     , submitErrors : List String
     , beamtimeId : BeamtimeId
+    , deleteDependentObjects : Bool
     }
 
 
@@ -46,6 +47,7 @@ type Msg
     | RunsBulkUpdateResponseReceived (Result HttpError JsonUpdateRunsBulkOutput)
     | RunsBulkChangeExperimentType Int
     | AttributoChange AttributoNameWithValueUpdate
+    | DeleteDependentObjectsChange Bool
 
 
 singletonElement : List a -> Maybe a
@@ -58,8 +60,8 @@ singletonElement xs =
             Nothing
 
 
-viewBulkAttributiForm : RemoteData HttpError JsonUpdateRunsBulkOutput -> List String -> EditableAttributiData -> Html Msg
-viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAttributi, experimentTypeIds, experimentTypes, selectedExperimentType } =
+viewBulkAttributiForm : Bool -> RemoteData HttpError JsonUpdateRunsBulkOutput -> List String -> EditableAttributiData -> Html Msg
+viewBulkAttributiForm deleteDependentObjects editRequest submitErrorsList { chemicals, actualEditableAttributi, experimentTypeIds, experimentTypes, selectedExperimentType } =
     let
         submitErrors =
             case submitErrorsList of
@@ -77,6 +79,14 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
 
             else
                 []
+
+        submitError =
+            case editRequest of
+                Failure err ->
+                    [ makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to modify runs!" ], showError err ] ]
+
+                _ ->
+                    []
 
         okButton =
             [ button
@@ -118,6 +128,19 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
                 _ ->
                     [ option [ disabled True, value "", selected (MaybeExtra.isNothing selectedExperimentType) ] [ text "«various»" ] ]
 
+        deleteDependentObjectsCheckbox =
+            div [ class "form-check form-switch mb-3" ]
+                [ input_
+                    [ type_ "checkbox"
+                    , Html.Attributes.id "delete-dependent-objects"
+                    , class "form-check-input"
+                    , checked deleteDependentObjects
+                    , onInput (always (DeleteDependentObjectsChange (not deleteDependentObjects)))
+                    ]
+                , label [ class "form-check-label", for "delete-dependent-objects" ] [ text "Delete dependent objects" ]
+                , div [ class "form-text" ] [ text "If you change Attributi in this run that affect, for example, indexing results, you will get an error message when you press \"Save changes\". With this checkbox, these objects will instead be deleted." ]
+                ]
+
         experimentTypeSelect : Html Msg
         experimentTypeSelect =
             div [ class "form-floating" ]
@@ -134,7 +157,9 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
             :: experimentTypeSelect
             :: List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals Nothing) actualEditableAttributi.editableAttributi
             ++ submitErrors
+            ++ submitError
             ++ submitSuccess
+            ++ [ deleteDependentObjectsCheckbox ]
             ++ okButton
         )
 
@@ -165,7 +190,7 @@ view model =
             ]
         , case model.runsBulkGetRequest of
             Success editableAttributi ->
-                viewBulkAttributiForm model.runsBulkUpdateRequest model.submitErrors editableAttributi
+                viewBulkAttributiForm model.deleteDependentObjects model.runsBulkUpdateRequest model.submitErrors editableAttributi
 
             _ ->
                 viewRemoteData "Bulk request" model.runsBulkGetRequest
@@ -180,6 +205,7 @@ init hereAndNow beamtimeId =
     , runsBulkUpdateRequest = NotAsked
     , submitErrors = []
     , beamtimeId = beamtimeId
+    , deleteDependentObjects = False
     }
 
 
@@ -245,6 +271,9 @@ buildAttributoMap =
 update : Model -> Msg -> ( Model, Cmd Msg )
 update model msg =
     case msg of
+        DeleteDependentObjectsChange newValue ->
+            ( { model | deleteDependentObjects = newValue }, Cmd.none )
+
         RunsBulkChangeExperimentType newExperimentTypeId ->
             case model.runsBulkGetRequest of
                 Success successfulRequest ->
@@ -271,6 +300,7 @@ update model msg =
                                     , externalRunIds = List.map runExternalIdToInt runIds
                                     , attributi = attributoMapToListOfAttributi editedAttributi
                                     , newExperimentTypeId = selectedExperimentType
+                                    , deleteDependentObjects = model.deleteDependentObjects
                                     }
                                 )
                             )

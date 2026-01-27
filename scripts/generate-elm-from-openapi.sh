@@ -34,7 +34,7 @@ MY_OPENAPI_JSON_FILE="${MY_TEMP_DIR}/openapi.json"
 # present. This isn't the case, because that's only relevant for
 # development builds. So we create it here.
 mkdir -p frontend/output
-python amarcord/cli/generate_openapi_schema.py  > "$MY_OPENAPI_JSON_FILE"
+PYTHONPATH=. python amarcord/cli/generate_openapi_schema.py  > "$MY_OPENAPI_JSON_FILE"
 echo "generated openapi.json"
 
 # From pydantic-2 on (somehow it depends on pydantic, not fastapi), for the JSON schema discriminated unions, we get objects with "const" in them. For example: "const": "integer". These are not recognized by openapi-generator-cli yet, see

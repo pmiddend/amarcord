@@ -129,9 +129,9 @@ async def run_remote_list_jobs(
     beamline_metadata: BeamlineMetadata,
     additional_options: bool,
 ) -> list[Job]:
-    assert (
-        beamline_metadata.onlineAnalysis.userAccount
-    ), "Need a user account in the beamline metadata, but got none!"
+    assert beamline_metadata.onlineAnalysis.userAccount, (
+        "Need a user account in the beamline metadata, but got none!"
+    )
     ssh_command_arg_list = _ssh_command(
         beamline_metadata,
         additional_options=additional_options,
@@ -239,7 +239,9 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        assert not environment, f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"
+        assert not environment, (
+            f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"
+        )
         try:
             job_id = await run_remote_sbatch(
                 parent_logger=logger,

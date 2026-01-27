@@ -1,4 +1,4 @@
-module Amarcord.Pages.Runs exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
+module Amarcord.Pages.Runs exposing (Model, Msg, init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (experimentTypeIdDict)
 import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
@@ -24,9 +24,7 @@ import Html exposing (Html, a, button, div, h4, label, span, table, td, text, tr
 import Html.Attributes exposing (checked, class, colspan, for, href, id, style, type_)
 import Html.Events exposing (onClick)
 import List exposing (head)
-import Maybe
 import RemoteData exposing (RemoteData(..), fromResult, isSuccess)
-import String
 import Time exposing (Posix, Zone, millisToPosix, utc)
 
 
@@ -42,8 +40,8 @@ type Msg
     | SetRunDateFilter RunEventDate
 
 
-pageTitle : Model -> String
-pageTitle _ =
+pageTitle : String
+pageTitle =
     "Run Table"
 
 
@@ -232,7 +230,7 @@ viewRunRow chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCo
                         [ tr_
                             [ td
                                 [ colspan attributoColumnCount ]
-                                [ Html.map RunAttributiFormMsg <| RunAttributiForm.view rei ]
+                                [ div [ class "container ms-0" ] [ Html.map RunAttributiFormMsg <| RunAttributiForm.view rei ] ]
                             ]
                         ]
 
@@ -340,8 +338,8 @@ viewRunsTable chosenColumns runEditInfo { runs, events, chemicals, experimentTyp
                 (chemicalIdDict <| List.map convertChemicalFromApi chemicals)
                 (experimentTypeIdDict experimentTypes)
                 chosenColumns
-                -- Why + 5? It's the chosen columns plus ID, Internal ID, started, stopped and actions, as you can see below
-                (List.length chosenColumns + 5)
+                -- Why + 7? It's the chosen columns plus ID, Internal ID, started date, started time, stopped, stopped time and actions, as you can see below
+                (List.length chosenColumns + 7)
                 runEditInfo
                 runs
                 events

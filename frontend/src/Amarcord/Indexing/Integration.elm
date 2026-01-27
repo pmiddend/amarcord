@@ -8,7 +8,6 @@ import Html exposing (Html, a, div, label, option, p, select, span, text)
 import Html.Attributes exposing (checked, class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onInput)
 import Maybe.Extra
-import String
 
 
 type alias IntegratorMetadata =

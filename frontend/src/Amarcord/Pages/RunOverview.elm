@@ -1,4 +1,4 @@
-module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
+module Amarcord.Pages.RunOverview exposing (Model, Msg, init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId, RunInternalId(..), runInternalIdToInt)
@@ -26,12 +26,9 @@ import Basics.Extra exposing (safeDivide)
 import Html exposing (Html, a, button, div, em, figcaption, figure, h4, label, option, p, select, span, table, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List
 import List.Extra as ListExtra
-import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
-import String
 import Time exposing (Posix, Zone, millisToPosix, posixToMillis, utc)
 
 
@@ -79,8 +76,8 @@ type alias Model =
     }
 
 
-subscriptions : Model -> List (Sub Msg)
-subscriptions _ =
+subscriptions : List (Sub Msg)
+subscriptions =
     [ Time.every 5000 Refresh ]
 
 
@@ -220,7 +217,17 @@ dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentTypeMay
                                         []
                                     ]
                                 ]
-                            , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
+                            , div [ class "d-flex justify-content-center" ]
+                                [ em
+                                    [ class "amarcord-small-text"
+                                    ]
+                                    [ text <|
+                                        "Indexed frames (whole dataset): "
+                                            ++ formatIntHumanFriendly progressSummary.indexedFrames
+                                            ++ "/"
+                                            ++ formatIntHumanFriendly 10000
+                                    ]
+                                ]
                             , case etaFor10kFrames of
                                 Nothing ->
                                     text ""
@@ -238,7 +245,11 @@ dataSetInformation beamtimeId run dataSetFromRunRequest currentExperimentTypeMay
                                 ]
                             ]
                     in
-                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
+                    [ Maybe.withDefault
+                        (text "")
+                        (Maybe.map .indexingStatistics rrc.latestIndexingResult
+                            |> Maybe.map (viewHitRateAndIndexingGraphs (Maybe.map .foms rrc.latestIndexingResult))
+                        )
                     , div [ class "mb-3" ] indexingProgress
                     , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]

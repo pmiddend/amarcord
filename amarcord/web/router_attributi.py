@@ -3,6 +3,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
@@ -161,6 +162,29 @@ async def create_attributo(
         return JsonCreateAttributoOutput(id=new_attributo.id)
 
 
+async def _update_geometries(
+    session: AsyncSession,
+    attributo_id: int,
+    attributo_old_name: str,
+    attributo_new_name: str,
+) -> None:
+    exists_subquery = (
+        select(orm.geometry_references_attributo.c.geometry_id)
+        .where(
+            (orm.geometry_references_attributo.c.geometry_id == orm.Geometry.id)
+            & (orm.geometry_references_attributo.c.attributo_id == attributo_id)
+        )
+        .exists()
+    )
+    for g in await session.scalars(select(orm.Geometry).where(exists_subquery)):
+        needle = "{{" + attributo_old_name + "}}"
+        if needle not in g.content:
+            raise Exception(
+                f"something is off; I can't find the needle {needle} in geometry {g.id}"
+            )
+        g.content = g.content.replace(needle, "{{" + attributo_new_name + "}}")
+
+
 @router.patch(
     "/api/attributi",
     tags=["attributi"],
@@ -176,6 +200,7 @@ async def update_attributo(
                 select(orm.Attributo).where(orm.Attributo.id == input_.attributo.id),
             )
         ).one()
+        original_name = attributo.name
         attributo.name = input_.attributo.name
         attributo.description = input_.attributo.description
         attributo.group = input_.attributo.group
@@ -235,6 +260,11 @@ async def update_attributo(
                 ),
             )
 
+        if original_name != input_.attributo.name:
+            await _update_geometries(
+                session, input_.attributo.id, original_name, input_.attributo.name
+            )
+
     return JsonUpdateAttributoOutput(id=input_.attributo.id)
 
 
@@ -248,6 +278,26 @@ async def delete_attributo(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
 ) -> JsonDeleteAttributoOutput:
     async with session.begin():
+        exists_subquery = (
+            select(orm.geometry_references_attributo.c.geometry_id)
+            .where(
+                (orm.geometry_references_attributo.c.geometry_id == orm.Geometry.id)
+                & (orm.geometry_references_attributo.c.attributo_id == input_.id)
+            )
+            .exists()
+        )
+        geometry_names_with_attributo: list[str] = [
+            g.name
+            for g in await session.scalars(select(orm.Geometry).where(exists_subquery))
+        ]
+
+        if geometry_names_with_attributo:
+            raise HTTPException(
+                status_code=400,
+                detail="The following geometries still use this attribute,  you cannot delete it: "
+                + ", ".join(geometry_names_with_attributo),
+            )
+
         await session.execute(
             delete(orm.Attributo).where(orm.Attributo.id == input_.id),
         )

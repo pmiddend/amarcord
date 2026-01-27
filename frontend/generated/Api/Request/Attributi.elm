@@ -28,6 +28,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Create Attributi From Schema
+-}
 createAttributiFromSchemaApiAttributiSchemaPost : Api.Data.JsonCreateAttributiFromSchemaInput -> Api.Request Api.Data.JsonCreateAttributiFromSchemaOutput
 createAttributiFromSchemaApiAttributiSchemaPost jsonCreateAttributiFromSchemaInput_body =
     Api.request
@@ -40,6 +43,8 @@ createAttributiFromSchemaApiAttributiSchemaPost jsonCreateAttributiFromSchemaInp
         Api.Data.jsonCreateAttributiFromSchemaOutputDecoder
 
 
+{-| Create Attributo
+-}
 createAttributoApiAttributiPost : Api.Data.JsonCreateAttributoInput -> Api.Request Api.Data.JsonCreateAttributoOutput
 createAttributoApiAttributiPost jsonCreateAttributoInput_body =
     Api.request
@@ -52,6 +57,8 @@ createAttributoApiAttributiPost jsonCreateAttributoInput_body =
         Api.Data.jsonCreateAttributoOutputDecoder
 
 
+{-| Delete Attributo
+-}
 deleteAttributoApiAttributiDelete : Api.Data.JsonDeleteAttributoInput -> Api.Request Api.Data.JsonDeleteAttributoOutput
 deleteAttributoApiAttributiDelete jsonDeleteAttributoInput_body =
     Api.request
@@ -64,6 +71,8 @@ deleteAttributoApiAttributiDelete jsonDeleteAttributoInput_body =
         Api.Data.jsonDeleteAttributoOutputDecoder
 
 
+{-| Read Attributi
+-}
 readAttributiApiAttributiBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadAttributi
 readAttributiApiAttributiBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -76,6 +85,8 @@ readAttributiApiAttributiBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonReadAttributiDecoder
 
 
+{-| Update Attributo
+-}
 updateAttributoApiAttributiPatch : Api.Data.JsonUpdateAttributoInput -> Api.Request Api.Data.JsonUpdateAttributoOutput
 updateAttributoApiAttributiPatch jsonUpdateAttributoInput_body =
     Api.request

@@ -1,9 +1,10 @@
 module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, IndexingResultId(..), MergeResultId, beamtimeIdToString, indexingResultIdToString)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
+import Amarcord.GeometryMetadata exposing (GeometryId, geometryIdToString)
 import Dict
 import Maybe.Extra
 import Time exposing (millisToPosix, posixToMillis)
@@ -92,6 +93,7 @@ type Route
     = BeamtimeSelection
     | Root BeamtimeId
     | Chemicals BeamtimeId
+    | Geometries BeamtimeId
     | DataSets BeamtimeId
     | Schedule BeamtimeId
     | ExperimentTypes BeamtimeId
@@ -121,6 +123,9 @@ beamtimeIdInRoute x =
             Just btid
 
         Chemicals btid ->
+            Just btid
+
+        Geometries btid ->
             Just btid
 
         DataSets btid ->
@@ -267,6 +272,11 @@ makeLink x =
                 ++ "/chemicals/"
                 ++ beamtimeIdToString beamtimeId
 
+        Geometries beamtimeId ->
+            routePrefix
+                ++ "/geometries/"
+                ++ beamtimeIdToString beamtimeId
+
         AnalysisOverview beamtimeId filters acrossBeamtimes mergeFilter ->
             routePrefix
                 ++ "/analysis/"
@@ -329,8 +339,18 @@ makeFilesLink id suggestedNameMaybe =
             "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
 
 
-makeIndexingIdLogLink : Int -> String
-makeIndexingIdLogLink id =
+makeGeometryLink : GeometryId -> Maybe IndexingResultId -> String
+makeGeometryLink id indexingResultId =
+    case indexingResultId of
+        Nothing ->
+            "api/geometries/" ++ geometryIdToString id ++ "/raw"
+
+        Just indexingResultIdReal ->
+            "api/geometries/" ++ geometryIdToString id ++ "/raw?indexingResultId=" ++ indexingResultIdToString indexingResultIdReal
+
+
+makeIndexingIdLogLink : IndexingResultId -> String
+makeIndexingIdLogLink (IndexingResultId id) =
     "api/indexing/" ++ String.fromInt id ++ "/log"
 
 
@@ -339,8 +359,8 @@ makeMergeIdLogLink id =
     "api/merging/" ++ String.fromInt id ++ "/log"
 
 
-makeIndexingIdErrorLogLink : Int -> String
-makeIndexingIdErrorLogLink id =
+makeIndexingIdErrorLogLink : IndexingResultId -> String
+makeIndexingIdErrorLogLink (IndexingResultId id) =
     "api/indexing/" ++ String.fromInt id ++ "/errorlog"
 
 
@@ -465,6 +485,7 @@ matchRoute =
         [ map BeamtimeSelection top
         , map Attributi (s "attributi" </> int <?> Query.custom "tab" tabFromString)
         , map Chemicals (s "chemicals" </> int)
+        , map Geometries (s "geometries" </> int)
         , map RunOverview (s "runoverview" </> int)
         , map Geometry (s "geometry" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)

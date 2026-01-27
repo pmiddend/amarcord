@@ -27,6 +27,9 @@ import Http
 import Json.Decode
 import Json.Encode
 
+
+{-| Create Event
+-}
 createEventApiEventsPost : Api.Data.JsonEventTopLevelInput -> Api.Request Api.Data.JsonEventTopLevelOutput
 createEventApiEventsPost jsonEventTopLevelInput_body =
     Api.request
@@ -39,6 +42,8 @@ createEventApiEventsPost jsonEventTopLevelInput_body =
         Api.Data.jsonEventTopLevelOutputDecoder
 
 
+{-| Create Live Stream Snapshot
+-}
 createLiveStreamSnapshotApiLiveStreamSnapshotBeamtimeIdGet : Int -> Api.Request Api.Data.JsonCreateLiveStreamSnapshotOutput
 createLiveStreamSnapshotApiLiveStreamSnapshotBeamtimeIdGet beamtimeId_path =
     Api.request
@@ -51,6 +56,8 @@ createLiveStreamSnapshotApiLiveStreamSnapshotBeamtimeIdGet beamtimeId_path =
         Api.Data.jsonCreateLiveStreamSnapshotOutputDecoder
 
 
+{-| Delete Event
+-}
 deleteEventApiEventsDelete : Api.Data.JsonDeleteEventInput -> Api.Request Api.Data.JsonDeleteEventOutput
 deleteEventApiEventsDelete jsonDeleteEventInput_body =
     Api.request
@@ -63,6 +70,8 @@ deleteEventApiEventsDelete jsonDeleteEventInput_body =
         Api.Data.jsonDeleteEventOutputDecoder
 
 
+{-| Read Events
+-}
 readEventsApiEventsBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadEvents
 readEventsApiEventsBeamtimeIdGet beamtimeId_path =
     Api.request

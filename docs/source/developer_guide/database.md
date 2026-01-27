@@ -16,6 +16,10 @@ AMARCORD is built on top of the concept of a [relational database](https://en.wi
 
 Per beamtime, there is a `UserConfiguration` table (see diagram above). A beamtime can have multiple user configuration states, but in practice, AMARCORD always retrieves the latest one to check the current state.
 
+## Geometries
+
+Geometries are represented by the `Geometry` table. A geometry currently is more or less hard-coded to be a CrystFEL geometry. However, there can be two types of geometries (signified by the `GeometryType` enum): one where the complete geometry file is stored inside the database (`CRYSTFEL_STRING`) and one where the contents are actually stored inside a file on the file system (`CRYSTFEL_FILE`). The type is currently very implicit: if you start your geometry with a slash `/`, then it's a file. Otherwise, it's a string.
+
 ## Attributi
 
 While the database, being an SQL-based database, has a fixed schema, scientific experiments are quite different from one another. To account for that, we have a table for so-called "Attributi" (singular "Attributo"), which are additional columns for both runs and chemicals (see below) that can be created and filled by the experimenter, and not the programmer.
