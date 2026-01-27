@@ -22,7 +22,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 
 ## Miscellaneous things
 
-N/A
+- *Indexing methods* in the "Start indexing job" UI are now just "on/off" instead of "on/off", plus "prior lattice information" and "prior unit cell information". CrystFEL abolished the syntax in the latest release, and AMARCORD follows suit ([\#484](https://gitlab.desy.de/amarcord/amarcord/-/issues/484))
 
 ## Fixes
 

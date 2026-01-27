@@ -5,7 +5,7 @@ import Amarcord.CellDescriptionEdit as CellDescriptionEdit
 import Amarcord.CommandLineParser exposing (CommandLineOption(..), coparseCommandLine, coparseOption, parseCommandLine)
 import Amarcord.GeometryEdit as GeometryEdit
 import Amarcord.GeometryMetadata exposing (GeometryId, GeometryMetadata)
-import Amarcord.Html exposing (code_, div_, em_, form_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (code_, div_, em_, form_, h5_, hr_, input_, li_, p_, span_, strongText, ul_)
 import Amarcord.Indexing.Felix as Felix
 import Amarcord.Indexing.Integration as Integration
 import Amarcord.Indexing.PeakDetection as PeakDetection
@@ -15,8 +15,8 @@ import Amarcord.Indexing.Util exposing (CommandLineOptionResult(..), boolToSwitc
 import Amarcord.Indexing.Xgandalf as Xgandalf
 import Amarcord.Util exposing (collectResults, deadEndsToString, join3)
 import Dict exposing (Dict)
-import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, table, td, text, textarea, ul)
-import Html.Attributes exposing (checked, class, for, id, rows, selected, style, type_, value)
+import Html exposing (Html, button, dd, div, dl, dt, label, li, option, select, span, text, textarea, ul)
+import Html.Attributes exposing (checked, class, for, id, rows, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra
 import Result.Extra
@@ -30,8 +30,6 @@ knownIndexingMethods =
 type alias IndexingMethod =
     { methodName : String
     , enabled : Bool
-    , latticeInformation : Bool
-    , cellInformation : Bool
     }
 
 
@@ -150,26 +148,12 @@ type Msg
 indexingMethodsToCommandLine : List IndexingMethod -> Result String (List CommandLineOption)
 indexingMethodsToCommandLine methods =
     let
-        singleMethodToString { methodName, enabled, latticeInformation, cellInformation } =
+        singleMethodToString { methodName, enabled } =
             if not enabled then
                 Nothing
 
             else
-                Just
-                    (methodName
-                        ++ (if cellInformation then
-                                "-cell"
-
-                            else
-                                "-nocell"
-                           )
-                        ++ (if latticeInformation then
-                                "-latt"
-
-                            else
-                                "-nolatt"
-                           )
-                    )
+                Just methodName
     in
     Ok [ LongOption "indexing" <| String.join "," (List.filterMap singleMethodToString methods) ]
 
@@ -283,13 +267,15 @@ convertCommandLineToModel model cli =
         convertIndexingMethod : String -> Result String IndexingMethod
         convertIndexingMethod s =
             case String.split "-" s of
-                method :: rest ->
+                -- CrystFEL used to have indexing method specifiers
+                -- reading "method-latt-cell" for prior unit cell and
+                -- prior lattice information. This was abolished, but
+                -- we still like to support the old syntax for parsing.
+                method :: _ ->
                     if List.member method knownIndexingMethods then
                         Ok
                             { methodName = method
                             , enabled = True
-                            , latticeInformation = not (List.member "nolatt" rest)
-                            , cellInformation = not (List.member "nocell" rest)
                             }
 
                     else
@@ -313,8 +299,6 @@ convertCommandLineToModel model cli =
                                         (\methodName ->
                                             Dict.insert methodName
                                                 { methodName = methodName
-                                                , latticeInformation = True
-                                                , cellInformation = True
                                                 , enabled = False
                                                 }
                                         )
@@ -495,7 +479,7 @@ init sources cellDescription geometry geometries mutableCellDescription =
 
     -- The list of sources can be empty. Then we have the "current source" as empty and let it be a freetext field
     , source = Maybe.withDefault "" (List.head sources)
-    , geometry = GeometryEdit.init geometry geometries
+    , geometry = GeometryEdit.init "indexing-geometry" geometry geometries
     , geometries = geometries
     , cellDescription = CellDescriptionEdit.init cellDescription
     , openTab = PeakDetection
@@ -541,39 +525,21 @@ viewFormCheck elementId description details checkedValue f =
 
 
 viewIndexingMethodRow : IndexingMethod -> Html Msg
-viewIndexingMethodRow { methodName, enabled, latticeInformation, cellInformation } =
-    tr_
-        [ td []
-            [ div [ class "form-check form-switch mx-auto" ]
-                [ input_
-                    [ class "form-check-input"
-                    , type_ "checkbox"
-                    , checked enabled
-                    , onInput (always (ChangeIndexingMethod methodName (\m -> { m | enabled = not m.enabled })))
-                    ]
-                ]
+viewIndexingMethodRow { methodName, enabled } =
+    div [ class "form-check form-switch" ]
+        [ input_
+            [ class "form-check-input"
+            , type_ "checkbox"
+            , value ""
+            , checked enabled
+            , id ("indexing-" ++ methodName)
+            , onInput (always (ChangeIndexingMethod methodName (\m -> { m | enabled = not m.enabled })))
             ]
-        , td_ [ text methodName ]
-        , td_
-            [ div [ class "form-check form-switch" ]
-                [ input_
-                    [ class "form-check-input"
-                    , type_ "checkbox"
-                    , checked latticeInformation
-                    , onInput (always (ChangeIndexingMethod methodName (\m -> { m | latticeInformation = not m.latticeInformation })))
-                    ]
-                ]
+        , label
+            [ class "form-check-label"
+            , for ("indexing-" ++ methodName)
             ]
-        , td_
-            [ div [ class "form-check form-switch" ]
-                [ input_
-                    [ class "form-check-input"
-                    , type_ "checkbox"
-                    , checked cellInformation
-                    , onInput (always (ChangeIndexingMethod methodName (\m -> { m | cellInformation = not m.cellInformation })))
-                    ]
-                ]
-            ]
+            [ text methodName ]
         ]
 
 
@@ -768,7 +734,7 @@ viewCustomToleranceForm tolerances =
 viewGeneralIndexingParameters : Model -> Html Msg
 viewGeneralIndexingParameters model =
     div [ class "mb-3" ]
-        [ h5_ [ text "Indexing Parameters" ]
+        [ h5_ [ text "General Indexing Parameters" ]
         , viewFormCheck
             "multi"
             "Attempt to find multiple lattices per frame"
@@ -891,14 +857,9 @@ viewIndexingMethods model =
             Just methods ->
                 div [ class "row" ]
                     [ div [ class "col-6" ]
-                        [ table
-                            [ class "table table-striped text-center", style "width" "fit-content" ]
-                            [ thead_
-                                [ tr_ [ th_ [ text "Enabled" ], th_ [ text "Method" ], th_ [ text "Prior unit cell" ], th_ [ text "Prior lattice type" ] ]
-                                ]
-                            , tbody_
-                                (List.map viewIndexingMethodRow (Dict.values methods))
-                            ]
+                        [ h5_ [ text "Available indexers" ]
+                        , div_ (List.map viewIndexingMethodRow (Dict.values methods))
+                        , hr_
                         , p_
                             [ div [ class "form-check form-switch" ]
                                 [ input_
@@ -925,7 +886,8 @@ viewIndexingMethods model =
                             ]
                         ]
                     , div [ class "col-6" ]
-                        [ viewIndexingMethodsTabs model
+                        [ h5_ [ text "Indexer-specific options" ]
+                        , viewIndexingMethodsTabs model
                         ]
                     ]
         , viewGeneralIndexingParameters model
@@ -1182,7 +1144,7 @@ update msg model =
                                     (\methodName ->
                                         Dict.insert
                                             methodName
-                                            { methodName = methodName, latticeInformation = True, cellInformation = True, enabled = True }
+                                            { methodName = methodName, enabled = True }
                                     )
                                     Dict.empty
                                     knownIndexingMethods

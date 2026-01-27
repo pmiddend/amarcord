@@ -1,15 +1,16 @@
 module Amarcord.GeometryEdit exposing (Model, Msg, extractCurrentId, init, update, view)
 
 import Amarcord.GeometryMetadata exposing (GeometryId(..), GeometryMetadata, geometryIdToString)
-import Amarcord.Html exposing (div_, onIntInput)
-import Html exposing (Html, option, select, text)
-import Html.Attributes exposing (class, selected, value)
+import Amarcord.Html exposing (onIntInput)
+import Html exposing (Html, div, label, option, select, text)
+import Html.Attributes exposing (class, for, id, selected, value)
 import Maybe.Extra exposing (isNothing)
 import Time exposing (posixToMillis)
 
 
 type alias Model =
-    { geometries : List GeometryMetadata
+    { name : String
+    , geometries : List GeometryMetadata
     , selectedGeometryId : Maybe GeometryId
     }
 
@@ -19,9 +20,9 @@ extractCurrentId { selectedGeometryId } =
     selectedGeometryId
 
 
-init : Maybe GeometryId -> List GeometryMetadata -> Model
-init selectedGeometryId geometries =
-    { selectedGeometryId = selectedGeometryId, geometries = List.reverse (List.sortBy (\geom -> posixToMillis geom.createdLocal) geometries) }
+init : String -> Maybe GeometryId -> List GeometryMetadata -> Model
+init name selectedGeometryId geometries =
+    { name = name, selectedGeometryId = selectedGeometryId, geometries = List.reverse (List.sortBy (\geom -> posixToMillis geom.createdLocal) geometries) }
 
 
 type Msg
@@ -37,10 +38,11 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div_
+    div [ class "form-floating" ]
         [ select
             [ class "form-select"
             , onIntInput (ChangeSelection << GeometryId)
+            , id model.name
             ]
             (option [ selected (isNothing model.selectedGeometryId), value "" ] [ text "«no value»" ]
                 :: List.map
@@ -53,6 +55,7 @@ view model =
                     )
                     model.geometries
             )
+        , label [ for model.name ] [ text "Geometry" ]
         ]
 
 
