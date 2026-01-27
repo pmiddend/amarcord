@@ -103,9 +103,6 @@ packages = ["amarcord"]
 # This is a hack, to fix the uv2nix flake thing.
 no-binary-package = ["python-magic"]
 
-[tool.uv.extra-build-dependencies]
-"asyncmy-0.2.10" = ["poetry"]
-
 [tool.isort]
 profile = "black"
 force_single_line = "true"
