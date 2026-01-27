@@ -32,7 +32,7 @@ dependencies = [
     "pydantic==2.12.5",
     # asynchronous db client
     "pymysql==1.1.2",
-    "asyncmy==0.2.10",
+    "asyncmy==0.2.11",
     # For the file upload in the web server
     # see https://fastapi.tiangolo.com/tutorial/request-files/
     "python-multipart==0.0.20",
