@@ -1,9 +1,9 @@
 [project]
 name = "amarcord"
-version = "1.4"
+version = "1.5"
 description = "A ModulAR CollectOR of metaData - serial edition"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [
   {name = "Philipp Middendorf", email = "philipp.middendorf@desy.de"},
   {name = "CFEL-SC", email = "sc@cfel.de"}

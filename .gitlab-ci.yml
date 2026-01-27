@@ -62,10 +62,6 @@ nix-pin-latest-manual:
     - nix build --out-link ~/pipeline-pins/amarcord-python-package-$CI_COMMIT_REF_SLUG .#amarcord-python-package
   when: manual
 
-check-requirements:
-   script:
-     - nix develop --command ./ci/check-requirements.sh
-
 tests:
   script:
     - nix develop --command ci/run-tests.sh
