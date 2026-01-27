@@ -1447,7 +1447,7 @@ type alias JsonMergeJobFinishOutput =
 type alias JsonMergeJobFinishedInput =
     { latestLog : Maybe String
     , error : Maybe String
-    , result : Maybe JsonMergeResultInternalInput
+    , results : List JsonMergeResultInternalInput
     }
 
 
@@ -1467,6 +1467,7 @@ type alias JsonMergeParameters =
     { pointGroup : String
     , spaceGroup : Maybe String
     , cellDescription : String
+    , customSplit : String
     , negativeHandling : Maybe MergeNegativeHandling
     , mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
@@ -1499,6 +1500,7 @@ type alias JsonMergeResult =
     , createdLocal : Int
     , runs : List String
     , indexingResultIds : List Int
+    , dataset : String
     , stateQueued : Maybe JsonMergeResultStateQueued
     , stateError : Maybe JsonMergeResultStateError
     , stateRunning : Maybe JsonMergeResultStateRunning
@@ -1536,7 +1538,8 @@ type alias JsonMergeResultFom =
 
 
 type alias JsonMergeResultInternalInput =
-    { mtzFileId : Int
+    { dataset : String
+    , mtzFileId : Int
     , fom : JsonMergeResultFom
     , ambigatorFgGraphFileId : Maybe Int
     , detailedFoms : List JsonMergeResultShell
@@ -1545,7 +1548,8 @@ type alias JsonMergeResultInternalInput =
 
 
 type alias JsonMergeResultInternalOutput =
-    { mtzFileId : Int
+    { dataset : String
+    , mtzFileId : Int
     , fom : JsonMergeResultFom
     , ambigatorFgGraphFileId : Maybe Int
     , detailedFoms : List JsonMergeResultShell
@@ -4469,7 +4473,7 @@ encodeJsonMergeJobFinishedInputPairs model =
         pairs =
             [ maybeEncodeNullable "latest_log" Json.Encode.string model.latestLog
             , maybeEncodeNullable "error" Json.Encode.string model.error
-            , maybeEncodeNullable "result" encodeJsonMergeResultInternalInput model.result
+            , encode "results" (Json.Encode.list encodeJsonMergeResultInternalInput) model.results
             ]
     in
     pairs
@@ -4534,6 +4538,7 @@ encodeJsonMergeParametersPairs model =
             [ encode "point_group" Json.Encode.string model.pointGroup
             , maybeEncodeNullable "space_group" Json.Encode.string model.spaceGroup
             , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "custom_split" Json.Encode.string model.customSplit
             , maybeEncodeNullable "negative_handling" encodeMergeNegativeHandling model.negativeHandling
             , encode "merge_model" encodeMergeModel model.mergeModel
             , encode "scale_intensities" encodeScaleIntensities model.scaleIntensities
@@ -4581,6 +4586,7 @@ encodeJsonMergeResultPairs model =
             , encode "created_local" Json.Encode.int model.createdLocal
             , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
             , encode "indexing_result_ids" (Json.Encode.list Json.Encode.int) model.indexingResultIds
+            , encode "dataset" Json.Encode.string model.dataset
             , maybeEncodeNullable "state_queued" encodeJsonMergeResultStateQueued model.stateQueued
             , maybeEncodeNullable "state_error" encodeJsonMergeResultStateError model.stateError
             , maybeEncodeNullable "state_running" encodeJsonMergeResultStateRunning model.stateRunning
@@ -4648,7 +4654,8 @@ encodeJsonMergeResultInternalInputPairs : JsonMergeResultInternalInput -> List E
 encodeJsonMergeResultInternalInputPairs model =
     let
         pairs =
-            [ encode "mtz_file_id" Json.Encode.int model.mtzFileId
+            [ encode "dataset" Json.Encode.string model.dataset
+            , encode "mtz_file_id" Json.Encode.int model.mtzFileId
             , encode "fom" encodeJsonMergeResultFom model.fom
             , maybeEncodeNullable "ambigator_fg_graph_file_id" Json.Encode.int model.ambigatorFgGraphFileId
             , encode "detailed_foms" (Json.Encode.list encodeJsonMergeResultShell) model.detailedFoms
@@ -4672,7 +4679,8 @@ encodeJsonMergeResultInternalOutputPairs : JsonMergeResultInternalOutput -> List
 encodeJsonMergeResultInternalOutputPairs model =
     let
         pairs =
-            [ encode "mtz_file_id" Json.Encode.int model.mtzFileId
+            [ encode "dataset" Json.Encode.string model.dataset
+            , encode "mtz_file_id" Json.Encode.int model.mtzFileId
             , encode "fom" encodeJsonMergeResultFom model.fom
             , maybeEncodeNullable "ambigator_fg_graph_file_id" Json.Encode.int model.ambigatorFgGraphFileId
             , encode "detailed_foms" (Json.Encode.list encodeJsonMergeResultShell) model.detailedFoms
@@ -7137,7 +7145,7 @@ jsonMergeJobFinishedInputDecoder =
     Json.Decode.succeed JsonMergeJobFinishedInput
         |> maybeDecodeNullable "latest_log" Json.Decode.string Nothing
         |> maybeDecodeNullable "error" Json.Decode.string Nothing
-        |> maybeDecodeNullable "result" jsonMergeResultInternalInputDecoder Nothing
+        |> decode "results" (Json.Decode.list jsonMergeResultInternalInputDecoder) 
 
 
 jsonMergeJobStartedInputDecoder : Json.Decode.Decoder JsonMergeJobStartedInput
@@ -7160,6 +7168,7 @@ jsonMergeParametersDecoder =
         |> decode "point_group" Json.Decode.string 
         |> maybeDecodeNullable "space_group" Json.Decode.string Nothing
         |> decode "cell_description" Json.Decode.string 
+        |> decode "custom_split" Json.Decode.string 
         |> maybeDecodeNullable "negative_handling" mergeNegativeHandlingDecoder Nothing
         |> decode "merge_model" mergeModelDecoder 
         |> decode "scale_intensities" scaleIntensitiesDecoder 
@@ -7193,6 +7202,7 @@ jsonMergeResultDecoder =
         |> decode "created_local" Json.Decode.int 
         |> decode "runs" (Json.Decode.list Json.Decode.string) 
         |> decode "indexing_result_ids" (Json.Decode.list Json.Decode.int) 
+        |> decode "dataset" Json.Decode.string 
         |> maybeDecodeNullable "state_queued" jsonMergeResultStateQueuedDecoder Nothing
         |> maybeDecodeNullable "state_error" jsonMergeResultStateErrorDecoder Nothing
         |> maybeDecodeNullable "state_running" jsonMergeResultStateRunningDecoder Nothing
@@ -7232,6 +7242,7 @@ jsonMergeResultFomDecoder =
 jsonMergeResultInternalInputDecoder : Json.Decode.Decoder JsonMergeResultInternalInput
 jsonMergeResultInternalInputDecoder =
     Json.Decode.succeed JsonMergeResultInternalInput
+        |> decode "dataset" Json.Decode.string 
         |> decode "mtz_file_id" Json.Decode.int 
         |> decode "fom" jsonMergeResultFomDecoder 
         |> maybeDecodeNullable "ambigator_fg_graph_file_id" Json.Decode.int Nothing
@@ -7242,6 +7253,7 @@ jsonMergeResultInternalInputDecoder =
 jsonMergeResultInternalOutputDecoder : Json.Decode.Decoder JsonMergeResultInternalOutput
 jsonMergeResultInternalOutputDecoder =
     Json.Decode.succeed JsonMergeResultInternalOutput
+        |> decode "dataset" Json.Decode.string 
         |> decode "mtz_file_id" Json.Decode.int 
         |> decode "fom" jsonMergeResultFomDecoder 
         |> maybeDecodeNullable "ambigator_fg_graph_file_id" Json.Decode.int Nothing

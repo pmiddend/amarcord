@@ -310,6 +310,7 @@ class JsonMergeParameters(BaseModel):
     space_group: None | str = None
     # Same as point_group comment above.
     cell_description: str
+    custom_split: str
     negative_handling: None | MergeNegativeHandling = None
     merge_model: MergeModel
     scale_intensities: ScaleIntensities
@@ -343,6 +344,7 @@ class JsonMergeResult(BaseModel):
     created_local: int
     runs: list[str]
     indexing_result_ids: list[int]
+    dataset: str
     state_queued: None | JsonMergeResultStateQueued = None
     state_error: None | JsonMergeResultStateError = None
     state_running: None | JsonMergeResultStateRunning = None

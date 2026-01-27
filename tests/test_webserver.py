@@ -2499,6 +2499,7 @@ def test_indexing_result_with_two_equal_parameter(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
                     space_group=LYSO_SPACE_GROUP,
+                    custom_split="",
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -2832,6 +2833,7 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
                     point_group="",
                     # ...or None so we can test if this is inferred from the chemical/indexing result
                     space_group=None,
+                    custom_split="",
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -2979,6 +2981,7 @@ def test_queue_then_start_then_finish_merge_job(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
                     space_group=LYSO_SPACE_GROUP,
+                    custom_split="",
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,
@@ -3030,6 +3033,7 @@ def test_queue_then_start_then_finish_merge_job(
 
     merge_result = JsonMergeResultInternal(
         mtz_file_id=test_file,
+        dataset="",
         ambigator_fg_graph_file_id=None,
         fom=JsonMergeResultFom(
             # Again, more or less completely random stuff here
@@ -3107,7 +3111,7 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/merging/{queue_merge_job_response.merge_result_id}/finish",
             json=JsonMergeJobFinishedInput(
-                error=None, result=merge_result, latest_log=None
+                error=None, results=[merge_result], latest_log=None
             ).model_dump(),
         ).json(),
     )
@@ -3151,6 +3155,7 @@ def test_queue_then_start_then_finish_merge_job(
         point_group=LYSO_POINT_GROUP,
         space_group=LYSO_SPACE_GROUP,
         cell_description=LYSO_CELL_DESCRIPTION,
+        custom_split="",
         negative_handling=MergeNegativeHandling.IGNORE,
         merge_model=MergeModel.UNITY,
         scale_intensities=ScaleIntensities.OFF,
@@ -4793,6 +4798,7 @@ async def test_merge_daemon(
                     cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
                     space_group=LYSO_SPACE_GROUP,
+                    custom_split="",
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
                     post_refinement=False,

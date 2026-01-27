@@ -68,6 +68,7 @@ class JsonRefinementResultInternal(BaseModel):
 
 
 class JsonMergeResultInternal(BaseModel):
+    dataset: str
     mtz_file_id: int
     fom: JsonMergeResultFom
     ambigator_fg_graph_file_id: None | int = None
@@ -78,7 +79,7 @@ class JsonMergeResultInternal(BaseModel):
 class JsonMergeJobFinishedInput(BaseModel):
     latest_log: None | str = None
     error: None | str = None
-    result: None | JsonMergeResultInternal = None
+    results: list[JsonMergeResultInternal]
 
 
 class JsonMergeJobStartedInput(BaseModel):

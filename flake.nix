@@ -414,7 +414,15 @@
               elm-review-tool
               pkgs.elmPackages.elm-format
               pkgs.elmPackages.elm-json
-              pkgs.elmPackages.elm-test-rs
+              # elm-language-server doesn't support elm-test-rs, see
+              # https://github.com/elm-tooling/elm-language-server/issues/914
+              #
+              # So we just alias one for the other
+              (pkgs.elmPackages.elm-test-rs.overrideAttrs (oldAttrs: {
+                postInstall = ''
+                  cp $out/bin/elm-test-rs $out/bin/elm-test
+                '';
+              }))
               elm-language-server
               pkgs.nodejs
               pkgs.elm2nix

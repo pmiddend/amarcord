@@ -19,6 +19,7 @@ from typing import Final
 from typing import Generator
 from typing import Iterable
 from typing import MutableSequence
+from typing import NewType
 from typing import NoReturn
 from typing import TypeVar
 from urllib import request
@@ -33,16 +34,31 @@ _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
 _HIGHRES_CUT_CCSTAR_THRESHOLD: Final = 0.5
 _MAX_SHELLS_TO_TEST: Final = 30
 
+Dataset = NewType("Dataset", str)
 
-def ccstar_compare_shell_file(i: int) -> Path:
-    return Path(f"ccstar_shells_first_pass_{i}.dat")
+
+def _dataset_to_path(dataset: Dataset) -> Path:
+    return Path(dataset) if dataset != "" else Path("all")
+
+
+def _ccstar_compare_shell_file_first_pass(i: int) -> str:
+    return f"ccstar_shells_first_pass_{i}.dat"
 
 
 DESIRED_NREFS_PER_SHELL: Final = 2000
-RSPLIT_COMPARE_SHELL_FILE = Path("rsplit_shells.dat")
-CCSTAR_COMPARE_SHELL_FILE = Path("ccstar_shells.dat")
-CHECK_HKL_SHELL_FILE = Path("check.dat")
-CC_COMPARE_SHELL_FILE = Path("cc_shells.dat")
+
+
+_RSPLIT_COMPARE_SHELL_FILE = "rsplit_shells.dat"
+
+
+_CCSTAR_COMPARE_SHELL_FILE = "ccstar_shells.dat"
+
+
+_CHECK_HKL_SHELL_FILE = "check.dat"
+
+
+_CC_COMPARE_SHELL_FILE = "cc_shells.dat"
+
 
 EXCLUSION_MTZ = "input-mtz-after-rflag-exclusion.mtz"
 POINTLESS_MTZ = "input-pointless.mtz"
@@ -50,12 +66,34 @@ UNIQUE_MTZ = "input-mtz-after-unique.mtz"
 CAD_MTZ = "input-mtz-after-cad.mtz"
 FREER_MTZ = "input-mtz-after-freerflag.mtz"
 UNIQIFIED_MTZ = "input-mtz-uniqified.mtz"
-RESCUT_MTZ = "input-mtz-rescut.mtz"
-DIMPLE_OUT_MTZ = "output-dimple.mtz"
-DIMPLE_OUT_PDB = "output-dimple.pdb"
 
 
-def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str:
+def _rescut_mtz(ds: Dataset) -> str:
+    return f"{ds}-input-mtz-rescut.mtz"
+
+
+def _dimple_out_mtz(ds: Dataset) -> str:
+    return f"{ds}-output-dimple.mtz"
+
+
+def _dimple_out_pdb(ds: Dataset) -> str:
+    return f"{ds}-output-dimple.pdb"
+
+
+def _log_program(cwd: Path, env: dict[str, str], args: list[str]) -> None:
+    with Path("run.sh").open("a") as f:
+        if env:
+            f.writelines(
+                shlex.join(["export", f"{env_key}={env_value}"]) + "\n"
+                for env_key, env_value in env.items()
+            )
+        f.write(shlex.join(["cd", str(cwd)]) + "\n")
+        f.write(shlex.join(args) + "\n")
+
+
+def ccp4_run(
+    ccp4_path: Path, cwd: Path, args: list[str], input_: None | str = None
+) -> str:
     current_path = os.environ["PATH"]
     ccp4_env: dict[str, str] = {
         "CLIBD": f"{ccp4_path}/lib/data",
@@ -67,9 +105,11 @@ def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str
     }
     logger.info(f"running {args}")
     try:
+        _log_program(cwd, ccp4_env, args)
         result = subprocess.run(  # noqa: S603
             args,
             capture_output=True,
+            cwd=cwd,
             input=input_,
             encoding="utf-8",
             env=ccp4_env,
@@ -164,31 +204,38 @@ def parse_refmac_log(p: Path) -> RefinementFom:
 
 def quick_refine(
     ccp4_path: Path,
+    ds: Dataset,
     input_mtz: Path,
     resolution_cut: float,
     input_pdb: Path,
     input_restraints_cif: None | Path,
 ) -> RefinementResult:
-    logger.info("cutting resolution...")
+    logger.info(f"{ds}: cutting resolution...")
+
+    ds_subdir = _dataset_to_path(ds) / "dimple"
+
+    ds_subdir.mkdir()
 
     ccp4_run(
         ccp4_path,
+        ds_subdir,
         [
             f"{ccp4_path}/bin/mtzutils",
             "hklin",
             str(input_mtz),
             "hklout",
-            RESCUT_MTZ,
+            _rescut_mtz(ds),
         ],
         input_=f"""
     resolution {resolution_cut}
             """,
     )
 
-    logging.info("running dimple now")
+    logging.info(f"{ds}: running dimple now")
 
     ccp4_run(
         ccp4_path,
+        ds_subdir,
         [
             f"{ccp4_path}/bin/dimple",
             "-f",
@@ -198,9 +245,9 @@ def quick_refine(
             "--restr-cycles",
             "15",
             "--hklout",
-            DIMPLE_OUT_MTZ,
+            _dimple_out_mtz(ds),
             "--xyzout",
-            DIMPLE_OUT_PDB,
+            _dimple_out_pdb(ds),
         ]
         + (
             ["--libin", str(input_restraints_cif)]
@@ -208,14 +255,14 @@ def quick_refine(
             else []
         )
         + [
-            RESCUT_MTZ,
+            _rescut_mtz(ds),
             str(input_pdb),
             ".",
         ],
     )
 
     refmac_log_glob = "*refmac5_restr*.log"
-    refmac_log_files = list(Path("./").glob(refmac_log_glob))
+    refmac_log_files = list(ds_subdir.glob(refmac_log_glob))
 
     if not refmac_log_files:
         error = f"dimple ran successfully, but didn't produce file matching {refmac_log_glob}, please check the output"
@@ -227,8 +274,8 @@ def quick_refine(
         )
 
     return RefinementResult(
-        pdb_path=Path(DIMPLE_OUT_PDB),
-        mtz_path=Path(DIMPLE_OUT_MTZ),
+        pdb_path=ds_subdir / _dimple_out_pdb(ds),
+        mtz_path=ds_subdir / _dimple_out_mtz(ds),
         fom=parse_refmac_log(refmac_log_files[0]),
     )
 
@@ -269,9 +316,9 @@ class ParsedArgs:
     merge_result_id: int
     cell_file_id: int
     point_group: str
-    hkl_file: Path
     ccp4_path: None | Path
     partialator_additional: None | str
+    custom_split: list[Dataset]
     get_hkl_additional: None | str
     crystfel_path: Path
     gnuplot_path: Path | None
@@ -294,30 +341,30 @@ MERGE_ENVIRON_MERGE_RESULT_ID = "AMARCORD_RESULT_ID"
 MERGE_ENVIRON_CELL_FILE_ID = "AMARCORD_CELL_FILE_ID"
 MERGE_ENVIRON_POINT_GROUP = "AMARCORD_POINT_GROUP"
 MERGE_ENVIRON_GET_HKL_ADDITIONAL = "AMARCORD_GET_HKL_ADDITIONAL"
-MERGE_ENVIRON_HKL_FILE = "AMARCORD_HKL_FILE"
 MERGE_ENVIRON_PARTIALATOR_ADDITIONAL = "AMARCORD_PARTIALATOR_ADDITIONAL"
 MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE = "AMARCORD_AMBIGATOR_COMMAND_LINE"
+MERGE_ENVIRON_CUSTOM_SPLIT = "AMARCORD_CUSTOM_SPLIT"
 MERGE_ENVIRON_PDB_FILE_ID = "AMARCORD_PDB_FILE_ID"
 
 
 def parse_args() -> ParsedArgs:
+    api_url = os.environ[MERGE_ENVIRON_API_URL]
+    merge_result_id = int(os.environ[MERGE_ENVIRON_MERGE_RESULT_ID])
     crystfel_path = Path(os.environ[MERGE_ENVIRON_CRYSTFEL_PATH])
+
+    def exit_minimal(message: str) -> NoReturn:
+        exit_with_error_minimal(api_url, merge_result_id, message)
+
     if not crystfel_path.is_dir():
-        exit_with_error(
-            None,
-            f"CrystFEL path {crystfel_path} must be a valid directory",
-        )
+        exit_minimal(f"CrystFEL path {crystfel_path} must be a valid directory")
     ccp4_path_str = os.environ.get(MERGE_ENVIRON_CCP4_PATH)
     ccp4_path = Path(ccp4_path_str) if ccp4_path_str is not None else None
     if ccp4_path and not ccp4_path.is_dir():
-        exit_with_error(
-            None,
-            f"CCP4 path {ccp4_path} must be a valid directory (or empty)",
-        )
+        exit_minimal(f"CCP4 path {ccp4_path} must be a valid directory (or empty)")
     stream_files_raw = os.environ[MERGE_ENVIRON_STREAM_FILES]
     stream_files = [Path(p.strip()) for p in stream_files_raw.split(",")]
     if not stream_files:
-        exit_with_error(None, "no input stream files given")
+        exit_minimal("no input stream files given")
     invalid_paths = set(f for f in stream_files if not f.is_file())
     if invalid_paths:
         logger.warning(
@@ -325,24 +372,35 @@ def parse_args() -> ParsedArgs:
             + ", ".join(str(f) for f in stream_files if not f.is_file()),
         )
         if invalid_paths == set(stream_files):
-            exit_with_error(None, "none of the input stream files is a valid file")
+            exit_minimal("none of the input stream files is a valid file")
     valid_paths = [f for f in stream_files if f.is_file()]
     restraints_cif_file_id_str = os.environ.get(MERGE_ENVIRON_RESTRAINTS_CIF_FILE_ID)
     random_cut_length_str = os.environ.get(MERGE_ENVIRON_RANDOM_CUT_LENGTH)
     pdb_file_id_str = os.environ.get(MERGE_ENVIRON_PDB_FILE_ID)
     gnuplot_path_str = os.environ.get(MERGE_ENVIRON_GNUPLOT_PATH)
+    custom_split_str = os.environ.get(MERGE_ENVIRON_CUSTOM_SPLIT, "").strip()
+    # "".split(",") results in [""] instead of []
+    custom_split_components = (
+        [Dataset(s.strip()) for s in custom_split_str.split(",")]
+        if custom_split_str
+        else []
+    )
+    if any(s == Dataset("") for s in custom_split_components):
+        exit_minimal(
+            f"one of the custom split components {custom_split_components} is empty"
+        )
+    if len(custom_split_components) == 1:
+        exit_minimal("custom split has just one component")
     return ParsedArgs(
         crystfel_path=crystfel_path,
         ccp4_path=ccp4_path if ccp4_path else None,
         stream_files=valid_paths,
-        api_url=os.environ[MERGE_ENVIRON_API_URL],
-        merge_result_id=int(os.environ[MERGE_ENVIRON_MERGE_RESULT_ID]),
+        api_url=api_url,
+        merge_result_id=merge_result_id,
         cell_file_id=int(os.environ[MERGE_ENVIRON_CELL_FILE_ID]),
         point_group=os.environ[MERGE_ENVIRON_POINT_GROUP],
-        hkl_file=Path(
-            os.environ.get(MERGE_ENVIRON_HKL_FILE, "partialator.hkl"),
-        ),
         partialator_additional=os.environ.get(MERGE_ENVIRON_PARTIALATOR_ADDITIONAL),
+        custom_split=custom_split_components,
         get_hkl_additional=os.environ.get(MERGE_ENVIRON_GET_HKL_ADDITIONAL),
         pdb_file_id=int(pdb_file_id_str) if pdb_file_id_str is not None else None,
         restraints_cif_file_id=int(restraints_cif_file_id_str)
@@ -357,13 +415,13 @@ def parse_args() -> ParsedArgs:
     )
 
 
-def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
+def retrieve_file(args: ParsedArgs, file_id: int, target: Path) -> Path:
     url = f"{args.api_url}/api/files/{file_id}"
     req = request.Request(url, method="GET")
     logger.info(f"requesting file on {url}")
-    with request.urlopen(req) as response, Path(name).open("wb") as output_file:
+    with request.urlopen(req) as response, target.open("wb") as output_file:
         output_file.write(response.read())
-    return Path(name)
+    return target
 
 
 def upload_file(args: ParsedArgs, file_path: Path) -> int:
@@ -398,20 +456,21 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 
 
 def write_output_json(
-    args: ParsedArgs,
+    api_url: str,
+    merge_result_id: int,
     error: None | str,
-    result: None | dict[str, Any],
+    results: list[dict[str, Any]],
 ) -> None:
     try:
         result_json = json.dumps(
-            {"error": error, "result": result, "latest_log": "\n".join(log_list)},
+            {"error": error, "results": results, "latest_log": "\n".join(log_list)},
             allow_nan=False,
             indent=2,
         ).encode("utf-8")
     except ValueError:
         result_json_with_nan = json.dumps(
             # latest log deliberately empty here since this JSON is output to the log, meaning we will repeat log output in this log (recursively)
-            {"error": error, "result": result, "latest_log": ""},
+            {"error": error, "results": [], "latest_log": ""},
             allow_nan=True,
             indent=2,
         ).encode("utf-8")
@@ -421,14 +480,14 @@ def write_output_json(
         result_json = json.dumps(
             {
                 "error": 'The merge result contained invalid statistics (probably CC* is "not a number"). Try collecting more data, using different merge parameters or indexing prior runs manually to fix this. The full output of this merge job contains the final JSON with the invalid stats, you can take a look if you have access to it.',
-                "result": None,
+                "results": [],
                 "latest_log": "\n".join(log_list),
             },
             allow_nan=False,
             indent=2,
         ).encode("utf-8")
 
-    url = f"{args.api_url}/api/merging/{args.merge_result_id}/finish"
+    url = f"{api_url}/api/merging/{merge_result_id}/finish"
     logger.info(f"sending result to {url}")
     req = request.Request(
         url,
@@ -440,10 +499,18 @@ def write_output_json(
         logger.info(f"received the following response from server: {response.read()}")
 
 
+def exit_with_error_minimal(
+    api_url: str, merge_result_id: int, message: str
+) -> NoReturn:
+    logger.error(message)
+    write_output_json(api_url, merge_result_id, error=message, results=[])
+    sys.exit(1)
+
+
 def exit_with_error(args: None | ParsedArgs, message: str) -> NoReturn:
     logger.error(message)
     if args is not None:
-        write_output_json(args, error=message, result=None)
+        write_output_json(args.api_url, args.merge_result_id, error=message, results=[])
     sys.exit(1)
 
 
@@ -527,6 +594,8 @@ def compare_hkl_args_to_list(args: CompareHklArgs) -> list[str]:
         cli_args.append(f"--nshells={args.nshells}")
     if args.shell_file is not None:
         cli_args.append(f"--shell-file={args.shell_file}")
+    else:
+        cli_args.append("--shell-file=/dev/null")
     if args.scale_to_unity is not None and args.scale_to_unity:
         cli_args.append("-u")
     if args.sigma_cutoff is not None:
@@ -574,22 +643,28 @@ def check_hkl_args_to_list(args: CheckHklArgs) -> list[str]:
 
 def run_compare_hkl_single_fom(
     args: ParsedArgs,
+    dataset: Dataset,
+    unit_cell: Path,
     fom: str,
     search_term: str,
     highres: None | float,
     nshells: int,
     may_fail: bool = False,  # noqa: FBT002
-    output_file: None | Path = None,
+    shell_file: None | Path = None,
 ) -> None | float:
     compare_hkl_command_line_args = compare_hkl_args_to_list(
         CompareHklArgs(
             crystfel_path=args.crystfel_path,
             point_group=args.point_group,
-            unit_cell=retrieve_file(args, args.cell_file_id, "cell"),
-            hkl1=args.hkl_file.with_suffix(".hkl1"),
-            hkl2=args.hkl_file.with_suffix(".hkl2"),
+            unit_cell=unit_cell,
+            hkl1=Path(f"partialator-{dataset}.hkl1")
+            if dataset
+            else Path("partialator.hkl1"),
+            hkl2=Path(f"partialator-{dataset}.hkl2")
+            if dataset
+            else Path("partialator.hkl2"),
             fom=fom,
-            shell_file=output_file,
+            shell_file=shell_file,
             highres=highres,
             nshells=nshells,
         ),
@@ -598,6 +673,7 @@ def run_compare_hkl_single_fom(
         f"starting compare_hkl with command line: {compare_hkl_command_line_args}",
     )
     try:
+        _log_program(Path().absolute(), {}, compare_hkl_command_line_args)
         compare_hkl_result = subprocess.run(  # noqa: S603
             compare_hkl_command_line_args,
             stdout=subprocess.PIPE,
@@ -723,6 +799,7 @@ def run_check_hkl(args: ParsedArgs, check_hkl_args: CheckHklArgs) -> str:
     check_hkl_command_line_args = check_hkl_args_to_list(check_hkl_args)
     logging.info(f"starting check_hkl with command line: {check_hkl_command_line_args}")
     try:
+        _log_program(Path().absolute(), {}, check_hkl_command_line_args)
         check_hkl_result = subprocess.run(  # noqa: S603
             check_hkl_command_line_args,
             stdout=subprocess.PIPE,
@@ -742,12 +819,14 @@ def run_check_hkl(args: ParsedArgs, check_hkl_args: CheckHklArgs) -> str:
         exit_with_error(args, "error running check_hkl")
 
 
-def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
+def create_mtz(
+    args: ParsedArgs, hkl_file: Path, output_path: Path, cell_file: Path
+) -> None:
     try:
         cli_args = [
             f"{args.crystfel_path}/bin/get_hkl",
             "-i",
-            str(args.hkl_file),
+            str(hkl_file),
             "-p",
             str(cell_file),
             "-o",
@@ -760,6 +839,7 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
             cli_args.append(f"--space-group={args.space_group}")
 
         logging.info(f"starting get_hkl with command line: {cli_args}")
+        _log_program(Path().absolute(), {}, cli_args)
         result = subprocess.run(  # noqa: S603
             cli_args,
             stdout=subprocess.PIPE,
@@ -945,6 +1025,7 @@ def write_fg_graph(args: ParsedArgs, fg_graph_file: Path) -> Path:
             str(gnuplot_script_path),
         ]
         logger.info(f"gnuplot arguments: {gnuplot_args}")
+        _log_program(Path().absolute(), {}, gnuplot_args)
         subprocess.check_output(gnuplot_args)  # noqa: S603
 
     output_image = Path("fg-graph.png")
@@ -976,6 +1057,7 @@ def run_ambigator(
         str(single_input_stream),
     ]
     ambigator_args.extend(shlex.split(args.ambigator_command_line))
+    _log_program(Path().absolute(), {}, ambigator_args)
     ambigator_result = subprocess.run(  # noqa: S603
         ambigator_args, check=False, capture_output=True
     )
@@ -996,6 +1078,296 @@ def run_ambigator(
         output_plot = None
 
     return output_stream, output_plot
+
+
+def _process_single_dataset(
+    args: ParsedArgs, ds: Dataset, cell_file: Path, ambigator_plot_file: None | Path
+) -> dict[str, Any]:
+    is_empty_ds = ds == Dataset("")
+    ds_subdir = _dataset_to_path(ds)
+    ds_subdir.mkdir()
+
+    mtz_path = ds_subdir / f"output-{args.merge_result_id}.mtz"
+    hkl_file = (
+        Path(f"partialator-{ds}.hkl") if not is_empty_ds else Path("partialator.hkl")
+    )
+    create_mtz(args, hkl_file, mtz_path, cell_file)
+
+    highres_cut, nshells = calculate_highres_cut(args, ds, cell_file)
+
+    logger.info(f"{ds}: highres cut is {highres_cut}, {nshells} shell(s)")
+
+    check_out = run_check_hkl(
+        args,
+        CheckHklArgs(
+            crystfel_path=args.crystfel_path,
+            hkl_file=hkl_file,
+            point_group=args.point_group,
+            unit_cell=cell_file,
+            highres=highres_cut,
+            shell_file=ds_subdir / _CHECK_HKL_SHELL_FILE,
+            nshells=nshells,
+        ),
+    )
+    snr = first_group_as_float(check_out, r"Overall <snr> = ([^\n]+)")
+    redundancy = first_group_as_float(
+        check_out,
+        r"Overall redundancy = ([0-9.]+) measurements/unique reflection",
+    )
+    completeness = first_group_as_float(
+        check_out,
+        r"Overall completeness = ([0-9.]+) %",
+    )
+    measurements_total = first_group_as_int(
+        check_out,
+        r"([0-9]+) measurements in total",
+    )
+    reflections_total = first_group_as_int(check_out, r"([0-9]+) reflections in total")
+    reflections_possible = first_group_as_int(
+        check_out,
+        r"([0-9]+) reflections possible",
+    )
+    discarded_reflections = first_group_as_int(
+        check_out,
+        r"Discarded ([0-9]+) reflections",
+    )
+    one_over_d = re.compile(r"1/d goes from ([0-9.]+) to ([0-9.]+) nm\^-1").search(
+        check_out,
+        re.MULTILINE,
+    )
+    if one_over_d is None:
+        raise Exception(
+            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}',
+        )
+    one_over_d_from = 10.0 / float(one_over_d.group(1))
+    one_over_d_to = 10.0 / float(one_over_d.group(2))
+
+    wilson_out = run_check_hkl(
+        args,
+        CheckHklArgs(
+            hkl_file=hkl_file,
+            crystfel_path=args.crystfel_path,
+            point_group=args.point_group,
+            unit_cell=cell_file,
+            highres=highres_cut,
+            wilson=True,
+            nshells=nshells,
+        ),
+    )
+    try:
+        wilson = first_group_as_float(wilson_out, r"B = ([^ ]+)")
+        ln_k = first_group_as_float(wilson_out, r"ln k = ([^\n]+)")
+    except:
+        wilson = None
+        ln_k = None
+
+    rsplit = run_compare_hkl_single_fom(
+        args,
+        ds,
+        cell_file,
+        "Rsplit",
+        "Overall Rsplit",
+        highres_cut,
+        nshells=nshells,
+        shell_file=ds_subdir / _RSPLIT_COMPARE_SHELL_FILE,
+    )
+    ccstar = run_compare_hkl_single_fom(
+        args,
+        ds,
+        cell_file,
+        "CCstar",
+        "Overall CC*",
+        highres_cut,
+        nshells=nshells,
+        shell_file=ds_subdir / _CCSTAR_COMPARE_SHELL_FILE,
+    )
+    cc = run_compare_hkl_single_fom(
+        args,
+        ds,
+        cell_file,
+        "CC",
+        "Overall CC",
+        highres_cut,
+        nshells=nshells,
+        shell_file=ds_subdir / _CC_COMPARE_SHELL_FILE,
+    )
+    check_file_path = ds_subdir / _CHECK_HKL_SHELL_FILE
+    check_file = read_shells_file(args, check_file_path)
+    if not check_file:
+        exit_with_error(
+            args,
+            (f"{ds}: " if not is_empty_ds else "")
+            + f"cannot proceed, check file {check_file_path} has no lines",
+        )
+
+    refinement_result: None | RefinementResult = None
+    if args.pdb_file_id is not None and args.ccp4_path is not None:
+        logger.info("doing a quick refine")
+        try:
+            pdb_file = retrieve_file(
+                args, args.pdb_file_id, ds_subdir / "base-model.pdb"
+            )
+            restraints_cif_file = (
+                retrieve_file(
+                    args, args.restraints_cif_file_id, ds_subdir / "restraints.cif"
+                )
+                if args.restraints_cif_file_id is not None
+                else None
+            )
+            refinement_result = quick_refine(
+                args.ccp4_path,
+                ds,
+                mtz_path.absolute(),
+                highres_cut,
+                pdb_file.absolute(),
+                restraints_cif_file.absolute()
+                if restraints_cif_file is not None
+                else None,
+            )
+        except:
+            logger.exception("couldn't complete refinement")
+    else:
+        logger.info(
+            f"missing either pdb file (id is {args.pdb_file_id}) or ccp4 path (path is {args.ccp4_path}), not refining"
+        )
+
+    return {
+        "dataset": ds,
+        "mtz_file_id": upload_file(args, mtz_path),
+        "detailed_foms": extract_shell_resolutions(args, ds),
+        "ambigator_fg_graph_file_id": upload_file(args, ambigator_plot_file)
+        if ambigator_plot_file is not None
+        else None,
+        "refinement_results": (
+            [
+                {
+                    "pdb_file_id": upload_file(args, refinement_result.pdb_path),
+                    "mtz_file_id": upload_file(args, refinement_result.mtz_path),
+                    "r_free": refinement_result.fom.r_free,
+                    "r_work": refinement_result.fom.r_work,
+                    "rms_bond_angle": refinement_result.fom.rms_bond_angle,
+                    "rms_bond_length": refinement_result.fom.rms_bond_length,
+                },
+            ]
+            if refinement_result is not None
+            else []
+        ),
+        "fom": {
+            "snr": snr,
+            "wilson": (
+                None if wilson is None else None if math.isnan(wilson) else wilson
+            ),
+            "ln_k": None if ln_k is None else None if math.isnan(ln_k) else ln_k,
+            "discarded_reflections": discarded_reflections,
+            "one_over_d_from": one_over_d_from,
+            "one_over_d_to": one_over_d_to,
+            "redundancy": redundancy,
+            "completeness": completeness,
+            "measurements_total": measurements_total,
+            "reflections_total": reflections_total,
+            "reflections_possible": reflections_possible,
+            "r_split": rsplit,
+            "r1i": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "R1i",
+                "Overall R1(I)",
+                highres_cut,
+                nshells=nshells,
+            ),
+            "r2": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "R2",
+                "Overall R(2)",
+                highres_cut,
+                nshells=nshells,
+            ),
+            "cc": cc,
+            "ccstar": ccstar,
+            "ccano": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "CC",
+                "Overall CCano",
+                highres_cut,
+                nshells=nshells,
+                may_fail=True,
+            ),
+            "crdano": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "CRDano",
+                "Overall CRDano",
+                highres_cut,
+                nshells=nshells,
+                may_fail=True,
+            ),
+            "rano": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "Rano",
+                "Overall Rano",
+                highres_cut,
+                nshells=nshells,
+                may_fail=True,
+            ),
+            "rano_over_r_split": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "Rano/Rsplit",
+                "Overall Rano/Rsplit",
+                highres_cut,
+                nshells=nshells,
+                may_fail=True,
+            ),
+            "d1sig": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "d1sig",
+                "Fraction of differences less than 1 sigma",
+                highres_cut,
+                nshells=nshells,
+            ),
+            "d2sig": run_compare_hkl_single_fom(
+                args,
+                ds,
+                cell_file,
+                "d2sig",
+                "Fraction of differences less than 2 sigma",
+                highres_cut,
+                nshells=nshells,
+            ),
+            "outer_shell": {
+                "resolution": read_compare_shells_file(
+                    args,
+                    ds_subdir / _ccstar_compare_shell_file_first_pass(nshells),
+                )[-1].d_over_a,
+                "ccstar": read_compare_shells_file(
+                    args, ds_subdir / _CCSTAR_COMPARE_SHELL_FILE
+                )[-1].fom_value,
+                "r_split": read_compare_shells_file(
+                    args, ds_subdir / _RSPLIT_COMPARE_SHELL_FILE
+                )[-1].fom_value,
+                "cc": read_compare_shells_file(
+                    args, ds_subdir / _CC_COMPARE_SHELL_FILE
+                )[-1].fom_value,
+                "unique_reflections": check_file[-1].nref,
+                "completeness": check_file[-1].compl,
+                "redundancy": check_file[-1].red,
+                "snr": check_file[-1].snr,
+                "min_res": 10.0 / check_file[-1].min_1_nm,
+                "max_res": 10.0 / check_file[-1].max_1_nm,
+            },
+        },
+    }
 
 
 def generate_output(args: ParsedArgs) -> None:
@@ -1039,255 +1411,20 @@ def generate_output(args: ParsedArgs) -> None:
 
     run_partialator(args, input_stream_files)
 
-    cell_file = retrieve_file(args, args.cell_file_id, "cell")
+    cell_file = retrieve_file(args, args.cell_file_id, Path("cell").absolute())
 
-    mtz_path = Path(f"output-{args.merge_result_id}.mtz")
-    create_mtz(args, mtz_path, cell_file)
+    results: list[dict[str, Any]] = [
+        _process_single_dataset(args, ds, cell_file, ambigator_plot_file)
+        for ds in ([*args.custom_split, Dataset("")])
+    ]
 
-    highres_cut, nshells = calculate_highres_cut(args)
-
-    logger.info(f"highres cut is {highres_cut}, {nshells} shell(s)")
-
-    check_out = run_check_hkl(
-        args,
-        CheckHklArgs(
-            crystfel_path=args.crystfel_path,
-            hkl_file=args.hkl_file,
-            point_group=args.point_group,
-            unit_cell=cell_file,
-            highres=highres_cut,
-            shell_file=CHECK_HKL_SHELL_FILE,
-            nshells=nshells,
-        ),
-    )
-    snr = first_group_as_float(check_out, r"Overall <snr> = ([^\n]+)")
-    redundancy = first_group_as_float(
-        check_out,
-        r"Overall redundancy = ([0-9.]+) measurements/unique reflection",
-    )
-    completeness = first_group_as_float(
-        check_out,
-        r"Overall completeness = ([0-9.]+) %",
-    )
-    measurements_total = first_group_as_int(
-        check_out,
-        r"([0-9]+) measurements in total",
-    )
-    reflections_total = first_group_as_int(check_out, r"([0-9]+) reflections in total")
-    reflections_possible = first_group_as_int(
-        check_out,
-        r"([0-9]+) reflections possible",
-    )
-    discarded_reflections = first_group_as_int(
-        check_out,
-        r"Discarded ([0-9]+) reflections",
-    )
-    one_over_d = re.compile(r"1/d goes from ([0-9.]+) to ([0-9.]+) nm\^-1").search(
-        check_out,
-        re.MULTILINE,
-    )
-    if one_over_d is None:
-        raise Exception(
-            f'couldn\'t find the line starting with "1/d goes from" in\n\n{check_out}',
-        )
-    one_over_d_from = 10.0 / float(one_over_d.group(1))
-    one_over_d_to = 10.0 / float(one_over_d.group(2))
-
-    wilson_out = run_check_hkl(
-        args,
-        CheckHklArgs(
-            hkl_file=args.hkl_file,
-            crystfel_path=args.crystfel_path,
-            point_group=args.point_group,
-            unit_cell=cell_file,
-            highres=highres_cut,
-            wilson=True,
-            nshells=nshells,
-        ),
-    )
-    try:
-        wilson = first_group_as_float(wilson_out, r"B = ([^ ]+)")
-        ln_k = first_group_as_float(wilson_out, r"ln k = ([^\n]+)")
-    except:
-        wilson = None
-        ln_k = None
-
-    rsplit = run_compare_hkl_single_fom(
-        args,
-        "Rsplit",
-        "Overall Rsplit",
-        highres_cut,
-        nshells=nshells,
-        output_file=RSPLIT_COMPARE_SHELL_FILE,
-    )
-    ccstar = run_compare_hkl_single_fom(
-        args,
-        "CCstar",
-        "Overall CC*",
-        highres_cut,
-        nshells=nshells,
-        output_file=CCSTAR_COMPARE_SHELL_FILE,
-    )
-    cc = run_compare_hkl_single_fom(
-        args,
-        "CC",
-        "Overall CC",
-        highres_cut,
-        nshells=nshells,
-        output_file=CC_COMPARE_SHELL_FILE,
-    )
-    check_file = read_shells_file(args, CHECK_HKL_SHELL_FILE)
-    if not check_file:
-        exit_with_error(
-            args,
-            f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines",
-        )
-
-    refinement_result: None | RefinementResult = None
-    if args.pdb_file_id is not None and args.ccp4_path is not None:
-        try:
-            pdb_file = retrieve_file(args, args.pdb_file_id, "base-model.pdb")
-            restraints_cif_file = (
-                retrieve_file(args, args.restraints_cif_file_id, "restraints.cif")
-                if args.restraints_cif_file_id is not None
-                else None
-            )
-            refinement_result = quick_refine(
-                args.ccp4_path,
-                mtz_path,
-                highres_cut,
-                pdb_file,
-                restraints_cif_file,
-            )
-        except:
-            logger.exception("couldn't complete refinement")
-
-    output_json = {
-        "latest_log": "\n".join(log_list),
-        "mtz_file_id": upload_file(args, mtz_path),
-        "detailed_foms": extract_shell_resolutions(args),
-        "ambigator_fg_graph_file_id": upload_file(args, ambigator_plot_file)
-        if ambigator_plot_file is not None
-        else None,
-        "refinement_results": (
-            [
-                {
-                    "pdb_file_id": upload_file(args, refinement_result.pdb_path),
-                    "mtz_file_id": upload_file(args, refinement_result.mtz_path),
-                    "r_free": refinement_result.fom.r_free,
-                    "r_work": refinement_result.fom.r_work,
-                    "rms_bond_angle": refinement_result.fom.rms_bond_angle,
-                    "rms_bond_length": refinement_result.fom.rms_bond_length,
-                },
-            ]
-            if refinement_result is not None
-            else []
-        ),
-        "fom": {
-            "snr": snr,
-            "wilson": (
-                None if wilson is None else None if math.isnan(wilson) else wilson
-            ),
-            "ln_k": None if ln_k is None else None if math.isnan(ln_k) else ln_k,
-            "discarded_reflections": discarded_reflections,
-            "one_over_d_from": one_over_d_from,
-            "one_over_d_to": one_over_d_to,
-            "redundancy": redundancy,
-            "completeness": completeness,
-            "measurements_total": measurements_total,
-            "reflections_total": reflections_total,
-            "reflections_possible": reflections_possible,
-            "r_split": rsplit,
-            "r1i": run_compare_hkl_single_fom(
-                args,
-                "R1i",
-                "Overall R1(I)",
-                highres_cut,
-                nshells=nshells,
-            ),
-            "r2": run_compare_hkl_single_fom(
-                args,
-                "R2",
-                "Overall R(2)",
-                highres_cut,
-                nshells=nshells,
-            ),
-            "cc": cc,
-            "ccstar": ccstar,
-            "ccano": run_compare_hkl_single_fom(
-                args,
-                "CC",
-                "Overall CCano",
-                highres_cut,
-                nshells=nshells,
-                may_fail=True,
-            ),
-            "crdano": run_compare_hkl_single_fom(
-                args,
-                "CRDano",
-                "Overall CRDano",
-                highres_cut,
-                nshells=nshells,
-                may_fail=True,
-            ),
-            "rano": run_compare_hkl_single_fom(
-                args,
-                "Rano",
-                "Overall Rano",
-                highres_cut,
-                nshells=nshells,
-                may_fail=True,
-            ),
-            "rano_over_r_split": run_compare_hkl_single_fom(
-                args,
-                "Rano/Rsplit",
-                "Overall Rano/Rsplit",
-                highres_cut,
-                nshells=nshells,
-                may_fail=True,
-            ),
-            "d1sig": run_compare_hkl_single_fom(
-                args,
-                "d1sig",
-                "Fraction of differences less than 1 sigma",
-                highres_cut,
-                nshells=nshells,
-            ),
-            "d2sig": run_compare_hkl_single_fom(
-                args,
-                "d2sig",
-                "Fraction of differences less than 2 sigma",
-                highres_cut,
-                nshells=nshells,
-            ),
-            "outer_shell": {
-                "resolution": read_compare_shells_file(
-                    args,
-                    ccstar_compare_shell_file(nshells),
-                )[-1].d_over_a,
-                "ccstar": read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE)[
-                    -1
-                ].fom_value,
-                "r_split": read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE)[
-                    -1
-                ].fom_value,
-                "cc": read_compare_shells_file(args, CC_COMPARE_SHELL_FILE)[
-                    -1
-                ].fom_value,
-                "unique_reflections": check_file[-1].nref,
-                "completeness": check_file[-1].compl,
-                "redundancy": check_file[-1].red,
-                "snr": check_file[-1].snr,
-                "min_res": 10.0 / check_file[-1].min_1_nm,
-                "max_res": 10.0 / check_file[-1].max_1_nm,
-            },
-        },
-    }
-
-    write_output_json(args, error=None, result=output_json)
+    write_output_json(args.api_url, args.merge_result_id, error=None, results=results)
 
 
-def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
+def extract_shell_resolutions(
+    args: ParsedArgs, ds: Dataset
+) -> list[dict[str, float | int]]:
+    ds_subdir = _dataset_to_path(ds)
     return [
         {
             "one_over_d_centre": ccstar.one_over_d_centre,
@@ -1306,23 +1443,29 @@ def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
             "mean_i": checkhkl.mean_i,
         }
         for ccstar, cc, rsplit, checkhkl in zip(
-            read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE),
-            read_compare_shells_file(args, CC_COMPARE_SHELL_FILE),
-            read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE),
-            read_shells_file(args, CHECK_HKL_SHELL_FILE),
+            read_compare_shells_file(args, ds_subdir / _CCSTAR_COMPARE_SHELL_FILE),
+            read_compare_shells_file(args, ds_subdir / _CC_COMPARE_SHELL_FILE),
+            read_compare_shells_file(args, ds_subdir / _RSPLIT_COMPARE_SHELL_FILE),
+            read_shells_file(args, ds_subdir / _CHECK_HKL_SHELL_FILE),
             strict=False,
         )
     ]
 
 
-def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
+def calculate_highres_cut(
+    args: ParsedArgs, dataset: Dataset, cell_file: Path
+) -> tuple[float, int]:
     def calculate_ccstar_values(nshells: int) -> None | tuple[float, int]:
-        output_file = ccstar_compare_shell_file(nshells)
+        output_file = _dataset_to_path(dataset) / _ccstar_compare_shell_file_first_pass(
+            nshells
+        )
         run_compare_hkl_single_fom(
             args,
+            dataset,
+            cell_file,
             "CCstar",
             "Overall CC*",
-            output_file=output_file,
+            shell_file=output_file,
             highres=None,
             nshells=nshells,
         )
@@ -1376,6 +1519,38 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     # )
 
 
+def _append_custom_split(
+    out_obj: IO[str], stream_file: Path, split_components: list[Dataset]
+) -> None:
+    logger.info(f"splitting {stream_file} into components {split_components}")
+    with stream_file.open("r") as stream_file_obj:
+        in_chunk = False
+        image_filename: None | Path = None
+        for line in stream_file_obj:
+            if line.startswith("----- Begin chunk"):
+                in_chunk = True
+            elif line.startswith("Image filename: ") and in_chunk:
+                image_filename = Path(line[16:].strip())
+            elif line.startswith("Event: ") and in_chunk:
+                if image_filename is None:
+                    continue
+                event_id_str = line[7:]
+                if not event_id_str.startswith("//"):
+                    continue
+                try:
+                    event_id = int(event_id_str.strip()[2:])
+                    component = split_components[event_id % len(split_components)]
+                    out_obj.write(
+                        f"{image_filename} {event_id_str.strip()} {component}\n"
+                    )
+                except:  # noqa: S112
+                    # not a number
+                    continue
+            elif line.startswith("----- End chunk"):
+                in_chunk = False
+                image_filename = None
+
+
 def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
     partialator_command_line_args = [
         f"{args.crystfel_path}/bin/partialator",
@@ -1384,8 +1559,14 @@ def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
         "-j",
         str(multiprocessing.cpu_count()),
         "-o",
-        str(args.hkl_file),
+        "partialator.hkl",
     ]
+    if len(args.custom_split) > 1:
+        custom_split_file = Path("custom-split.lst")
+        with custom_split_file.open("w") as f:
+            for input_stream_file in input_stream_files:
+                _append_custom_split(f, input_stream_file, args.custom_split)
+        partialator_command_line_args.append(f"--custom-split={custom_split_file}")
     if args.partialator_additional:
         partialator_command_line_args.extend(shlex.split(args.partialator_additional))
     for f in input_stream_files:
@@ -1394,39 +1575,34 @@ def run_partialator(args: ParsedArgs, input_stream_files: list[Path]) -> None:
         f"starting partialator with command line: {partialator_command_line_args}",
     )
     try:
-        if (
-            args.hkl_file.is_file()
-            and args.hkl_file.with_suffix(".hkl1").is_file()
-            and args.hkl_file.with_suffix(".hkl2").is_file()
-        ):
-            logger.info("All hkl files already present, not restarting partialator")
-        else:
-            with subprocess.Popen(  # noqa: S603
-                partialator_command_line_args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                encoding="utf-8",
-                bufsize=1,
-            ) as partialator:
-                while True:
-                    assert partialator.stdout is not None
+        _log_program(Path().absolute(), {}, partialator_command_line_args)
+        with subprocess.Popen(  # noqa: S603
+            partialator_command_line_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            bufsize=1,
+        ) as partialator:
+            while True:
+                assert partialator.stdout is not None
 
-                    line = partialator.stdout.readline()
+                line = partialator.stdout.readline()
 
-                    if not line:
-                        break
+                if not line:
+                    break
 
-                    logger.info(line)
+                logger.info(line.strip())
 
-                partialator.wait()
+            partialator.wait()
 
-                if partialator.returncode != 0:
-                    exit_with_error(
-                        args,
-                        f"error running partialator, error code is {partialator.returncode}",
-                    )
+            if partialator.returncode != 0:
+                exit_with_error(
+                    args,
+                    f"error running partialator, error code is {partialator.returncode}",
+                )
     except:
-        exit_with_error(args, "error running partialator")
+        logger.exception("an exception occurred while running partialator")
+        exit_with_error(args, "error running partialator, check the logs for more info")
 
 
 if __name__ == "__main__":

@@ -353,6 +353,7 @@ def orm_encode_json_merge_parameters_to_json(
         point_group=mr.point_group,
         space_group=mr.space_group,
         cell_description=mr.cell_description,
+        custom_split=mr.custom_split if mr.custom_split is not None else "",
         negative_handling=mr.negative_handling,
         merge_model=mr.input_merge_model,
         scale_intensities=mr.input_scale_intensities,
@@ -400,6 +401,7 @@ def orm_encode_merge_result_to_json(
         created=utc_datetime_to_utc_int(mr.created),
         created_local=utc_datetime_to_local_int(mr.created),
         indexing_result_ids=[ir.id for ir in mr.indexing_results],
+        dataset=mr.dataset if mr.dataset is not None else "",
         # We don't export the indexing results here yet. No clear reason other than laziness
         runs=format_run_id_intervals(
             (run_id_formatter(ir.run_id) if run_id_formatter is not None else ir.run_id)
@@ -441,6 +443,7 @@ def orm_encode_merge_result_to_json(
                 stopped=utc_datetime_to_utc_int(mr.stopped),
                 stopped_local=utc_datetime_to_local_int(mr.stopped),
                 result=JsonMergeResultInternal(
+                    dataset=mr.dataset if mr.dataset else "",
                     detailed_foms=[
                         JsonMergeResultShell(
                             one_over_d_centre=s.one_over_d_centre,

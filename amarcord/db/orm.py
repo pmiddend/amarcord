@@ -831,6 +831,8 @@ class MergeResult(Base):
     point_group: Mapped[str] = mapped_column(sa.String(length=32))
     space_group: Mapped[None | str] = mapped_column(sa.String(length=32))
     cell_description: Mapped[str] = mapped_column(sa.String(length=255))
+    custom_split: Mapped[None | str] = mapped_column(sa.Text)
+    dataset: Mapped[None | str] = mapped_column(sa.String(length=255))
     job_id: Mapped[None | int] = mapped_column()
     job_error: Mapped[None | str] = mapped_column(sa.Text)
     mtz_file_id: Mapped[None | int] = mapped_column(
@@ -955,7 +957,7 @@ class RefinementResult(Base):
     # Real attributes
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     merge_result_id: Mapped[int] = mapped_column(
-        ForeignKey("MergeResult.id", ondelete="cascade"),
+        ForeignKey("MergeResult.id", ondelete="cascade"), init=False
     )
     pdb_file_id: Mapped[int] = mapped_column(ForeignKey("File.id", ondelete="cascade"))
     mtz_file_id: Mapped[int] = mapped_column(ForeignKey("File.id", ondelete="cascade"))

@@ -5,6 +5,17 @@
 
 This document will assume you're not a programmer, but a regular user of AMARCORD.
 
+## Analysis
+### Merging
+
+After indexing has completed, you are ready to *merge* the results, going from `.stream` files to `.mtz` files (or `.hkl` files, if you prefer that).
+
+For every indexing parameter combination, you will have one "Quick merge" and one "Merge" button in the analysis view. 
+
+Pressing *Quick merge* will trigger a merge job that has some sensible default values, so that merging will swiftly exit with a first estimate. Depending on your input dataset and machine specifications, even a quick merge might take hours, of course. There is no guarantee.
+
+Pressing *Merge* will open a section with all possible merge options. This is quite overwhelming, so please consult the CrystFEL documentation for more information. Press *Start Merge* to queue the job and observe the result below.
+
 ## Geometries
 
 ### Intro

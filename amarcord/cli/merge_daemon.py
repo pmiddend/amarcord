@@ -255,6 +255,7 @@ async def start_merge_job(
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_PARTIALATOR_ADDITIONAL: shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters),
                 ),
+                amarcord.cli.crystfel_merge.MERGE_ENVIRON_CUSTOM_SPLIT: merge_result.parameters.custom_split,
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_AMBIGATOR_COMMAND_LINE: merge_result.parameters.ambigator_command_line,
                 amarcord.cli.crystfel_merge.MERGE_ENVIRON_CRYSTFEL_PATH: str(
                     args.crystfel_path
@@ -363,7 +364,7 @@ async def _start_new_jobs(
             async with session.post(
                 f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
-                    error=start_result.job_error, result=None, latest_log=None
+                    error=start_result.job_error, results=[], latest_log=None
                 ).model_dump(),
             ) as update_response:
                 if update_response.status // 200 != 1:
@@ -424,7 +425,9 @@ async def _update_jobs(
             continue
 
         if workload_job is None:
-            bound_logger.info("finished because not in SLURM REST job list anymore")
+            bound_logger.info(
+                f"finished because not in {workload_manager.name()} job list anymore"
+            )
             job_error = "Job has finished (not in job list anymore), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
         else:
             job_error = f"Job has finished (status {workload_job.status.value}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
@@ -435,7 +438,7 @@ async def _update_jobs(
         async with session.post(
             f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
             json=JsonMergeJobFinishedInput(
-                error=job_error, result=None, latest_log=None
+                error=job_error, results=[], latest_log=None
             ).model_dump(),
         ) as finish_request:
             if finish_request.status // 200 != 1:

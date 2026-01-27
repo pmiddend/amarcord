@@ -70,6 +70,52 @@ async def merge_job_started(
     )
 
 
+def clone_merge_result(mr: orm.MergeResult, dataset: str) -> orm.MergeResult:
+    result = orm.MergeResult(
+        created=mr.created,
+        recent_log="",
+        negative_handling=mr.negative_handling,
+        job_status=DBJobStatus.DONE,
+        started=mr.started,
+        stopped=mr.stopped,
+        point_group=mr.point_group,
+        space_group=mr.space_group,
+        cell_description=mr.cell_description,
+        custom_split=mr.custom_split,
+        dataset=dataset,
+        job_id=mr.job_id,
+        job_error=mr.job_error,
+        mtz_file_id=None,
+        input_merge_model=mr.input_merge_model,
+        input_scale_intensities=mr.input_scale_intensities,
+        input_post_refinement=mr.input_post_refinement,
+        input_iterations=mr.input_iterations,
+        input_polarisation_angle=mr.input_polarisation_angle,
+        input_polarisation_percent=mr.input_polarisation_percent,
+        input_start_after=mr.input_start_after,
+        input_stop_after=mr.input_stop_after,
+        input_rel_b=mr.input_rel_b,
+        input_no_pr=mr.input_no_pr,
+        input_force_bandwidth=mr.input_force_bandwidth,
+        input_force_radius=mr.input_force_radius,
+        input_force_lambda=mr.input_force_lambda,
+        input_no_delta_cc_half=mr.input_no_delta_cc_half,
+        input_max_adu=mr.input_max_adu,
+        input_min_measurements=mr.input_min_measurements,
+        input_logs=mr.input_logs,
+        input_min_res=mr.input_min_res,
+        input_push_res=mr.input_push_res,
+        input_w=mr.input_w,
+        ambigator_fg_graph_file_id=None,
+        ambigator_command_line=mr.ambigator_command_line,
+        cutoff_lowres=mr.cutoff_lowres,
+        cutoff_highres=mr.cutoff_highres,
+    )
+    for ir in mr.indexing_results:
+        result.indexing_results.append(ir)
+    return result
+
+
 @router.post(
     "/api/merging/{mergeResultId}/finish",
     tags=["merging"],
@@ -85,7 +131,7 @@ async def merge_job_finished(
     job_logger.info("merge job has finished")
 
     async with session.begin():
-        current_merge_result_status = (
+        current_mr = (
             await session.scalars(
                 select(orm.MergeResult)
                 .where(orm.MergeResult.id == mergeResultId)
@@ -98,31 +144,31 @@ async def merge_job_finished(
             )
         ).one_or_none()
 
-        if current_merge_result_status is None:
+        if current_mr is None:
             job_logger.error("merge job not found in DB")
             return JsonMergeJobFinishOutput(result=False)
 
-        if current_merge_result_status.stopped is not None:
+        if current_mr.stopped is not None:
             job_logger.warning(
                 "merge result has a stopped date already; this might be fine though",
             )
 
         stopped_time = datetime.datetime.now(datetime.UTC)
 
-        beamtime_id = current_merge_result_status.indexing_results[0].run.beamtime_id
+        beamtime_id = current_mr.indexing_results[0].run.beamtime_id
 
         # In a weird turn of events, this merge result might have
         # never "started" and gone to finished directly. In that case,
         # start and finish time are the same by convention.
-        if current_merge_result_status.started is None:
-            current_merge_result_status.started = stopped_time
-        current_merge_result_status.stopped = stopped_time
+        if current_mr.started is None:
+            current_mr.started = stopped_time
+        current_mr.stopped = stopped_time
         # Update the log if we have been given one, otherwise let it
         # stay the same. This is important for the case where the
         # actual job sends us the real log, but the daemon, at the
         # same time, recognizes the cancelled job.
         if json_result.latest_log is not None:
-            current_merge_result_status.recent_log = json_result.latest_log
+            current_mr.recent_log = json_result.latest_log
         if json_result.error is not None:
             await safe_create_new_event(
                 job_logger,
@@ -133,12 +179,12 @@ async def merge_job_finished(
                 "API",
             )
             job_logger.error(f"semantic error in json content: {json_result.error}")
-            current_merge_result_status.job_error = json_result.error
-            current_merge_result_status.job_status = DBJobStatus.DONE
+            current_mr.job_error = json_result.error
+            current_mr.job_status = DBJobStatus.DONE
             return JsonMergeJobFinishOutput(result=False)
 
-        assert json_result.result is not None, (
-            f"both error and result are none in output: {json_result}"
+        assert json_result.results, (
+            f"both error and results are empty in output: {json_result}"
         )
 
         await safe_create_new_event(
@@ -149,78 +195,79 @@ async def merge_job_finished(
             EventLogLevel.INFO,
             "API",
         )
-        current_merge_result_status.stopped = stopped_time
-        current_merge_result_status.job_status = DBJobStatus.DONE
+        current_mr.stopped = stopped_time
+        current_mr.job_status = DBJobStatus.DONE
 
-        r = json_result.result
-        cmrs = current_merge_result_status
-        if r.ambigator_fg_graph_file_id is not None:
-            cmrs.ambigator_fg_graph_file_id = r.ambigator_fg_graph_file_id
-        cmrs.mtz_file_id = r.mtz_file_id
-        cmrs.fom_snr = r.fom.snr
-        cmrs.fom_wilson = r.fom.wilson
-        cmrs.fom_ln_k = r.fom.wilson
-        cmrs.fom_discarded_reflections = r.fom.discarded_reflections
-        cmrs.fom_one_over_d_from = r.fom.one_over_d_from
-        cmrs.fom_one_over_d_to = r.fom.one_over_d_to
-        cmrs.fom_redundancy = r.fom.redundancy
-        cmrs.fom_completeness = r.fom.completeness
-        cmrs.fom_measurements_total = r.fom.measurements_total
-        cmrs.fom_reflections_total = r.fom.reflections_total
-        cmrs.fom_reflections_possible = r.fom.reflections_possible
-        cmrs.fom_r_split = r.fom.r_split
-        cmrs.fom_r1i = r.fom.r1i
-        cmrs.fom_2 = r.fom.r2
-        cmrs.fom_cc = r.fom.cc
-        cmrs.fom_ccstar = r.fom.ccstar
-        cmrs.fom_ccano = r.fom.ccano
-        cmrs.fom_crdano = r.fom.crdano
-        cmrs.fom_rano = r.fom.rano
-        cmrs.fom_rano_over_r_split = r.fom.rano_over_r_split
-        cmrs.fom_d1sig = r.fom.d1sig
-        cmrs.fom_d2sig = r.fom.d2sig
-        cmrs.fom_outer_resolution = r.fom.outer_shell.resolution
-        cmrs.fom_outer_ccstar = r.fom.outer_shell.ccstar
-        cmrs.fom_outer_r_split = r.fom.outer_shell.r_split
-        cmrs.fom_outer_cc = r.fom.outer_shell.cc
-        cmrs.fom_outer_unique_reflections = r.fom.outer_shell.unique_reflections
-        cmrs.fom_outer_completeness = r.fom.outer_shell.completeness
-        cmrs.fom_outer_redundancy = r.fom.outer_shell.redundancy
-        cmrs.fom_outer_snr = r.fom.outer_shell.snr
-        cmrs.fom_outer_min_res = r.fom.outer_shell.min_res
-        cmrs.fom_outer_max_res = r.fom.outer_shell.max_res
-        for shell in r.detailed_foms:
-            cmrs.shell_foms.append(
-                orm.MergeResultShellFom(
-                    one_over_d_centre=shell.one_over_d_centre,
-                    nref=shell.nref,
-                    d_over_a=shell.d_over_a,
-                    min_res=shell.min_res,
-                    max_res=shell.max_res,
-                    cc=shell.cc,
-                    ccstar=shell.ccstar,
-                    r_split=shell.r_split,
-                    reflections_possible=shell.reflections_possible,
-                    completeness=shell.completeness,
-                    measurements=shell.measurements,
-                    redundancy=shell.redundancy,
-                    snr=shell.snr,
-                    mean_i=shell.mean_i,
-                ),
-            )
+        for r in json_result.results:
+            ds = r.dataset
+            cmrs = clone_merge_result(current_mr, ds) if ds != "" else current_mr
+            session.add(cmrs)
+            if r.ambigator_fg_graph_file_id is not None:
+                cmrs.ambigator_fg_graph_file_id = r.ambigator_fg_graph_file_id
+            cmrs.mtz_file_id = r.mtz_file_id
+            cmrs.fom_snr = r.fom.snr
+            cmrs.fom_wilson = r.fom.wilson
+            cmrs.fom_ln_k = r.fom.ln_k
+            cmrs.fom_discarded_reflections = r.fom.discarded_reflections
+            cmrs.fom_one_over_d_from = r.fom.one_over_d_from
+            cmrs.fom_one_over_d_to = r.fom.one_over_d_to
+            cmrs.fom_redundancy = r.fom.redundancy
+            cmrs.fom_completeness = r.fom.completeness
+            cmrs.fom_measurements_total = r.fom.measurements_total
+            cmrs.fom_reflections_total = r.fom.reflections_total
+            cmrs.fom_reflections_possible = r.fom.reflections_possible
+            cmrs.fom_r_split = r.fom.r_split
+            cmrs.fom_r1i = r.fom.r1i
+            cmrs.fom_2 = r.fom.r2
+            cmrs.fom_cc = r.fom.cc
+            cmrs.fom_ccstar = r.fom.ccstar
+            cmrs.fom_ccano = r.fom.ccano
+            cmrs.fom_crdano = r.fom.crdano
+            cmrs.fom_rano = r.fom.rano
+            cmrs.fom_rano_over_r_split = r.fom.rano_over_r_split
+            cmrs.fom_d1sig = r.fom.d1sig
+            cmrs.fom_d2sig = r.fom.d2sig
+            cmrs.fom_outer_resolution = r.fom.outer_shell.resolution
+            cmrs.fom_outer_ccstar = r.fom.outer_shell.ccstar
+            cmrs.fom_outer_r_split = r.fom.outer_shell.r_split
+            cmrs.fom_outer_cc = r.fom.outer_shell.cc
+            cmrs.fom_outer_unique_reflections = r.fom.outer_shell.unique_reflections
+            cmrs.fom_outer_completeness = r.fom.outer_shell.completeness
+            cmrs.fom_outer_redundancy = r.fom.outer_shell.redundancy
+            cmrs.fom_outer_snr = r.fom.outer_shell.snr
+            cmrs.fom_outer_min_res = r.fom.outer_shell.min_res
+            cmrs.fom_outer_max_res = r.fom.outer_shell.max_res
+            for shell in r.detailed_foms:
+                cmrs.shell_foms.append(
+                    orm.MergeResultShellFom(
+                        one_over_d_centre=shell.one_over_d_centre,
+                        nref=shell.nref,
+                        d_over_a=shell.d_over_a,
+                        min_res=shell.min_res,
+                        max_res=shell.max_res,
+                        cc=shell.cc,
+                        ccstar=shell.ccstar,
+                        r_split=shell.r_split,
+                        reflections_possible=shell.reflections_possible,
+                        completeness=shell.completeness,
+                        measurements=shell.measurements,
+                        redundancy=shell.redundancy,
+                        snr=shell.snr,
+                        mean_i=shell.mean_i,
+                    ),
+                )
 
-        for rr in json_result.result.refinement_results:
-            cmrs.refinement_results.append(
-                orm.RefinementResult(
-                    merge_result_id=current_merge_result_status.id,
-                    pdb_file_id=rr.pdb_file_id,
-                    mtz_file_id=rr.mtz_file_id,
-                    r_free=rr.r_free,
-                    r_work=rr.r_work,
-                    rms_bond_angle=rr.rms_bond_angle,
-                    rms_bond_length=rr.rms_bond_length,
-                ),
-            )
+            for rr in r.refinement_results:
+                cmrs.refinement_results.append(
+                    orm.RefinementResult(
+                        pdb_file_id=rr.pdb_file_id,
+                        mtz_file_id=rr.mtz_file_id,
+                        r_free=rr.r_free,
+                        r_work=rr.r_work,
+                        rms_bond_angle=rr.rms_bond_angle,
+                        rms_bond_length=rr.rms_bond_length,
+                    ),
+                )
         return JsonMergeJobFinishOutput(result=True)
 
 
@@ -510,6 +557,12 @@ async def queue_merge_job(
         new_merge_result = orm.MergeResult(
             created=datetime.datetime.now(datetime.UTC),
             cell_description=cell_description,
+            custom_split=input_.merge_parameters.custom_split,
+            # If there is a "custom split" of the indexing results
+            # into datasets, the merge job will create the datasets,
+            # send the results back per dataset, and we will clone the
+            # merge result in the feedback request.
+            dataset="",
             recent_log="",
             negative_handling=negative_handling,
             job_status=DBJobStatus.QUEUED,

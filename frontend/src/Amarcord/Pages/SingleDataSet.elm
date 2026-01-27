@@ -29,7 +29,7 @@ import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, 
 import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, style, type_)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
-import List exposing (sum)
+import List exposing (any, sum)
 import List.Extra exposing (maximumBy)
 import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
@@ -533,8 +533,8 @@ viewMergeParameters bgClass { mergeModel, scaleIntensities, postRefinement, iter
             ++ maybeDtDl "High resolution cutoff" (Maybe.map (text << String.join ", " << List.map String.fromFloat) cutoffHighres)
 
 
-viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)
-viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSetId mrw =
+viewMergeResultRow : Bool -> List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> List (Html Msg)
+viewMergeResultRow hasDatasets mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSetId mrw =
     let
         remainingHeaders =
             List.length mergeRowHeaders - 1
@@ -583,6 +583,12 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                     ]
                 , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
                 ]
+                    ++ (if hasDatasets then
+                            [ td_ [ text mrw.mergeResult.dataset ] ]
+
+                        else
+                            []
+                       )
                     ++ (case mergeResultUnion of
                             Just (MergeResultStateRunning { started }) ->
                                 [ td
@@ -1416,21 +1422,31 @@ viewMergeResultsTable model experimentType mergeResults =
 
     else
         let
+            hasDatasets =
+                any (\{ dataset } -> dataset /= "") mergeResults
+
             mergeRowHeaders : List (Html msg)
             mergeRowHeaders =
                 [ text "MRID"
                 , text "Parameters"
                 , text "Runs"
-                , text "Time"
-                , text "Resolution (Å)"
-                , text "Completeness"
-                , text "Multiplicity"
-                , span_ [ text "CC", Html.sub [] [ text "1/2" ] ]
-                , span_ [ text "CC", sup [] [ text "*" ] ]
-                , text "Wilson B"
-                , text "Files"
-                , div_ []
                 ]
+                    ++ (if hasDatasets then
+                            [ text "DS" ]
+
+                        else
+                            []
+                       )
+                    ++ [ text "Time"
+                       , text "Resolution (Å)"
+                       , text "Completeness"
+                       , text "Multiplicity"
+                       , span_ [ text "CC", Html.sub [] [ text "1/2" ] ]
+                       , span_ [ text "CC", sup [] [ text "*" ] ]
+                       , text "Wilson B"
+                       , text "Files"
+                       , div_ []
+                       ]
 
             mergeResultWrappers : List MergeResultWrapper
             mergeResultWrappers =
@@ -1441,7 +1457,17 @@ viewMergeResultsTable model experimentType mergeResults =
         table
             [ class "table table-sm table-borderless text-muted mt-3", style "font-size" "0.8rem" ]
             [ thead_ <| [ tr_ (List.map (\header -> th [ class "text-nowrap" ] [ header ]) mergeRowHeaders) ]
-            , tbody_ <| List.concatMap (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
+            , tbody_ <|
+                List.concatMap
+                    (viewMergeResultRow
+                        hasDatasets
+                        mergeRowHeaders
+                        model.hereAndNow
+                        model.beamtimeId
+                        experimentType.id
+                        model.dataSetId
+                    )
+                    mergeResultWrappers
             ]
 
 

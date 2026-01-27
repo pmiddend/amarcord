@@ -2,13 +2,15 @@ module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, mo
 
 import Amarcord.API.Requests exposing (IndexingParametersId, indexingParametersIdToInt)
 import Amarcord.CellDescriptionEdit as CellDescriptionEdit
-import Amarcord.Html exposing (code_, div_, enumSelect, input_, onFloatInput, onIntInput, sup_)
+import Amarcord.Html exposing (br_, code_, div_, em_, enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
+import Char exposing (isAlphaNum)
 import Html exposing (Html, button, div, form, h2, label, small, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
+import String exposing (filter)
 
 
 allMergeModels : List MergeModel
@@ -234,6 +236,7 @@ type alias Model =
     , pushRes : Maybe Float
     , w : Maybe PointGroupChooser.Model
     , cellDescription : CellDescriptionEdit.Model
+    , customSplit : String
     , pointGroup : String
     , spaceGroup : String
     , ambigatorCommandLine : Maybe String
@@ -243,7 +246,7 @@ type alias Model =
 
 
 modelToMergeParameters : Model -> JsonQueueMergeJobInput
-modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, pointGroup, spaceGroup, ambigatorCommandLine, cutoffLowres, cutoffHighres } =
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, cellDescription, customSplit, pointGroup, spaceGroup, ambigatorCommandLine, cutoffLowres, cutoffHighres } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -281,6 +284,7 @@ modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleInten
             else
                 Nothing
         , cellDescription = CellDescriptionEdit.modelAsText cellDescription
+        , customSplit = customSplit
         , scaleIntensities = scaleIntensities
         , postRefinement = postRefinement
         , iterations = iterations
@@ -747,11 +751,40 @@ view model =
                     , value (Maybe.withDefault "" model.ambigatorCommandLine)
                     ]
                 ]
+
+        customSplitInput =
+            div [ class "mb-3" ]
+                [ label [ for "merge-custom-split" ] [ text "Split datasets" ]
+                , input_
+                    [ id "merge-custom-split"
+                    , type_ "text"
+                    , class "form-control"
+                    , value model.customSplit
+                    , onInput (\f -> ModelChangeFn (\m -> { m | customSplit = filter (\c -> isAlphaNum c || c == '_' || c == ',') f }))
+                    ]
+                , div [ class "form-text" ]
+                    [ text "Either empty or a comma-separated list of datasets to split the original dataset into. For example, entering "
+                    , code_ [ text "light, dark1, dark2" ]
+                    , text " will put the crystals of every third image into the dataset "
+                    , code_ [ text "light" ]
+                    , text ", images 2, 5, 8, … will be put into dataset "
+                    , code_ [ text "dark1" ]
+                    , text ", and images 3, 6, 9, … will be in dataset "
+                    , code_ [ text "dark2" ]
+                    , text ". Every dataset will be one merge result in the table below."
+                    , br_
+                    , em_ [ text "Note: " ]
+                    , text "Only letters, numbers and "
+                    , code_ [ text "_" ]
+                    , text " allowed."
+                    ]
+                ]
     in
     form [ class "p-3" ]
         [ cellDescriptionInput
         , pointGroupInput
         , spaceGroupInput
+        , customSplitInput
         , ambigatorInput
         , modelSelect
         , scalingAndRefinementCheckboxes
@@ -797,6 +830,7 @@ init cellDescription pointGroup spaceGroup dataSetId indexingParametersId =
     , pushRes = Nothing
     , w = Nothing
     , cellDescription = CellDescriptionEdit.init cellDescription
+    , customSplit = ""
     , pointGroup = pointGroup
     , spaceGroup = spaceGroup
     , ambigatorCommandLine = Nothing
@@ -819,6 +853,7 @@ quickMergeParameters dataSetId indexingParametersId =
 
         -- See below for an explanation
         , cellDescription = ""
+        , customSplit = ""
         , scaleIntensities = ScaleIntensitiesOff
         , postRefinement = False
         , iterations = 3

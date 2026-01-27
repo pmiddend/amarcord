@@ -203,6 +203,42 @@ erDiagram
     }
 ```
 
+### Merging
+
+Merging already indexed datasets is easier than indexing, because there is no parallelization of jobs involved. Merging is a single job on the workflow manager. The merging workflow is a bit more complicated though, because it does not just primarily consist of one tool like `indexamajig`. The main "workhorse" of merging is `partialator`, but the full workflow looks like this, in pseudocode:
+
+```python
+input = "input.stream"
+
+if crystal_limit:
+  input = random_sample_from_file(input)
+
+if ambigator_parameters:
+  input = run_ambigator(input)
+  
+if custom_split_components:
+  split_file = create_split_file(custom_split_components, input)
+else:
+  split_file = None
+  
+hkl_files = run_partialator(input, split_file)
+
+for hkl_file in hkl_files:
+  create_mtz(hkl_file)
+  rescut = calculate_resolution_cut(hkl_file)
+  # check_output will contain: snr, redundancy, completeness, ...
+  check_output = run_check_hkl(hkl_file, rescut)
+  rsplit = run_compare_hkl(hkl_file, rescut, "rsplit")
+  cc = run_compare_hkl(hkl_file, rescut, "cc")
+  ccstar = run_compare_hkl(hkl_file, rescut, "ccstar")
+  if pdb_file:
+    mtz_file, pdb_file = refine(hkl_file, rescut, pdb_file)
+  else:
+    mtz_file, pdb_file = None, None
+```
+
+At the end of this pseudocode, you will have, per dataset, values like Rsplit, CC* etc., as well as an MTZ file, optionally a refined MTZ/PDB pair to display in the UI, and per-shell values for SNR etc.. These will be sent as a merge result via the REST API.
+
 (BackendCode)=
 ## Code
 

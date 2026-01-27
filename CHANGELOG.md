@@ -5,7 +5,20 @@ If this document renders weirdly, it’s because it uses [GitLab flavored markdo
 
 ## Features
 
-N/A
+### Merging: Add "custom split" option
+([\#486](https://gitlab.desy.de/amarcord/amarcord/-/issues/486))
+
+CrystFEL's `partialator` has the ability to split a processed `.stream` file into distinct datasets. The most common use-case are pump-probe experiments where you have a sample in different states after some excitation. Think: one image is not excited, the next one is excited, then again not excited, and so on. When you merge a dataset, you can now specify a comma-separated list of datasets to split the merge result into, and this will be passed on to `partialator`. The result will be 'n+1' merge results, each with its own "dataset" property (+1 because the base merge result is included).
+
+<figure>
+![Merge input](changelog-assets/486-merge-input.png){width=388 height=500px}
+<figcaption>Highlighted is the new section in the "Merge" pop-up.</figcaption>
+</figure>
+
+<figure>
+![Merge input](changelog-assets/486-merge-output.png){width=697 height=115px}
+<figcaption>Three merged datasets for the given input.</figcaption>
+</figure>
 
 ## Miscellaneous things
 
