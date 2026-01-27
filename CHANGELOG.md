@@ -23,6 +23,12 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 ## Miscellaneous things
 
 - *Indexing methods* in the "Start indexing job" UI are now just "on/off" instead of "on/off", plus "prior lattice information" and "prior unit cell information". CrystFEL abolished the syntax in the latest release, and AMARCORD follows suit ([\#484](https://gitlab.desy.de/amarcord/amarcord/-/issues/484))
+- Single data set: If there are runs without successful indexing results, there was already a checkbox indicating that. However, it was so subtle that it's extremely hard to miss. As you can see below, this is now better:
+<figure>
+![Show erroneous jobs](changelog-assets/493-show-erroneous.png){width=715 height=467px}
+<figcaption>Hard to miss failed jobs now, isn't it?</figcaption>
+</figure>
+
 
 ## Fixes
 

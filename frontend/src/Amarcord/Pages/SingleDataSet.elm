@@ -1579,25 +1579,61 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
             ]
         , h5_ [ text "Indexing Results per Run" ]
         , let
-            numberOfErroneous =
-                List.Extra.count (\ir -> ir.hasError) indexingResults
+            finishedRunIds : Set Int
+            finishedRunIds =
+                List.foldr
+                    (\{ runExternalId, stopped } oldSet ->
+                        case stopped of
+                            Nothing ->
+                                oldSet
+
+                            Just _ ->
+                                Set.insert runExternalId oldSet
+                    )
+                    Set.empty
+                    indexingResults
+
+            successfulRunIds : Set Int
+            successfulRunIds =
+                List.foldr
+                    (\{ runExternalId, hasError, stopped } oldSet ->
+                        case stopped of
+                            Nothing ->
+                                oldSet
+
+                            Just _ ->
+                                if hasError then
+                                    oldSet
+
+                                else
+                                    Set.insert runExternalId oldSet
+                    )
+                    Set.empty
+                    indexingResults
+
+            runsWithoutSuccesses : Set Int
+            runsWithoutSuccesses =
+                Set.diff finishedRunIds successfulRunIds
           in
-          if numberOfErroneous == 0 then
+          if Set.isEmpty runsWithoutSuccesses || List.all (\ir -> ir.hasError) indexingResults then
             text ""
 
           else
-            div [ class "form-check" ]
-                [ input_
-                    [ class "form-check-input"
-                    , type_ "checkbox"
-                    , id ("show-erroneous" ++ indexingParametersIdToString parameters.id)
-                    , onClick (ToggleShowErroneous parameters.id)
+            div [ class "mb-3 alert alert-warning" ]
+                [ div_ [ text <| "The following runs do not have succesful indexing results: " ++ String.join ", " (Set.toList (Set.map String.fromInt runsWithoutSuccesses)) ]
+                , div [ class "form-check form-switch" ]
+                    [ input_
+                        [ class "form-check-input"
+                        , type_ "checkbox"
+                        , id ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                        , onClick (ToggleShowErroneous parameters.id)
+                        ]
+                    , label
+                        [ for ("show-erroneous" ++ indexingParametersIdToString parameters.id)
+                        , class "form-check-label"
+                        ]
+                        [ strongText "Show failed jobs" ]
                     ]
-                , label
-                    [ for ("show-erroneous" ++ indexingParametersIdToString parameters.id)
-                    , class "form-check-label"
-                    ]
-                    [ text ("Show " ++ String.fromInt numberOfErroneous ++ " erroneous indexing job(s)") ]
                 ]
         , viewIndexingResults
             model.hereAndNow.now
