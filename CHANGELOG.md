@@ -1,7 +1,7 @@
 If this document renders weirdly, it’s because it uses [GitLab flavored markdown](https://docs.gitlab.com/user/markdown/#table-of-contents) and some elements might not be supported by your viewer.
 
 [TOC]
-# 🚧 v1.4 - Q3 2025
+# v1.4 - Q1 2026
 
 ## Features
 
@@ -17,8 +17,6 @@ So now, geometry files are a first-class citizen, meaning you can create, update
 ![Geometry page](changelog-assets/455-add-geometry.png){width=622 height=510px}
 <figcaption>The "Add new geometry" form, showing (off) a `detector_distance` placeholder.</figcaption>
 </figure>
-
-
 
 ### Chemicals: Better "Copy from previous beamtime" input ([\#478](https://gitlab.desy.de/amarcord/amarcord/-/issues/478))
 
