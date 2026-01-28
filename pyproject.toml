@@ -217,6 +217,8 @@ omit = [
   "amarcord/cli/crystfel_index.py",
   "amarcord/cli/crystfel_merge.py",
   "amarcord/cli/experiment_simulator.py",
+  # The camera daemon needs no test coverage, it's so unimportant
+  "amarcord/cli/mjpeg_daemon.py",
   "amarcord/cli/generate_openapi_schema.py",
   "amarcord/cli/migrate.py",
   "amarcord/cli/slurm_runner.py",

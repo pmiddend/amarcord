@@ -15,6 +15,7 @@ logger = structlog.stdlib.get_logger(__name__)
 class Arguments(Tap):
     amarcord_url: str
     stream_url: str
+    beamline_filter: str
     delay_seconds: float = 5.0
 
 
@@ -41,6 +42,8 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
                             utc_int_to_utc_datetime(beamtime.start)
                             < now
                             < utc_int_to_utc_datetime(beamtime.end)
+                            and beamtime.beamline.strip().lower()
+                            == args.beamline_filter.strip().lower()
                         ):
                             current_beamtime = beamtime
 
