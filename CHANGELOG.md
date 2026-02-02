@@ -29,6 +29,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 <figcaption>Hard to miss failed jobs now, isn't it?</figcaption>
 </figure>
 
+- Repeated error messages in the *ID29 daemons* are now only output once ([\#492](https://gitlab.desy.de/amarcord/amarcord/-/issues/492))
 
 ## Fixes
 

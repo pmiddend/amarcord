@@ -58,6 +58,11 @@ class ID29AttributoConfigFile:
     attributi: list[ID29AttributoConfig]
 
 
+@dataclass
+class ID29ErrorCache:
+    unknown_chemicals: set[str]
+
+
 def id29_parse_attributo_config_file(p: Path) -> ID29AttributoConfigFile:
     with p.open("r", encoding="utf-8") as f:
         json_content = json.load(f)
@@ -199,6 +204,7 @@ async def _ingest_new_metadata_file(
     chemicals: list[JsonChemical],
     attributo_config_file: ID29AttributoConfigFile,
     metadata_file: Path,
+    error_cache: ID29ErrorCache,
 ) -> None:
     try:
         with metadata_file.open("r", encoding="utf-8") as f:
@@ -218,13 +224,24 @@ async def _ingest_new_metadata_file(
             iter(x for x in chemicals if x.name == chemical_name), None
         )
         if chemical_in_amarcord is None:
+            if chemical_name in error_cache.unknown_chemicals:
+                return
             await _try_send_event(
                 args,
                 session,
                 "warning",
                 f"couldn't find chemical **{chemical_name}** in AMARCORD, I will try again soon",
             )
+            error_cache.unknown_chemicals.add(chemical_name)
             return
+        if chemical_name in error_cache.unknown_chemicals:
+            await _try_send_event(
+                args,
+                session,
+                "info",
+                f"chemical **{chemical_name}** found in AMARCORD now, processing...",
+            )
+            error_cache.unknown_chemicals.remove(chemical_name)
         files_path = file_dict[ID29_MAGIC_DIRECTORY_ATTRIBUTO]
         assert isinstance(files_path, str)
         try:
@@ -625,6 +642,7 @@ async def _main_loop_iteration(
     args: Arguments,
     attributo_config_file: ID29AttributoConfigFile,
     session: aiohttp.ClientSession,
+    error_cache: ID29ErrorCache,
 ) -> None:
     logger.info("=> iterating over new files")
     try:
@@ -684,6 +702,7 @@ async def _main_loop_iteration(
                 chemicals_result.chemicals,
                 metadata_file=new_metadata_file,
                 attributo_config_file=attributo_config_file,
+                error_cache=error_cache,
             )
     except Exception as e:
         logger.info(f"unexpected exception retrieving metadata files: {e}")
@@ -708,8 +727,9 @@ async def _main_loop(args: Arguments) -> None:
         ),
         raise_for_status=True,
     ) as session:
+        error_cache = ID29ErrorCache(unknown_chemicals=set())
         while True:
-            await _main_loop_iteration(args, config_file, session)
+            await _main_loop_iteration(args, config_file, session, error_cache)
             await asyncio.sleep(120)
 
 

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 import amarcord.cli.id29_pull_daemon as pull_daemon
 import amarcord.cli.id29_push_daemon as push_daemon
+from amarcord.cli.id29_push_daemon import ID29ErrorCache
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
@@ -346,12 +347,14 @@ async def test_simple_scenario(
 ) -> None:
     test_scenario = await setup_test_scenario(tmp_path, server_port, http_client)
 
+    empty_error_cache = ID29ErrorCache(unknown_chemicals=set())
+
     await push_daemon._main_loop_iteration(  # noqa: SLF001
-        test_scenario.args, test_scenario.config_file, http_client
+        test_scenario.args, test_scenario.config_file, http_client, empty_error_cache
     )
     # For good measure: do it twice, shouldn't duplicate any runs/etc
     await push_daemon._main_loop_iteration(  # noqa: SLF001
-        test_scenario.args, test_scenario.config_file, http_client
+        test_scenario.args, test_scenario.config_file, http_client, empty_error_cache
     )
 
     # we now assume our metadata.json file was read
@@ -388,8 +391,9 @@ async def test_push_and_pull(
 ) -> None:
     test_scenario = await setup_test_scenario(tmp_path, server_port, http_client)
 
+    empty_error_cache = ID29ErrorCache(unknown_chemicals=set())
     await push_daemon._main_loop_iteration(  # noqa: SLF001
-        test_scenario.args, test_scenario.config_file, http_client
+        test_scenario.args, test_scenario.config_file, http_client, empty_error_cache
     )
 
     args = pull_daemon.Arguments()
