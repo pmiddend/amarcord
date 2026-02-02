@@ -30,7 +30,7 @@ import Html.Attributes exposing (class, colspan, disabled, for, href, id, src, s
 import Html.Events exposing (onClick)
 import Html.Extra exposing (nothing, viewIf, viewIfLazy, viewMaybe)
 import List exposing (any, sum)
-import List.Extra exposing (maximumBy)
+import List.Extra exposing (count, maximumBy)
 import Maybe.Extra exposing (isJust)
 import Ports exposing (copyToClipboard)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
@@ -1264,14 +1264,28 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
         detailsExpanded parametersId =
             memberIndexingParametersIdSet parametersId model.expandedIndexingParameterIds
 
-        hasJobsInProgress =
-            List.any (\{ status } -> status == DBJobStatusRunning || status == DBJobStatusQueued) indexingResults
+        numberJobsInProgress =
+            count (\{ status } -> status == DBJobStatusRunning || status == DBJobStatusQueued) indexingResults
 
         processingInProgressButton =
-            if hasJobsInProgress then
+            if numberJobsInProgress > 0 then
                 button
                     [ disabled True, class "btn btn-outline-secondary" ]
-                    [ div [ class "spinner-border text-secondary spinner-border-sm" ] [] ]
+                    [ div [ class "spinner-border text-secondary spinner-border-sm" ] []
+                    , text
+                        (" "
+                            ++ String.fromInt numberJobsInProgress
+                            ++ " job"
+                            ++ ((if numberJobsInProgress == 1 then
+                                    ""
+
+                                 else
+                                    "s"
+                                )
+                                    ++ " running"
+                               )
+                        )
+                    ]
 
             else
                 text ""

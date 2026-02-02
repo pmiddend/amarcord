@@ -28,8 +28,8 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 ![Show erroneous jobs](changelog-assets/493-show-erroneous.png){width=715 height=467px}
 <figcaption>Hard to miss failed jobs now, isn't it?</figcaption>
 </figure>
-
 - Repeated error messages in the *ID29 daemons* are now only output once ([\#492](https://gitlab.desy.de/amarcord/amarcord/-/issues/492))
+- In the *single data set* view, we now show the number of indexing jobs still running ([\#500](https://gitlab.desy.de/amarcord/amarcord/-/issues/500))
 
 ## Fixes
 
