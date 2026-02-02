@@ -53,7 +53,22 @@ init hereAndNow beamtimeId =
 
 viewEventRow : JsonEvent -> Html msg
 viewEventRow e =
-    tr []
+    let
+        levelToColor l =
+            case l of
+                "info" ->
+                    ""
+
+                "warning" ->
+                    "table-warning"
+
+                "error" ->
+                    "table-danger"
+
+                _ ->
+                    ""
+    in
+    tr [ class (levelToColor e.level) ]
         [ td [] [ text (formatPosixHumanFriendly utc (millisToPosix e.createdLocal)) ]
         , td [] [ text e.level ]
         , td [] [ text e.source ]
@@ -136,7 +151,7 @@ view model =
                 in
                 div []
                     [ viewDateFilter model events.filterDates
-                    , table [ class "table table-striped" ]
+                    , table [ class "table" ]
                         [ thead [ class "thead-light" ]
                             [ tr []
                                 [ th [] [ text "Date" ]
