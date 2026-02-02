@@ -1413,9 +1413,10 @@ def generate_output(args: ParsedArgs) -> None:
 
     cell_file = retrieve_file(args, args.cell_file_id, Path("cell").absolute())
 
+    custom_split_unique_components = set(args.custom_split)
     results: list[dict[str, Any]] = [
         _process_single_dataset(args, ds, cell_file, ambigator_plot_file)
-        for ds in ([*args.custom_split, Dataset("")])
+        for ds in ([*custom_split_unique_components, Dataset("")])
     ]
 
     write_output_json(args.api_url, args.merge_result_id, error=None, results=results)
