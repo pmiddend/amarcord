@@ -116,6 +116,22 @@ class Beamtime(Base):
     end: Mapped[datetime] = mapped_column()
     analysis_output_path: Mapped[str] = mapped_column(sa.Text)
 
+    def resolved_analysis_output_path(self) -> str:
+        """Resolve an output path in the DB, with placeholders, to a
+        string that has all placeholders replaced"""
+        return (
+            self.analysis_output_path.replace(
+                "{beamtime.external_id}",
+                self.external_id,
+            )
+            .replace(
+                "{beamtime.year}",
+                str(self.start.year),
+            )
+            .replace("{beamtime.beamline}", self.beamline)
+            .replace("{beamtime.beamline_lowercase}", self.beamline.lower())
+        )
+
     # Relationships
     geometries: Mapped[list["Geometry"]] = relationship(
         back_populates="beamtime",

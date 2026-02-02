@@ -157,3 +157,31 @@ def test_render_template() -> None:
     )
     result = render_template("foo{{clen}}bar", [replacement])
     assert result == "foo3bar"
+
+
+def test_beamtime_resolve_analysis_output_path() -> None:
+    bt = orm.Beamtime(
+        external_id="external_id1",
+        beamline="BEAMLINE1",
+        proposal="proposal1",
+        title="title1",
+        comment="comment1",
+        start=datetime.datetime(
+            year=2022,
+            month=9,
+            day=22,
+            hour=9,
+            minute=2,
+            second=31,
+        ),
+        end=datetime.datetime(
+            year=2022,
+            month=9,
+            day=22,
+            hour=9,
+            minute=2,
+            second=31,
+        ),
+        analysis_output_path="/{beamtime.beamline_lowercase}/{beamtime.year}/{beamtime.external_id}",
+    )
+    assert bt.resolved_analysis_output_path() == "/beamline1/2022/external_id1"

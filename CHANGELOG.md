@@ -34,6 +34,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 ## Fixes
 
 - The MJPEG camera daemon didn't have a beamline filter, meaning every active beamtime triggered the camera image to be taken.  ([\#445](https://gitlab.desy.de/amarcord/amarcord/-/issues/494))
+- In the *ID29 pull daemon* we now ignore local stream files ([\#499](https://gitlab.desy.de/amarcord/amarcord/-/issues/499))
 
 ## Development changes
 

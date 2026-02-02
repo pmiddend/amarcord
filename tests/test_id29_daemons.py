@@ -134,7 +134,7 @@ async def setup_test_scenario(
             comment="",
             start_local=1000,
             end_local=1500,
-            analysis_output_path="/",
+            analysis_output_path="/local",
         ).model_dump(),
     ) as response:
         beamtime_id = JsonBeamtimeOutput(

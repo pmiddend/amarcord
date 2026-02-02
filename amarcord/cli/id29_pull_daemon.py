@@ -134,6 +134,13 @@ async def _copy_stream_file(
             f"encountered indexing result without stream file indexing result {ir.id}"
         )
         return
+
+    analysis_output_path = ir.run.beamtime.resolved_analysis_output_path()
+    # Must be an already-copied stream file, or a stream file that was
+    # created locally instead of remotely, to be copied.
+    if ir.stream_file.startswith(analysis_output_path):
+        return
+
     stream_file_locally = Path(
         ir.stream_file.replace(args.path_prefix, args.path_prefix_replacement)
     )
