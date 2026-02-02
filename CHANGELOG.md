@@ -38,7 +38,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 
 ## Development changes
 
-N/A
+- The pytest tests are now parallelized, they were simply taking too long ([\#501](https://gitlab.desy.de/amarcord/amarcord/-/issues/501))
 
 # v1.4 - Q1 2026
 

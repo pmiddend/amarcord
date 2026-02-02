@@ -10,5 +10,9 @@ set -o pipefail
 #
 # Note that --cov-report term is necessary, because GitLab CI parses this output to
 # determine the percentage values.
-pytest --cov=amarcord/ --cov-branch --cov-report term --cov-report xml:coverage.xml --junitxml=report.xml tests
+#
+# Regarding "-n 5", this is an empirically-derived value for the number
+# of parallel tests. More doesn't mean better because of
+# initialization time for example.
+pytest -n 5 --cov=amarcord/ --cov-branch --cov-report term --cov-report xml:coverage.xml --junitxml=report.xml tests
 coverage xml
