@@ -67,17 +67,11 @@ CAD_MTZ = "input-mtz-after-cad.mtz"
 FREER_MTZ = "input-mtz-after-freerflag.mtz"
 UNIQIFIED_MTZ = "input-mtz-uniqified.mtz"
 
+_RESCUT_MTZ = "input-mtz-rescut.mtz"
 
-def _rescut_mtz(ds: Dataset) -> str:
-    return f"{ds}-input-mtz-rescut.mtz"
+_DIMPLE_OUT_MTZ = "output-dimple.mtz"
 
-
-def _dimple_out_mtz(ds: Dataset) -> str:
-    return f"{ds}-output-dimple.mtz"
-
-
-def _dimple_out_pdb(ds: Dataset) -> str:
-    return f"{ds}-output-dimple.pdb"
+_DIMPLE_OUT_PDB = "output-dimple.pdb"
 
 
 def _log_program(cwd: Path, env: dict[str, str], args: list[str]) -> None:
@@ -224,7 +218,7 @@ def quick_refine(
             "hklin",
             str(input_mtz),
             "hklout",
-            _rescut_mtz(ds),
+            str((ds_subdir / _RESCUT_MTZ).absolute()),
         ],
         input_=f"""
     resolution {resolution_cut}
@@ -245,9 +239,9 @@ def quick_refine(
             "--restr-cycles",
             "15",
             "--hklout",
-            _dimple_out_mtz(ds),
+            str((ds_subdir / _DIMPLE_OUT_MTZ).absolute()),
             "--xyzout",
-            _dimple_out_pdb(ds),
+            str((ds_subdir / _DIMPLE_OUT_PDB).absolute()),
         ]
         + (
             ["--libin", str(input_restraints_cif)]
@@ -255,7 +249,7 @@ def quick_refine(
             else []
         )
         + [
-            _rescut_mtz(ds),
+            str((ds_subdir / _RESCUT_MTZ).absolute()),
             str(input_pdb),
             ".",
         ],
@@ -274,8 +268,8 @@ def quick_refine(
         )
 
     return RefinementResult(
-        pdb_path=ds_subdir / _dimple_out_pdb(ds),
-        mtz_path=ds_subdir / _dimple_out_mtz(ds),
+        pdb_path=ds_subdir / _DIMPLE_OUT_PDB,
+        mtz_path=ds_subdir / _DIMPLE_OUT_MTZ,
         fom=parse_refmac_log(refmac_log_files[0]),
     )
 
