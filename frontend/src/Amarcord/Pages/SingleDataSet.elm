@@ -1417,7 +1417,21 @@ viewIndexingAndMergeResultsTable model experimentType dataSet indexingParameters
 
             else
                 Maybe.map (\ipar -> ipar.parameters.id) <|
-                    maximumBy (\ipar -> sum (List.map .indexedFrames ipar.indexingResults)) filteredIpars
+                    maximumBy
+                        (\ipar ->
+                            sum
+                                (List.filterMap
+                                    (\{ hasError, indexedFrames } ->
+                                        if hasError then
+                                            Nothing
+
+                                        else
+                                            Just indexedFrames
+                                    )
+                                    ipar.indexingResults
+                                )
+                        )
+                        filteredIpars
     in
     table
         [ class "table table-borderless p-3 amarcord-table-fix-head" ]
