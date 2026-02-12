@@ -31,6 +31,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 - Repeated error messages in the *ID29 daemons* are now only output once ([\#492](https://gitlab.desy.de/amarcord/amarcord/-/issues/492))
 - In the *single data set* view, we now show the number of indexing jobs still running ([\#500](https://gitlab.desy.de/amarcord/amarcord/-/issues/500))
 - Since we now had runs with more than 1 million frames, the max frame limit was increased to 2 million for now, while we are working on a much better solution ([\#504](https://gitlab.desy.de/amarcord/amarcord/-/issues/504))
+- With the SLURM REST workload manager backend, we now query each running job separately, instead of doing a bulk request. This is much faster, since we don't have to choose a time span to query the jobs, and cannot accidentally "overquery" thousands of jobs, resulting in huge delays (yes, this has happened). ([\#504](https://gitlab.desy.de/amarcord/amarcord/-/issues/504))
 
 ## Fixes
 

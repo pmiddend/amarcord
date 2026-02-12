@@ -363,14 +363,19 @@ class SlurmRestWorkloadManager(WorkloadManager):
             metadata=JobMetadata({"job_id": job_id}),
         )
 
-    async def list_jobs(self) -> list[Job]:
+    async def list_jobs(self, job_id: None | str = None) -> list[Job]:
         # The default is to get all jobs (for the user), but this
         # might be years of job history. We artifically constrain this
         # to "the last month" for now. Let's see if we get more
         # requirements.
-        one_month_s = 30 * 24 * 60 * 60
-        start_time_s = time.time_ns() // 1000 // 1000 // 1000 - one_month_s
-        request_url = f"{self.rest_url}/sapi/slurmdb/{self.api_version}/jobs?users={self._rest_user}&start_time={start_time_s}"
+        one_week_s = 7 * 24 * 60 * 60
+        start_time_s = time.time_ns() // 1000 // 1000 // 1000 - one_week_s
+        if job_id is None:
+            request_url = f"{self.rest_url}/sapi/slurmdb/{self.api_version}/jobs?users={self._rest_user}&start_time={start_time_s}"
+        else:
+            request_url = (
+                f"{self.rest_url}/sapi/slurmdb/{self.api_version}/job/{job_id}"
+            )
         response = await self._request_wrapper.get(
             request_url,
             headers=await self._headers(),

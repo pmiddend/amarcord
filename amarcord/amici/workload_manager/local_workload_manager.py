@@ -141,7 +141,7 @@ class LocalWorkloadManager(WorkloadManager):
             metadata=JobMetadata({"pid": process.pid}),
         )
 
-    async def list_jobs(self) -> Iterable[Job]:
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
         result: list[Job] = []
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode

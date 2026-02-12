@@ -54,5 +54,5 @@ class DummyWorkloadManager(WorkloadManager):
             return result
         raise JobStartError("some error")
 
-    async def list_jobs(self) -> Iterable[Job]:
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
         return self.jobs

@@ -393,8 +393,6 @@ async def _update_jobs(
     ) as response:
         merge_results = JsonReadMergeResultsOutput(**await response.json()).merge_jobs
 
-    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
-
     for merge_result in merge_results:
         assert merge_result.job_id is not None
 
@@ -403,6 +401,10 @@ async def _update_jobs(
             merge_result_id=merge_result.id,
         )
 
+        jobs_on_workload_manager = {
+            j.id: j
+            for j in await workload_manager.list_jobs(job_id=str(merge_result.job_id))
+        }
         workload_job = jobs_on_workload_manager.get(merge_result.job_id)
         if workload_job is not None and workload_job.status not in (
             JobStatus.FAILED,

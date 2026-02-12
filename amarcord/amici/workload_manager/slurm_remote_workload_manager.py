@@ -222,7 +222,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
     def name(self) -> str:
         return "Slurm SSH"
 
-    async def list_jobs(self) -> Iterable[Job]:
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
         return await run_remote_list_jobs(
             logger,
             self._metadata,

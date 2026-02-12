@@ -488,13 +488,6 @@ async def indexing_daemon_update_jobs(
     amarcord_url: str,
     beamtime_id: None | BeamtimeId,
 ) -> None:
-    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
-    jobs_on_online_workload_manager = (
-        {j.id: j for j in await online_workload_manager.list_jobs()}
-        if online_workload_manager is not None
-        else None
-    )
-
     async with session.get(
         f"{amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
         + (f"&beamtimeId={beamtime_id}" if beamtime_id is not None else ""),
@@ -530,14 +523,17 @@ async def indexing_daemon_update_jobs(
 
         bound_logger.info("job still running, checking on workload manager")
 
-        # This is a bit tricky: we don't want to look at either the
-        # online job "registry", if that's available and it's an
-        # online job, otherwise the offline one.
-        job_array = (
-            jobs_on_online_workload_manager
-            if indexing_result.is_online and jobs_on_online_workload_manager is not None
-            else jobs_on_workload_manager
+        this_workload_manager = (
+            online_workload_manager
+            if indexing_result.is_online and online_workload_manager is not None
+            else workload_manager
         )
+        job_array = {
+            j.id: j
+            for j in await this_workload_manager.list_jobs(
+                job_id=str(indexing_result.job_id)
+            )
+        }
         workload_job = job_array.get(indexing_result.job_id)
         if workload_job is not None and workload_job.status not in (
             JobStatus.FAILED,
