@@ -30,6 +30,7 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 </figure>
 - Repeated error messages in the *ID29 daemons* are now only output once ([\#492](https://gitlab.desy.de/amarcord/amarcord/-/issues/492))
 - In the *single data set* view, we now show the number of indexing jobs still running ([\#500](https://gitlab.desy.de/amarcord/amarcord/-/issues/500))
+- Since we now had runs with more than 1 million frames, the max frame limit was increased to 2 million for now, while we are working on a much better solution ([\#504](https://gitlab.desy.de/amarcord/amarcord/-/issues/504))
 
 ## Fixes
 

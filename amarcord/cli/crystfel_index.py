@@ -175,7 +175,7 @@ ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER = "AMARCORD_CPU_COUNT_MULTIPLIER"
 # number for now, and CrystFEL uses the same:
 #
 # https://gitlab.desy.de/thomas.white/crystfel/-/blob/66a5efece6c2c219af873f1522dd4a82003bf6b9/src/gui_backend_slurm.c#L985
-IMAGES_PER_JOB: Final = 1_000
+IMAGES_PER_JOB: Final = 2_000
 # Same constant, 1000, to define one job array to have 1000 jobs (so there's IMAGES_PER_JOB*1000 images in a job array)
 INDEXAMAJIG_JOBS_PER_JOB_ARRAY: Final = 1000
 
