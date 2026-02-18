@@ -1267,6 +1267,56 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
         numberJobsInProgress =
             count (\{ status } -> status == DBJobStatusRunning || status == DBJobStatusQueued) indexingResults
 
+        successfulRunIds : Set Int
+        successfulRunIds =
+            List.foldr
+                (\{ runExternalId, hasError, stopped } oldSet ->
+                    case stopped of
+                        Nothing ->
+                            oldSet
+
+                        Just _ ->
+                            if hasError then
+                                oldSet
+
+                            else
+                                Set.insert runExternalId oldSet
+                )
+                Set.empty
+                indexingResults
+
+        finishedRunIds : Set Int
+        finishedRunIds =
+            List.foldr
+                (\{ runExternalId, stopped } oldSet ->
+                    case stopped of
+                        Nothing ->
+                            oldSet
+
+                        Just _ ->
+                            Set.insert runExternalId oldSet
+                )
+                Set.empty
+                indexingResults
+
+        runsWithoutSuccesses : Set Int
+        runsWithoutSuccesses =
+            Set.diff finishedRunIds successfulRunIds
+
+        showWarningAboutUnsuccessfulResults =
+            not (Set.isEmpty runsWithoutSuccesses || List.all (\ir -> ir.hasError) indexingResults)
+
+        errorsMarker =
+            if showWarningAboutUnsuccessfulResults then
+                button
+                    [ disabled True, class "btn btn-outline-warning" ]
+                    [ icon { name = "exclamation-triangle" }
+                    , text " There are errors."
+                    ]
+
+            else
+                text ""
+
         processingInProgressButton =
             if numberJobsInProgress > 0 then
                 button
@@ -1315,6 +1365,7 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
                         )
                     ]
                 , processingInProgressButton
+                , errorsMarker
                 ]
 
         successfulResults : List IndexingResult
@@ -1364,7 +1415,9 @@ viewSingleIndexingResultRow model experimentType dataSet cellDescriptionForDs po
         tr [ id ("indexing-params" ++ indexingParametersIdToString parameters.id) ]
             [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
                 [ div_ [ hideShowDetailsButton parameters.id ]
-                , div [ class "border shadow-sm p-3 bg-light" ] [ viewSingleIndexing model dataSet p ]
+                , div [ class "border shadow-sm p-3 bg-light" ]
+                    [ viewSingleIndexing model dataSet showWarningAboutUnsuccessfulResults runsWithoutSuccesses p
+                    ]
                 ]
             ]
 
@@ -1546,8 +1599,8 @@ viewMergeResults model experimentType dataSet cellDescriptionForDs pointGroupFor
         ]
 
 
-viewSingleIndexing : Model -> JsonDataSet -> IndexingParametersWithResults -> Html Msg
-viewSingleIndexing model dataSet { parameters, indexingResults } =
+viewSingleIndexing : Model -> JsonDataSet -> Bool -> Set Int -> IndexingParametersWithResults -> Html Msg
+viewSingleIndexing model dataSet showWarningAboutUnsuccessfulResults runsWithoutSuccesses { parameters, indexingResults } =
     div_
         [ dl [ class "row" ]
             [ dt [ class "col-3" ] [ text "Online indexing?" ]
@@ -1606,49 +1659,16 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
             , div [ class "form-text mb-3" ] [ small [] [ text "If you want to reprocess with slightly different parameters, instead of starting from scratch, this button is the right one for you." ] ]
             ]
         , h5_ [ text "Indexing Results per Run" ]
-        , let
-            finishedRunIds : Set Int
-            finishedRunIds =
-                List.foldr
-                    (\{ runExternalId, stopped } oldSet ->
-                        case stopped of
-                            Nothing ->
-                                oldSet
-
-                            Just _ ->
-                                Set.insert runExternalId oldSet
-                    )
-                    Set.empty
-                    indexingResults
-
-            successfulRunIds : Set Int
-            successfulRunIds =
-                List.foldr
-                    (\{ runExternalId, hasError, stopped } oldSet ->
-                        case stopped of
-                            Nothing ->
-                                oldSet
-
-                            Just _ ->
-                                if hasError then
-                                    oldSet
-
-                                else
-                                    Set.insert runExternalId oldSet
-                    )
-                    Set.empty
-                    indexingResults
-
-            runsWithoutSuccesses : Set Int
-            runsWithoutSuccesses =
-                Set.diff finishedRunIds successfulRunIds
-          in
-          if Set.isEmpty runsWithoutSuccesses || List.all (\ir -> ir.hasError) indexingResults then
+        , if not showWarningAboutUnsuccessfulResults then
             text ""
 
           else
             div [ class "mb-3 alert alert-warning" ]
-                [ div_ [ text <| "The following runs do not have succesful indexing results: " ++ String.join ", " (Set.toList (Set.map String.fromInt runsWithoutSuccesses)) ]
+                [ div_
+                    [ text <|
+                        "The following runs do not have succesful indexing results: "
+                            ++ String.join ", " (Set.toList (Set.map String.fromInt runsWithoutSuccesses))
+                    ]
                 , div [ class "form-check form-switch" ]
                     [ input_
                         [ class "form-check-input"
