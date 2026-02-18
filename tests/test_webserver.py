@@ -4580,12 +4580,30 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     # Wait a tiny bit to make the "minimum job age" logic work out
     await asyncio.sleep(1)
 
+    new_failures = await indexing_daemon_update_jobs(
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        amarcord_url="",
+        beamtime_id=None,
+        job_ids_for_previous_failures=set(),
+    )
+
+    # The job hasn't failed yet, since we give it one more iteration
+    indexing_jobs_result = JsonReadIndexingResultsOutput(
+        **client.get("/api/indexing").json(),
+    )
+    assert len(indexing_jobs_result.indexing_jobs) == 1
+    assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.RUNNING
+
+    await asyncio.sleep(1)
     await indexing_daemon_update_jobs(
         workload_manager=workload_manager,
         online_workload_manager=None,
         session=daemon_session,
         amarcord_url="",
         beamtime_id=None,
+        job_ids_for_previous_failures=new_failures,
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed
@@ -4990,6 +5008,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
         session=daemon_session,
         amarcord_url="",
         beamtime_id=None,
+        job_ids_for_previous_failures=set(),
     )
 
     print(
@@ -4998,8 +5017,9 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     assert not workload_manager.job_starts
 
+    artificial_job_id = 1337
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({})),
+        JobStartResult(job_id=artificial_job_id, metadata=JobMetadata({})),
     )
 
     indexing_jobs_result = JsonReadIndexingResultsOutput(
@@ -5072,6 +5092,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
         session=daemon_session,
         amarcord_url="",
         beamtime_id=None,
+        job_ids_for_previous_failures={artificial_job_id},
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed

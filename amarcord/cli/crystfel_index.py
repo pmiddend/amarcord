@@ -27,7 +27,6 @@ from tempfile import TemporaryDirectory
 from time import monotonic_ns
 from time import sleep
 from time import time
-from time import time_ns
 from typing import IO
 from typing import Any
 from typing import Callable
@@ -390,6 +389,7 @@ class SecondaryArgs:
     amarcord_indexing_result_id: int
     cell_file: None | Path
     job_array_id: int
+    job_id_wm: int
     crystfel_path: Path
     # The idea here is that the primary job writes the geometry file,
     # once, and then passes the location to the secondary jobs (since
@@ -876,39 +876,63 @@ def get_all_local_job_stati(job_array_pid: JobArrayLocal) -> list[str]:
 
 def get_all_job_stati(
     args: PrimaryArgs,
+    db: sqlite3.Connection,
+    job_array_id: int,
     job_array_workload_manager_id: JobArray,
 ) -> list[str]:
+    job_ids_wm: list[None | int] = [
+        r[0]
+        for r in db_execute_timed(
+            db,
+            "SELECT job_id_wm FROM IndexamajigJob WHERE job_array_id = ? AND state != ?",
+            (job_array_id, "success"),
+        ).fetchall()
+    ]
+
+    logger.info(f"got the following job IDs in WM: {job_ids_wm}")
+
     if isinstance(job_array_workload_manager_id, JobArraySlurm):
-        return get_all_slurm_job_stati(args, job_array_workload_manager_id)
+        return get_all_slurm_job_stati(args, job_ids_wm)
     return get_all_local_job_stati(job_array_workload_manager_id)
 
 
 def get_all_slurm_job_stati(
     args: PrimaryArgs,
-    job_array_id: JobArraySlurm,
+    job_ids_wm: list[None | int],
 ) -> list[str]:
-    # The default is to get all jobs (for the user), but this
-    # might be years of job history. We artifically constrain this
-    # to "the last month" for now. Let's see if we get more
-    # requirements.
-    one_month_s = 30 * 24 * 60 * 60
-    start_time_s = time_ns() // 1000 // 1000 // 1000 - one_month_s
-    req = request.Request(
-        f"{args.slurm_url}/jobs?users={getpass.getuser()}&start_time={start_time_s}",
-        method="GET",
-        headers=args.maxwell_headers,
-    )
-    with request.urlopen(req) as response:
-        response_content_raw = response.read().decode("utf-8")
-        response_content_json = json.loads(response_content_raw)
-        result = []
-        for job in response_content_json["jobs"]:
-            if (
-                job["array_job_id"]["number"] > 0
-                and job["array_job_id"]["number"] == job_array_id.job_id
-            ) or job["job_id"] == job_array_id.job_id:
-                result.append(job["job_state"][0])
-        return result
+    result: list[str] = []
+    for job_id_wm in job_ids_wm:
+        if job_id_wm is None:
+            result.append("PENDING")
+            continue
+
+        req = request.Request(
+            f"{args.slurm_url}/job/{job_id_wm}",
+            method="GET",
+            headers=args.maxwell_headers,
+        )
+        try:
+            with request.urlopen(req) as response:
+                response_content_raw = response.read().decode("utf-8")
+                response_content_json = json.loads(response_content_raw)
+                jobs = response_content_json.get("jobs")
+                if jobs is None:
+                    logger.warning(f"job {job_id_wm} has no 'jobs' array?")
+                    continue
+                for job in jobs:
+                    job_states = job.get("job_state")
+                    if job_states is None:
+                        logger.warning(f"job {job_id_wm} has no 'job_states' object? ")
+                        logger.warning(f"job JSON is {json.dumps(job)}")
+                    else:
+                        result.extend(job_states)
+        except urllib.error.HTTPError as e:
+            # Special case: this can return 404 if the job has been purged from the WM
+            if e.code == 404:
+                logger.warning(f"job {job_id_wm} not found in WM, ignoring")
+                continue
+            raise
+    return result
 
 
 @dataclass(frozen=True)
@@ -965,7 +989,9 @@ def run_job_array(
         )
 
     while True:
-        job_stati = get_all_job_stati(args, job_array_workload_manager_id)
+        job_stati = get_all_job_stati(
+            args, db, job_array_id, job_array_workload_manager_id
+        )
 
         failed_jobs = db_execute_timed(
             db,
@@ -1102,6 +1128,7 @@ def parse_secondary_args() -> SecondaryArgs:
             os.environ[OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID],
         ),
         job_array_id=int(os.environ[OFF_INDEX_ENVIRON_SECONDARY_JOB_ARRAY_ID]),
+        job_id_wm=int(os.environ.get("SLURM_JOB_ID", "0")),
         crystfel_path=Path(os.environ[OFF_INDEX_ENVIRON_CRYSTFEL_PATH]),
         geometry_path=Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE]),
         indexamajig_params=shlex.split(
@@ -1663,10 +1690,13 @@ def run_secondary(args: SecondaryArgs) -> None:
         cmd_line.extend([f"--mille-dir={mille_dir}"])
     logger.info(f"indexamajig command line: {shlex.join(cmd_line)}")
     try:
+        logger.info(
+            f"updating job in DB, setting state 'running' and WM id to {args.job_id_wm}"
+        )
         db_execute_timed(
             db,
-            "UPDATE IndexamajigJob SET state=? WHERE job_id=?",
-            ("running", job_id),
+            "UPDATE IndexamajigJob SET state=?, job_id_wm=? WHERE job_id=?",
+            ("running", args.job_id_wm, job_id),
         )
         db.commit()
     except sqlite3.OperationalError:
@@ -2059,6 +2089,7 @@ def run_primary(args: PrimaryArgs) -> None:
             """CREATE TABLE IndexamajigJob (
               job_array_id INTEGER,
               job_id INTEGER PRIMARY KEY,
+              job_id_wm INTEGER,
               start_idx INTEGER,
               state TEXT,
               images_total INTEGER,

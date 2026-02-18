@@ -52,7 +52,7 @@ INDEXING_DAEMON_MINIMUM_JOB_AGE_SECONDS_ENV_VAR = (
 
 def _long_break_duration_seconds() -> float:
     return float(
-        os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5"),
+        os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "20"),
     )
 
 
@@ -487,7 +487,8 @@ async def indexing_daemon_update_jobs(
     online_workload_manager: None | WorkloadManager,
     amarcord_url: str,
     beamtime_id: None | BeamtimeId,
-) -> None:
+    job_ids_for_previous_failures: set[int],
+) -> set[int]:
     async with session.get(
         f"{amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
         + (f"&beamtimeId={beamtime_id}" if beamtime_id is not None else ""),
@@ -497,6 +498,7 @@ async def indexing_daemon_update_jobs(
         ).indexing_jobs
 
     current_time = datetime.datetime.now(tz=datetime.UTC)
+    new_failures: set[int] = set()
     for indexing_result in indexing_results:
         assert indexing_result.job_id is not None
 
@@ -545,6 +547,13 @@ async def indexing_daemon_update_jobs(
             # Running job, let it keep running
             continue
 
+        if indexing_result.job_id not in job_ids_for_previous_failures:
+            bound_logger.info(
+                "job finished, but still running in DB; we give it one more iteration to let it finish"
+            )
+            new_failures.add(indexing_result.job_id)
+            continue
+
         if workload_job is None:
             bound_logger.info("finished because not in job list anymore")
             job_error = f"The job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results. This usually indicates an unexpected error of some kind (for example, a programming error or CrystFEL not behaving as expected). Please inform the AMARCORD people about this."
@@ -569,9 +578,7 @@ async def indexing_daemon_update_jobs(
                 'sending the "job finished with error" request failed'
             )
 
-    # this is usually too spammy
-    # logger.info("indexing jobs stati updated, take a (longer) break")
-    await asyncio.sleep(_long_break_duration_seconds())
+    return new_failures
 
 
 async def indexing_start_loop(
@@ -593,15 +600,17 @@ async def indexing_update_loop(
     session: aiohttp.ClientSession,
     args: Arguments,
 ) -> None:
+    job_ids_for_failures: set[int] = set()
     while True:
-        await indexing_daemon_update_jobs(
+        job_ids_for_failures = await indexing_daemon_update_jobs(
             session,
             workload_manager,
             online_workload_manager,
             amarcord_url=args.amarcord_url,
             beamtime_id=BeamtimeId(args.beamtime_id) if args.beamtime_id else None,
+            job_ids_for_previous_failures=job_ids_for_failures,
         )
-        await asyncio.sleep(20)
+        await asyncio.sleep(_long_break_duration_seconds())
 
 
 # We can't really test this code, it's pure glue
