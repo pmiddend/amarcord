@@ -134,9 +134,6 @@ class ListHandler(logging.Handler):
 
 
 logger = logging.getLogger(__name__)
-# Better to do it like this, but for now...
-# log_list: Deque[str] = deque(maxlen=20)
-# ...save the whole log
 log_list: list[str] = []
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s",
@@ -595,15 +592,6 @@ def clean_intermediate_files() -> None:
         fn.unlink()
     for fn in Path("./").glob("job-*.lst"):
         fn.unlink()
-    # In principle, these are intermediate files and not necessary, but it _is_ nice to
-    # re-run the millepede analysis after the fact and see the full output
-    # try:
-    #     for millepede_files_dir in Path(f"{job_id}-millepede-files").iterdir():
-    #         for bin_file in millepede_files_dir.glob("*.bin"):
-    #             bin_file.unlink()
-    #         millepede_files_dir.rmdir()
-    # except:
-    #     pass
 
 
 # See
@@ -2160,8 +2148,6 @@ def run_primary(args: PrimaryArgs) -> None:
             with job_stream_file.open("rb") as single_stream:
                 shutil.copyfileobj(single_stream, concatenated_output)
             job_stream_file.unlink()
-            # This is a little spammy
-            # logger.info(f"stream file for job {job_id} appended to {args.stream_file}")
 
     if args.use_auto_geom_refinement:
         logger.info("running align_detector")

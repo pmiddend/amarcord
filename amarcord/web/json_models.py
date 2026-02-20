@@ -453,8 +453,6 @@ class JsonIndexingResult(BaseModel):
     unit_cell_histograms_file_id: None | int = None
     has_error: bool
     geometry_placeholder_replacements: list[JsonGeometryPlaceholderReplacement]
-    # Commented out, we retrieve the log separately
-    # latest_log: str
 
 
 class JsonCreateIndexingForDataSetInput(BaseModel):

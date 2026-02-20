@@ -292,9 +292,6 @@ class ListHandler(logging.Handler):
 
 
 logger = logging.getLogger(__name__)
-# Better to do it like this, but for now...
-# log_list: Deque[str] = deque(maxlen=20)
-# ...save the whole log
 log_list: list[str] = []
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s",
@@ -1490,28 +1487,6 @@ def calculate_highres_cut(
         )
     highres_cut, _ = highres_cut_and_minimum_nref
     return highres_cut, reasonable_nshell
-    # result: None | tuple[float, int] = None
-    # for nshells in range(1, _MAX_SHELLS_TO_TEST):
-    #     highres_cut_and_minimum_nref = calculate_ccstar_values(nshells)
-    #     if highres_cut_and_minimum_nref is None:
-    #         logger.warning(
-    #             f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells"
-    #         )
-    #         continue
-    #     highres_cut, minimum_nref = highres_cut_and_minimum_nref
-    #     if minimum_nref > DESIRED_NREFS_PER_SHELL:
-    #         result = highres_cut, nshells
-    #     else:
-    #         if result is None:
-    #             logger.warning(
-    #                 f"after {nshells} shell(s), we have shells with less than {DESIRED_NREFS_PER_SHELL} refs, but we found no number of shells that match, so taking this one"
-    #             )
-    #             return highres_cut, nshells
-    #         return result
-    # exit_with_error(
-    #     args,
-    #     f"considered all number of shells from 1 to {_MAX_SHELLS_TO_TEST}, but found no good configuration",
-    # )
 
 
 def _append_custom_split(

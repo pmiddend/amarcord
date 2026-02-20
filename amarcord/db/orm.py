@@ -304,16 +304,6 @@ class File(Base):
         back_populates="files",
         default_factory=list,
     )
-    # This gives some weird errors, and the relationship isn't that important either
-    # merge_result_mtz_files: Mapped[list["MergeResult"]] = relationship(
-    #     back_populates="mtz_file"
-    # )
-    # refinement_result_mtz_files: Mapped[list["RefinementResult"]] = relationship(
-    #     back_populates="mtz_file", foreign_keys=[id]
-    # )
-    # refinement_result_pdb_files: Mapped[list["RefinementResult"]] = relationship(
-    #     back_populates="pdb_file"
-    # )
     events: Mapped[list["EventLog"]] = relationship(
         back_populates="files",
         secondary=event_has_file,

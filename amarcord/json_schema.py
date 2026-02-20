@@ -41,10 +41,6 @@ class JSONSchemaArray(BaseModel):
     type: Literal["array"]
 
     item_type: JSONSchemaArraySubtype
-    # Here, we are using an "abbreviated" JSON schema, as we are not allowing nested arrays
-    # items: JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber = Field(
-    #     discriminator="type"
-    # )
     minItems: int | None = None  # noqa: N815
     maxItems: int | None = None  # noqa: N815
 

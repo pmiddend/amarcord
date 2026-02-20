@@ -679,8 +679,6 @@ async def update_run(
             raise HTTPException(status_code=400, detail=dependent_object_error.message)
 
         if run_data.files is not None:
-            # clearing doesn't work because implicit IO
-            # current_run.files.clear()
             for f in current_run.files:
                 await session.delete(f)
             await session.refresh(current_run)

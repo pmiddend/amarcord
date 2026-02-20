@@ -388,9 +388,6 @@ def test_parse_run_spreadsheet_single_succesful_run(base_spreadsheet: Workbook) 
     ws["F2"] = "lyso"
     ws["G2"] = "100"
 
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
-
     assert parse_run_spreadsheet_workbook(base_spreadsheet) == ParsedRunSpreadsheet(
         custom_column_headers=["chemical", "energy"],
         runs=[
@@ -424,9 +421,6 @@ def test_parse_run_spreadsheet_run_run_id_is_not_an_integer(
     ws["F2"] = "lyso"
     ws["G2"] = "100"
 
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
-
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)
 
@@ -447,9 +441,6 @@ def test_parse_run_spreadsheet_experiment_type_invalid(
     ws["E2"] = "test.h5"
     ws["F2"] = "lyso"
     ws["G2"] = "100"
-
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
 
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)
@@ -472,9 +463,6 @@ def test_parse_run_spreadsheet_experiment_type_empty(
     ws["F2"] = "lyso"
     ws["G2"] = "100"
 
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
-
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)
 
@@ -493,9 +481,6 @@ def test_parse_run_spreadsheet_run_started_invalid(
     ws["E2"] = "test.h5"
     ws["F2"] = "lyso"
     ws["G2"] = "100"
-
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
 
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)
@@ -518,9 +503,6 @@ def test_parse_run_spreadsheet_run_stopped_invalid(
     ws["F2"] = "lyso"
     ws["G2"] = "100"
 
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
-
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)
 
@@ -541,9 +523,6 @@ def test_parse_run_spreadsheet_files_invalid(
     ws["E2"] = started
     ws["F2"] = "lyso"
     ws["G2"] = "100"
-
-    # Save to take a look
-    # test_wb.save("/tmp/test.xlsx")
 
     result = parse_run_spreadsheet_workbook(base_spreadsheet)
     assert isinstance(result, ConversionError)

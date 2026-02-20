@@ -92,13 +92,6 @@ async def async_session(db_url: str) -> AsyncGenerator[AsyncSession]:
         pass
 
 
-# @pytest.fixture
-# async def daemon_session(aiohttp_client: Any) -> aiohttp.ClientSession:
-#     app = web.Application()
-#     app.router.add_get(f"/api/attributi/{_BEAMTIME_ID}", _read_attributi)
-#     return await aiohttp_client(app)
-
-
 @pytest.fixture
 async def http_client() -> AsyncGenerator[ClientSession]:
     async with aiohttp.ClientSession(

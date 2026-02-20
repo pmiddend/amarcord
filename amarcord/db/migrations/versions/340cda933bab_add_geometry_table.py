@@ -281,9 +281,6 @@ def upgrade() -> None:
             )
         )  # type: ignore
 
-        # For some reason, at least for sqlite, this doesn't work. It returns an empty tuple.
-        # online_parameters_id: int = prior_parameters_insert.inserted_primary_key[0]
-        # logger.info(online_parameters_id)
         # This works, but only for certain backends. But our backends are among it, so should be fine.
         new_geometry_id = insert_result.lastrowid
 

@@ -475,10 +475,6 @@ async def indexing_daemon_start_new_jobs(
         )
         await asyncio.sleep(_long_break_duration_seconds())
     if number_of_started_jobs == 0:
-        # Usually too spammy
-        # logger.info(
-        #     f"no new queued jobs, waiting for {_long_break_duration_seconds()}s until next iteration"
-        # )
         await asyncio.sleep(_long_break_duration_seconds())
 
 

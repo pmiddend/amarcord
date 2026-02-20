@@ -325,12 +325,6 @@ async def _copy_single_run(
         return CopyResult.COPY_BREAK
     except Exception as e:
         logger.exception(f"copying unsuccesful: {e}")
-        # _try_send_event(
-        #     args,
-        #     session,
-        #     EventLogLevel.INFO,
-        #     f"copying `{remote_run_directory}/*.h5` unsuccessful, check logs",
-        # )
         await session.commit()
         return CopyResult.COPY_CONTINUE
 

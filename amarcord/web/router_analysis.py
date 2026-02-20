@@ -630,10 +630,6 @@ async def read_analysis_results(
     attributi: list[orm.Attributo] = [
         et_h_a.attributo for et in experiment_types for et_h_a in et.attributi
     ]
-    # for name, attributi_with_that_name in group_by(attributi, lambda a: a.name).items():
-    #     primary_attributo = attributi_with_that_name[0]
-    #     attributo_to_duplicates[primary_attributo]
-    # attributo_to_duplicates: dict[AttributoId, set[AttributoId]] = {}
 
     filter_by_id: dict[int, list[JsonAttributoValue]] = group_by(
         input_.attributi_filter,

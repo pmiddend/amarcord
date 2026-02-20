@@ -189,7 +189,6 @@ async def run_remote_sbatch(
     # Here we send the script via stdin, which works even over ssh
     stdout_stream, stderr_stream = await proc.communicate(script.encode("utf-8"))
 
-    # completed = subprocess.run(ssh_command_arg_list, check=True, capture_output=True)
     parent_logger.info("completed")
     stdout_decoded = stdout_stream.decode()
     job_id_match = re.compile(r"Submitted batch job (\d+)\n").match(stdout_decoded)
