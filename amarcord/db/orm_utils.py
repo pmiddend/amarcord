@@ -71,8 +71,8 @@ def default_online_indexing_parameters() -> orm.IndexingParameters:
         cell_description="",
         geometry_id=None,
         command_line="--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2"
-        + " --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3"
-        + " --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+        " --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3"
+        " --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
         # source is empty for online indexing, since then it can be determined by the daemon
         source="",
     )
@@ -436,7 +436,7 @@ def validate_json_attributo_return_error(
         if atype.range is not None and not atype.range.value_is_inside(v):
             return (
                 f"attributo {a.attributo_id}: out of range; range is {atype.range}, "
-                + f"value is {v}"
+                f"value is {v}"
             )
     return None
 
@@ -507,7 +507,7 @@ async def determine_run_indexing_metadata(
         channel_chemical = crystal_chemicals[0]
         log_messages.append(
             "no chemicals with cell information found, taking the first chemical of type "
-            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})',
+            f' "crystal": {channel_chemical.name} (id {channel_chemical.id})',
         )
 
     cell_description: None | CrystFELCellFile
@@ -519,7 +519,7 @@ async def determine_run_indexing_metadata(
         cell_description = None
 
     return RunIndexingMetadata(
-        point_group=point_group if point_group else None,
+        point_group=point_group or None,
         cell_description=cell_description,
         chemical=channel_chemical,
         log_messages=log_messages,

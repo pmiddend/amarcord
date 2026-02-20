@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from amarcord.numeric_range import NumericRange
 
@@ -10,7 +10,7 @@ class AttributoTypeInt:
         return "integer"
 
 
-class ArrayAttributoType(str, Enum):
+class ArrayAttributoType(StrEnum):
     ARRAY_STRING = "string"
     ARRAY_BOOL = "bool"
     ARRAY_NUMBER = "number"

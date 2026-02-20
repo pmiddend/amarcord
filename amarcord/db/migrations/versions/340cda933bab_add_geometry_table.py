@@ -9,7 +9,7 @@ Create Date: 2025-05-07 14:52:48.472891
 import datetime
 import hashlib
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from enum import unique
 from pathlib import Path
 
@@ -44,7 +44,7 @@ def geometry_hash(fp: Path) -> ErrorMessage | GeometryHash:
 
 
 @unique
-class GeometryType(str, Enum):
+class GeometryType(StrEnum):
     CRYSTFEL_FILE = "crystfel_file"
     CRYSTFEL_STRING = "crystfel_string"
 

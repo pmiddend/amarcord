@@ -1087,10 +1087,10 @@ def run_job_array(
         if hits is not None:
             logger.info(
                 f"{images_processed_so_far}/{images_total}, "
-                + f"{images_per_second}fps, {hits} hits (hr {hits / max(1, images_processed_so_far) * 100:.2f}%), "
-                + f"{indexed_frames} indexed (ir {indexed_frames / max(1, hits) * 100:.2f}%), {indexed_crystals} crystals "
-                + f" - ends {end_time.strftime('%d-%b-%Y %H:%M:%S')} ({seconds_to_go}s to go), "
-                + f"{running_jobs}/{len(workload_manager_running)} running jobs in DB/SLURM",
+                f"{images_per_second}fps, {hits} hits (hr {hits / max(1, images_processed_so_far) * 100:.2f}%), "
+                f"{indexed_frames} indexed (ir {indexed_frames / max(1, hits) * 100:.2f}%), {indexed_crystals} crystals "
+                f" - ends {end_time.strftime('%d-%b-%Y %H:%M:%S')} ({seconds_to_go}s to go), "
+                f"{running_jobs}/{len(workload_manager_running)} running jobs in DB/SLURM",
             )
             write_status_still_running(
                 args,
@@ -2253,7 +2253,7 @@ def parse_primary_args() -> PrimaryArgs:
         # A little hack here: if we have a file "master", and possibly
         # other data files (to which master links to), then just take
         # the master file. Otherwise, consider all files
-        input_files=master_files if master_files else input_files,
+        input_files=master_files or input_files,
         geometry_contents=os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE],
         cell_description=os.environ.get(OFF_INDEX_ENVIRON_CELL_DESCRIPTION),
         use_auto_geom_refinement="--mille" in indexamajig_params,

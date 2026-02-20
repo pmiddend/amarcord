@@ -2,9 +2,9 @@ import asyncio
 import json
 import shlex
 from datetime import timedelta
-from pathlib import Path
 
 import structlog
+from anyio import Path
 from tap import Tap
 
 from amarcord.amici.workload_manager.job_status import JobStatus

@@ -122,7 +122,7 @@ async def create_data_set(
                     raise HTTPException(
                         status_code=400,
                         detail=f"attributo {a.id} does from the experiment type does "
-                        + " not appear in the data set to be created!",
+                        " not appear in the data set to be created!",
                     )
                 new_data_set.attributo_values.append(
                     orm.DataSetHasAttributoValue(

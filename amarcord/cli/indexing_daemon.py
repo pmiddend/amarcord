@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import aiohttp
+import anyio
 import structlog
 from structlog.stdlib import BoundLogger
 from tap import Tap
@@ -108,7 +109,7 @@ async def start_offline_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting offline indexing job")
 
-    job_base_directory = (
+    job_base_directory = anyio.Path(
         determine_output_directory(indexing_result.beamtime, {}) / "indexing-results"
     )
 
@@ -239,7 +240,7 @@ async def start_online_indexing_job(
 ) -> DBIndexingResultRunning | DBIndexingResultDone:
     bound_logger.info("starting online indexing job")
 
-    job_base_directory = (
+    job_base_directory = anyio.Path(
         determine_output_directory(indexing_result.beamtime, {}) / "indexing-results"
     )
 
@@ -292,7 +293,7 @@ async def start_online_indexing_job(
                 else args.asapo_source
             ),
             amarcord.cli.crystfel_index.ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER: str(
-                args.cpu_count_multiplier if args.cpu_count_multiplier else 0.5,
+                args.cpu_count_multiplier or 0.5,
             ),
             # This we need to ask asapo for the correct stream.
             amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_RUN_ID: str(

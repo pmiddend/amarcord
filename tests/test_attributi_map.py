@@ -52,7 +52,7 @@ DS_ATTRIBUTI_STRING_THERE_BOOL_FALSE: dict[
 
 
 @pytest.mark.parametrize(
-    "run_attributi, data_set_attributi, outcome",
+    ("run_attributi", "data_set_attributi", "outcome"),
     [
         (
             RUN_ATTRIBUTI_STRING_THERE_BOOL_MISSING,
@@ -157,15 +157,8 @@ def test_run_matches_data_set(
 
 
 @pytest.mark.parametrize(
-    "run_value, data_set_value, tolerance, tolerance_is_absolute, matches",
+    ("run_value", "data_set_value", "tolerance", "tolerance_is_absolute", "matches"),
     [
-        (
-            201.0,
-            200.0,
-            0.1,
-            False,
-            True,
-        ),
         (
             201.0,
             200.0,

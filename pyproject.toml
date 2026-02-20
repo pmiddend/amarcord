@@ -46,7 +46,7 @@ dependencies = [
     "cryptography==46.0.3",
     "python-magic==0.4.27",
     # for async file opening functions
-    "anyio==4.12.0",
+    "anyio==4.12.1",
     # for the geometry templates
     "mstache==0.3.0"
 ]
@@ -67,7 +67,7 @@ dev = [
     "pytest-subprocess==1.5.0",
     "pytest-xdist==3.8.0",
     "pytest==9.0.2",
-    "ruff==0.14.7",
+    "ruff==0.15.2",
     # documentation
     "sphinx-autobuild==2025.08.25",
     "sphinx==9.1.0",
@@ -115,16 +115,8 @@ exclude = [ "amarcord/logging_util.py" ]
 force-single-line = true
 
 [tool.ruff.lint]
-# to turn this:
-#
-# from X import y,z
-#
-# into
-#
-# from X import y
-# from X import z
-select = ["I001", "F", "E", "W", "I", "N", "UP", "YTT", "ANN", "ASYNC", "S", "FBT", "B", "A", "C4", "T10", "ICN", "LOG", "G", "PIE", "T20", "PYI", "Q", "RET", "SLF", "SLOT", "SIM", "TID", "TC", "INT", "ARG", "PTH", "TD", "FIX", "PD", "PGH", "PL", "R", "W", "FLY", "NPY", "FAST", "AIR", "FURB", "RUF"]
-ignore = ["E501", "E722", "UP035", "ANN401", "S101", "S310", "FBT001", "B017", "B008", "B904", "C405", "C401", "C400", "G004", "G003", "PYI041", "SIM105", "TC001", "PGH003", "PGH004", "PLR2004", "PLR0913", "PLR0915", "PLR0912", "PLR0911", "RUF001", "LOG015"]
+select = ["I001", "ISC", "F", "E", "W", "I", "N", "UP", "YTT", "ANN", "ASYNC", "S", "FBT", "B", "A", "C4", "T10", "ICN", "LOG", "G", "PIE", "T20", "PYI", "Q", "RET", "SLF", "SLOT", "SIM", "TID", "TC", "INT", "ARG", "PTH", "TD", "FIX", "PD", "PGH", "PL", "R", "W", "FLY", "NPY", "FAST", "AIR", "FURB", "RUF", "PT", "RSE", "PLC", "PLE", "PLR", "PLW"]
+ignore = ["E501", "E722", "UP035", "ANN401", "S101", "S310", "FBT001", "B017", "B008", "B904", "C405", "C401", "C400", "G004", "G003", "PYI041", "SIM105", "TC001", "PGH003", "PGH004", "PLR2004", "PLR0913", "PLR0915", "PLR0912", "PLR0911", "RUF001", "LOG015", "PT011", "PT012"]
 
 [tool.fawltydeps]
 code = ["amarcord", "tests"]
@@ -197,7 +189,7 @@ reportUntypedNamedTuple = true
 reportCallInDefaultInitializer = false
 # Making this work on older Python versions requires a package. Annoying.
 reportImplicitOverride = false
-reportImplicitStringConcatenation = true
+reportImplicitStringConcatenation = false
 # In principle, a good message. However, it also forces you to call the object super method, which is pointless
 reportMissingSuperCall = false
 

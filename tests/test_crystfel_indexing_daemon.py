@@ -8,7 +8,7 @@ logger = structlog.stdlib.get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "input_string, cell_file",
+    ("input_string", "cell_file"),
     [
         (
             "monoclinic P c (3.4 5.6 7.8) (40.0 50.0 60.0)",

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
 # str to make it JSON serializable
-class MergeNegativeHandling(str, Enum):
+class MergeNegativeHandling(StrEnum):
     IGNORE = "ignore"
     ZERO = "zero"

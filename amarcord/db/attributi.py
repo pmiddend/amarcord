@@ -301,7 +301,7 @@ def convert_attributo_value(
     conversion_flags: AttributoConversionFlags,
     value: AttributoValue,
 ) -> AttributoValue:
-    converter = _conversion_matrix.get((type(before_type), type(after_type)), None)
+    converter = _conversion_matrix.get((type(before_type), type(after_type)))
 
     if converter is None:
         raise Exception(
@@ -324,7 +324,7 @@ def _convert_int_to_int_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)",
+            "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -344,7 +344,7 @@ def _convert_double_to_double_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)",
+            "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -364,7 +364,7 @@ def _convert_string_to_string_list(
     if after_type.sub_type != ArrayAttributoType.ARRAY_STRING:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            + "first, and then to list?)",
+            "first, and then to list?)",
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -550,7 +550,7 @@ def _convert_double_to_double(
         ):
             raise Exception(
                 f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
-                + f"not in the range {after_type.range} ",
+                f"not in the range {after_type.range} ",
             )
         return _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m  # type: ignore
 

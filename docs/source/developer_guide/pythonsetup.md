@@ -41,3 +41,20 @@ source venv/Scripts/activate
 ```
 
 this is for [idiotic reasons](https://stackoverflow.com/questions/43826134/why-is-the-bin-directory-named-differently-scripts-on-windows).
+
+## Notes on the Python code base
+
+### Type checking, formatting, linting, editor support
+
+For **formatting**, we use ruff. Just execute `ruff format amarcord/ tests/` to reformat the whole project.
+
+For **linting** and **type-checking** we use ruff and basedpyright. Just execute `ruff check amarcord tests`, as well as `basedpyright` (no paths), to lint the whole project.
+
+For **editor support** we currently use basedpyright. We are aware of "ty", but that one doesn't support import completions yet, so we are not using it yet.
+
+### anyio and `Path`
+
+We do use Python's `asyncio` feature a lot. And we also enable ruff's [ASYNC240](https://docs.astral.sh/ruff/rules/blocking-path-method-in-async-function/) check which makes sure to not use `pathlib.Path` functions that might block (the whole program), like `unlink`, `mkdir` and so on. This means:
+
+1. We depend on [anyio](https://pypi.org/project/anyio/) for asynchronous path operations.
+2. Whenever we are in an `async def` (an asynchronous function), we convert every `pathlib.Path` into `anyio.Path` and use the appropriate `await`s.

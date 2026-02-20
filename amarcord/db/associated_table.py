@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import StrEnum
 from enum import unique
 
 
 # str to make it JSON serializable
 @unique
-class AssociatedTable(str, Enum):
+class AssociatedTable(StrEnum):
     RUN = "run"
     CHEMICAL = "chemical"

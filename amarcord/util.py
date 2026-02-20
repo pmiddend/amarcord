@@ -65,7 +65,7 @@ W = TypeVar("W")
 X = TypeVar("X")
 
 
-def retupled_keys(
+def retupled_keys[K, V, W, X](
     d: dict[K, dict[V, W]],  # pyright: ignore[reportInvalidTypeVarUse]
     f: Callable[[K, V], X],  # pyright: ignore[reportInvalidTypeVarUse]
 ) -> list[X]:
@@ -76,7 +76,9 @@ def retupled_keys(
     ]
 
 
-def retuple_dict(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> dict[X, W]:
+def retuple_dict[K, V, W, X](
+    d: dict[K, dict[V, W]], f: Callable[[K, V], X]
+) -> dict[X, W]:
     return {
         f(table, attributo_id): values
         for table, attributi in d.items()
@@ -103,11 +105,11 @@ class UnexpectedEOFError(Exception):
         super().__init__("Unexpected EOF")
 
 
-def find_by(xs: list[T], by: Callable[[T], bool]) -> T | None:
+def find_by[T](xs: list[T], by: Callable[[T], bool]) -> T | None:
     return next((x for x in xs if by(x)), None)
 
 
-def contains(xs: list[T], by: Callable[[T], bool]) -> bool:
+def contains[T](xs: list[T], by: Callable[[T], bool]) -> bool:
     return any(by(x) for x in xs)
 
 
@@ -167,7 +169,7 @@ def last_line_of_file(p: Path) -> str:
         return ""
 
 
-def safe_max(
+def safe_max[T, U](
     xs: Iterable[T],
     key: Callable[[T], U],  # pyright: ignore[reportInvalidTypeVarUse]
 ) -> T | None:
@@ -178,7 +180,7 @@ def safe_max(
         return None
 
 
-def group_by(xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
+def group_by[T, U](xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
     result: dict[U, list[T]] = {}
     for x in xs:
         key_value = key(x)

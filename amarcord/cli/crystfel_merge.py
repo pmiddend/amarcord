@@ -113,11 +113,11 @@ def ccp4_run(
             logger.exception(
                 f"calling {args} didn't work: stderr {result.stderr}, stdout: {result.stdout}",
             )
-            raise Exception()
+            raise Exception
         return result.stdout
     except:
         logger.exception(f"calling {args} didn't work")
-        raise Exception()
+        raise Exception
 
 
 def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
@@ -387,7 +387,7 @@ def parse_args() -> ParsedArgs:
         exit_minimal("custom split has just one component")
     return ParsedArgs(
         crystfel_path=crystfel_path,
-        ccp4_path=ccp4_path if ccp4_path else None,
+        ccp4_path=ccp4_path or None,
         stream_files=valid_paths,
         api_url=api_url,
         merge_result_id=merge_result_id,

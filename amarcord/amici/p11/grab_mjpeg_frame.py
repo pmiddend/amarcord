@@ -73,7 +73,7 @@ async def mjpeg_grab_single_frame(mjpeg_stream_url: str) -> bytes:
 
     reader, writer = await asyncio.open_connection(
         parsed.hostname,
-        parsed.port if parsed.port else 80,
+        parsed.port or 80,
     )
 
     get_url = parsed.path.encode("utf-8") + b"?" + parsed.query.encode("utf-8")

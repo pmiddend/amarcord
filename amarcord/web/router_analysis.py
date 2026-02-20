@@ -503,9 +503,9 @@ async def read_single_data_set_results(
                             [
                                 orm_encode_merge_result_to_json(
                                     mr,
-                                    run_id_formatter=lambda rid: run_external_id_for_internal_id[
-                                        rid
-                                    ],
+                                    run_id_formatter=lambda rid: (
+                                        run_external_id_for_internal_id[rid]
+                                    ),
                                 )
                                 for mr in merge_results_per_indexing_parameters.get(
                                     ip_id, []

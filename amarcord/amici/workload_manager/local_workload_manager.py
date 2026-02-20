@@ -6,10 +6,11 @@ import shutil
 import stat
 from asyncio.subprocess import Process
 from dataclasses import dataclass
-from pathlib import Path
 from time import time
 from typing import Any
 from typing import Iterable
+
+from anyio import Path
 
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
@@ -39,15 +40,15 @@ async def start_process_locally(
     output_base_dir = Path(output_base_dir_str)
 
     script_path = output_base_dir / f"{time()}-amarcord-script.sh"
-    with script_path.open("w", encoding="utf-8") as f:
-        f.write(script)
+    async with await script_path.open("w", encoding="utf-8") as f:
+        await f.write(script)
 
-    script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+    await script_path.chmod((await script_path.stat()).st_mode | stat.S_IEXEC)
 
     extra_file_paths = [Path(s) for s in extra_file_paths_str]
 
     process_dir = output_base_dir
-    process_dir.mkdir(parents=True, exist_ok=True)
+    await process_dir.mkdir(parents=True, exist_ok=True)
 
     for extra_file in extra_file_paths:
         logger.info(
@@ -72,19 +73,22 @@ async def start_process_locally(
 
     if stdout is not None:
         if stderr is not None:
-            with stdout.open("w") as stdout_obj, stderr.open("w") as stderr_obj:
+            async with (
+                await stdout.open("w") as stdout_obj,
+                await stderr.open("w") as stderr_obj,
+            ):
                 proc = await create_subprocess(
                     stdout=stdout_obj,
                     stderr=stderr_obj,
                 )
         else:
-            with stdout.open("w") as stdout_obj:
+            async with await stdout.open("w") as stdout_obj:
                 proc = await create_subprocess(
                     stdout=stdout_obj,
                     stderr=asyncio.subprocess.PIPE,
                 )
     elif stderr is not None:
-        with stderr.open("w") as stderr_obj:
+        async with await stderr.open("w") as stderr_obj:
             proc = await create_subprocess(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=stderr_obj,
@@ -116,7 +120,7 @@ class LocalWorkloadManager(WorkloadManager):
         stderr: None | Path = None,
     ) -> JobStartResult:
         try:
-            working_directory.mkdir(exist_ok=True, parents=True)
+            await working_directory.mkdir(exist_ok=True, parents=True)
         except:
             raise JobStartError(
                 f"couldn't create working directory {working_directory}"
@@ -146,7 +150,7 @@ class LocalWorkloadManager(WorkloadManager):
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode
             if rc is not None:
-                wrapped_process.script_path.unlink(missing_ok=True)
+                await wrapped_process.script_path.unlink(missing_ok=True)
             result.append(
                 Job(
                     id=wrapped_process.process.pid,

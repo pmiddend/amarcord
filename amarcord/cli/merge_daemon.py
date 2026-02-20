@@ -136,7 +136,7 @@ class MergeJobStartSuccess:
 
 
 def make_cell_file_name(c: CrystFELCellFile) -> str:
-    ua = c.unique_axis if c.unique_axis else "noaxis"
+    ua = c.unique_axis or "noaxis"
     return f"chemical_{c.lattice_type}_{c.centering}_{ua}_{c.a}_{c.b}_{c.c}_{c.alpha}_{c.beta}_{c.gamma}_{int(time())}.cell"
 
 
@@ -293,7 +293,7 @@ async def start_merge_job(
                     args.overwrite_interpreter,
                 )
             beamtime = merge_result.indexing_results[0].beamtime
-            job_base_directory = (
+            job_base_directory = anyio.Path(
                 determine_output_directory(
                     beamtime,
                     {},

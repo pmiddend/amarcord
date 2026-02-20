@@ -9,7 +9,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 from typing import AsyncGenerator
-from typing import Generator
 from unittest import TestCase
 from zipfile import ZipFile
 
@@ -208,11 +207,11 @@ async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession]:
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> Generator[TestClient]:
+def client(tmp_path: Path) -> TestClient:
     url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
     os.environ["DB_URL"] = url
     asyncio.run(init_db(url))
-    yield TestClient(app)
+    return TestClient(app)
 
 
 def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> BeamtimeId:
@@ -1848,7 +1847,8 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
 
     assert response.indexing_result_id is None
     assert response.run_created
-    assert response.run_internal_id is not None and response.run_internal_id > 0
+    assert response.run_internal_id is not None
+    assert response.run_internal_id > 0
     assert not response.error_message
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
@@ -1889,11 +1889,9 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     assert response.indexing_result_id is None
     assert not response.run_created
     assert not response.error_message
-    assert (
-        response.run_internal_id is not None
-        and response.run_internal_id > 0
-        and response.run_internal_id == read_runs_output.runs[0].id
-    )
+    assert response.run_internal_id is not None
+    assert response.run_internal_id > 0
+    assert response.run_internal_id == read_runs_output.runs[0].id
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
 
@@ -1946,9 +1944,11 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     )
 
     assert response.run_created
-    assert response.run_internal_id is not None and response.run_internal_id > 0
+    assert response.run_internal_id is not None
+    assert response.run_internal_id > 0
     assert not response.error_message
-    assert response.indexing_result_id is not None and response.indexing_result_id > 0
+    assert response.indexing_result_id is not None
+    assert response.indexing_result_id > 0
 
     # Next, test the "read indexing jobs" request with the status parameter
     read_indexing_results_response = JsonReadIndexingResultsOutput(
@@ -1997,7 +1997,8 @@ def test_create_run_and_import_external_indexing_result(
     )
 
     assert response.run_created
-    assert response.run_internal_id is not None and response.run_internal_id > 0
+    assert response.run_internal_id is not None
+    assert response.run_internal_id > 0
     assert response.indexing_result_id is None
 
     # Create the run and check the result
@@ -2271,10 +2272,8 @@ def test_update_indexing_job(
     )
 
     assert create_run_response.run_internal_id is not None
-    assert (
-        create_run_response.indexing_result_id is not None
-        and create_run_response.indexing_result_id > 0
-    )
+    assert create_run_response.indexing_result_id is not None
+    assert create_run_response.indexing_result_id > 0
 
     update_indexing_job_response = JsonIndexingJobUpdateOutput(
         **client.post(
@@ -2757,10 +2756,8 @@ def test_queue_merge_job_with_point_and_space_group_inferred(
     )
 
     assert create_run_response.run_internal_id is not None
-    assert (
-        create_run_response.indexing_result_id is not None
-        and create_run_response.indexing_result_id > 0
-    )
+    assert create_run_response.indexing_result_id is not None
+    assert create_run_response.indexing_result_id > 0
     assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
@@ -2908,10 +2905,8 @@ def test_queue_then_start_then_finish_merge_job(
     )
 
     assert create_run_response.run_internal_id is not None
-    assert (
-        create_run_response.indexing_result_id is not None
-        and create_run_response.indexing_result_id > 0
-    )
+    assert create_run_response.indexing_result_id is not None
+    assert create_run_response.indexing_result_id > 0
     assert create_run_response.new_indexing_parameters_id is not None
 
     assert JsonIndexingJobUpdateOutput(
@@ -3691,7 +3686,7 @@ def test_read_and_update_runs_bulk(
         if x.attributo_id == run_string_attributo_id
         for y in x.values
     ]
-    tc.assertCountEqual(
+    tc.assertCountEqual(  # noqa: PT009
         bulk_values_string,
         [
             JsonAttributoValue(
@@ -3710,7 +3705,7 @@ def test_read_and_update_runs_bulk(
         if x.attributo_id == run_int_attributo_id
         for y in x.values
     ]
-    tc.assertCountEqual(
+    tc.assertCountEqual(  # noqa: PT009
         bulk_values_int,
         [
             JsonAttributoValue(
@@ -4250,10 +4245,8 @@ def test_download_spreadsheet(
             ).model_dump(),
         ).json(),
     )
-    assert (
-        create_run_response.run_internal_id is not None
-        and create_run_response.run_internal_id > 0
-    )
+    assert create_run_response.run_internal_id is not None
+    assert create_run_response.run_internal_id > 0
 
     response = client.get(f"/api/{beamtime_id}/spreadsheet.zip")
     print(response)

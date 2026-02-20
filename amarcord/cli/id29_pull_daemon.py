@@ -6,6 +6,7 @@ from abc import abstractmethod
 from enum import Enum
 from pathlib import Path
 
+import anyio
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -141,11 +142,11 @@ async def _copy_stream_file(
     if ir.stream_file.startswith(analysis_output_path):
         return
 
-    stream_file_locally = Path(
+    stream_file_locally = anyio.Path(
         ir.stream_file.replace(args.path_prefix, args.path_prefix_replacement)
     )
 
-    present_at_desy = stream_file_locally.is_file()
+    present_at_desy = await stream_file_locally.is_file()
     db_columns_match = str(stream_file_locally) == ir.stream_file
 
     if present_at_desy and db_columns_match:
@@ -162,7 +163,7 @@ async def _copy_stream_file(
         await session.commit()
         return
 
-    stream_file_locally.parent.mkdir(exist_ok=True, parents=True)
+    await stream_file_locally.parent.mkdir(exist_ok=True, parents=True)
     rsync_implementation = (
         SimulatedRsyncImplementation(logger)
         if args.simulate

@@ -1,10 +1,10 @@
 import asyncio
 import datetime
 import re
-from pathlib import Path
 from typing import Iterable
 
 import structlog
+from anyio import Path
 from structlog.stdlib import BoundLogger
 
 from amarcord.amici.petra3.beamline_metadata import BeamlineMetadata

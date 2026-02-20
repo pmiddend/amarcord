@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel
@@ -31,7 +31,7 @@ class JSONSchemaBoolean(BaseModel):
     type: Literal["boolean"]
 
 
-class JSONSchemaArraySubtype(str, Enum):
+class JSONSchemaArraySubtype(StrEnum):
     ARRAY_STRING = "string"
     ARRAY_BOOL = "bool"
     ARRAY_NUMBER = "number"

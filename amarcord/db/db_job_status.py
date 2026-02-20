@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class DBJobStatus(str, Enum):
+class DBJobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     DONE = "done"

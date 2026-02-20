@@ -2,8 +2,9 @@ import datetime
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable
+
+from anyio import Path
 
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata

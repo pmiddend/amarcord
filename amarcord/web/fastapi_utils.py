@@ -112,15 +112,9 @@ def json_attributo_to_data_set_orm_attributo(
         ),
         list_value=(
             new_attributo.attributo_value_list_str
-            if new_attributo.attributo_value_list_str
-            else (
+            or (
                 new_attributo.attributo_value_list_float
-                if new_attributo.attributo_value_list_float
-                else (
-                    new_attributo.attributo_value_list_bool
-                    if new_attributo.attributo_value_list_bool
-                    else None
-                )
+                or (new_attributo.attributo_value_list_bool or None)
             )
         ),
         chemical_value=new_attributo.attributo_value_chemical,
@@ -145,15 +139,9 @@ def json_attributo_to_run_orm_attributo(
         ),
         list_value=(
             new_attributo.attributo_value_list_str
-            if new_attributo.attributo_value_list_str
-            else (
+            or (
                 new_attributo.attributo_value_list_float
-                if new_attributo.attributo_value_list_float
-                else (
-                    new_attributo.attributo_value_list_bool
-                    if new_attributo.attributo_value_list_bool
-                    else None
-                )
+                or (new_attributo.attributo_value_list_bool or None)
             )
         ),
         chemical_value=new_attributo.attributo_value_chemical,
@@ -178,15 +166,9 @@ def json_attributo_to_chemical_orm_attributo(
         ),
         list_value=(
             new_attributo.attributo_value_list_str
-            if new_attributo.attributo_value_list_str
-            else (
+            or (
                 new_attributo.attributo_value_list_float
-                if new_attributo.attributo_value_list_float
-                else (
-                    new_attributo.attributo_value_list_bool
-                    if new_attributo.attributo_value_list_bool
-                    else None
-                )
+                or (new_attributo.attributo_value_list_bool or None)
             )
         ),
     )
@@ -443,7 +425,7 @@ def orm_encode_merge_result_to_json(
                 stopped=utc_datetime_to_utc_int(mr.stopped),
                 stopped_local=utc_datetime_to_local_int(mr.stopped),
                 result=JsonMergeResultInternal(
-                    dataset=mr.dataset if mr.dataset else "",
+                    dataset=mr.dataset or "",
                     detailed_foms=[
                         JsonMergeResultShell(
                             one_over_d_centre=s.one_over_d_centre,

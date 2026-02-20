@@ -94,7 +94,7 @@ def _create_attributo_value(
 
 
 @pytest.mark.parametrize(
-    "filter_expression, run_id, attributi_types, attributi, result",
+    ("filter_expression", "run_id", "attributi_types", "attributi", "result"),
     [
         ("", 2, {}, {}, True),
         ("id > 1", 2, {}, {}, True),

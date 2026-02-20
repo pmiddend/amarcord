@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
 # str to make it JSON serializable
-class ChemicalType(str, Enum):
+class ChemicalType(StrEnum):
     CRYSTAL = "crystal"
     SOLUTION = "solution"

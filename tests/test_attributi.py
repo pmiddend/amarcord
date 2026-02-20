@@ -221,7 +221,7 @@ def test_attributo_types_semantically_equivalent() -> None:
 
 
 @pytest.mark.parametrize(
-    "test_input,expected",
+    ("test_input", "expected"),
     [
         (
             AttributoTypeDecimal(

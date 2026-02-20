@@ -1,8 +1,8 @@
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 from typing import cast
 
+import anyio
 import pytest
 from pytest_subprocess import FakeProcess
 
@@ -84,7 +84,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
 
     http_wrapper.responses.append({"job_id": 1})
     await controller.start_job(
-        working_directory=Path("test"),
+        working_directory=anyio.Path("test"),
         name="test",
         script='#!/bin/sh\n\necho "Done"',
         environment={},

@@ -14,7 +14,7 @@ from amarcord.json_schema import JSONSchemaUnion
 
 
 @pytest.mark.parametrize(
-    "input_json,expected",
+    ("input_json", "expected"),
     [
         (
             {"type": "number"},
@@ -133,7 +133,7 @@ def test_parse_schema_type(
 
 
 @pytest.mark.parametrize(
-    "expected,input_schema",
+    ("expected", "input_schema"),
     [
         (
             {

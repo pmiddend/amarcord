@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel
@@ -1074,7 +1074,7 @@ class JsonReadOnlineIndexingParametersOutput(BaseModel):
     geometries: list[JsonGeometryMetadata]
 
 
-class JsonMergeStatus(str, Enum):
+class JsonMergeStatus(StrEnum):
     BOTH = "both"
     UNMERGED = "unmerged"
     MERGED = "merged"

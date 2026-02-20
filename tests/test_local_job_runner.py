@@ -2,6 +2,8 @@ import asyncio
 from datetime import timedelta
 from pathlib import Path
 
+import anyio
+
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.local_workload_manager import LocalWorkloadManager
 
@@ -10,7 +12,7 @@ async def test_main_loop(tmp_path: Path) -> None:
     jc = LocalWorkloadManager()
 
     await jc.start_job(
-        working_directory=tmp_path,
+        working_directory=anyio.Path(tmp_path),
         name="test-job",
         script='#!/bin/sh\n\necho "Done"',
         environment={},

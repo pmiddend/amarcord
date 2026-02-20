@@ -5,7 +5,6 @@ import json
 import subprocess
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 from typing import Awaitable
 from typing import Callable
@@ -16,6 +15,7 @@ import aiohttp
 import structlog
 from aiohttp import BasicAuth
 from aiohttp import ContentTypeError
+from anyio import Path
 from pydantic import BaseModel
 
 from amarcord.amici.workload_manager.job import Job

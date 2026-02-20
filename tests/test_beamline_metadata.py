@@ -21,7 +21,7 @@ def test_parse_beamline_metadata() -> None:
 
 
 @pytest.mark.parametrize(
-    "input_lines,jobs_or_none",
+    ("input_lines", "jobs_or_none"),
     [
         (
             "HEADER_PLEASE_IGNORE\n12697363,R,2022-09-22T09:02:31",

@@ -67,7 +67,7 @@ def test_remove_illegal_path_characters() -> None:
 
 
 @pytest.mark.parametrize(
-    "input_string, candidates, result",
+    ("input_string", "candidates", "result"),
     [("apple", ["appel"], True), ("apple", ["mango"], False)],
 )
 def test_maybe_you_meant(

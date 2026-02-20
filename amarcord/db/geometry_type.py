@@ -1,9 +1,9 @@
 # str to make it JSON serializable
-from enum import Enum
+from enum import StrEnum
 from enum import unique
 
 
 @unique
-class GeometryType(str, Enum):
+class GeometryType(StrEnum):
     CRYSTFEL_FILE = "crystfel_file"
     CRYSTFEL_STRING = "crystfel_string"

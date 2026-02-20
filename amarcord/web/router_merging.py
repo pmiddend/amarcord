@@ -537,8 +537,7 @@ async def queue_merge_job(
         # when we have none.
         cell_description = (
             input_.merge_parameters.cell_description
-            if input_.merge_parameters.cell_description
-            else indexing_parameters.cell_description
+            or indexing_parameters.cell_description
         )
 
         if not cell_description:
