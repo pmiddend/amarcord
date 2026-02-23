@@ -7,7 +7,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "AMARCORD"
-copyright = "2024, Philipp Middendorf"
+copyright = "%Y, Philipp Middendorf"
+project_copyright = "%Y, Philipp Middendorf"
 author = "Philipp Middendorf"
 release = "1.0"
 
@@ -18,8 +19,6 @@ release = "1.0"
 extensions = ["sphinxcontrib.mermaid", "myst_parser", "sphinxcontrib.spelling"]
 
 myst_fence_as_directive = ["mermaid"]
-
-mermaid_version = ""
 
 templates_path = ["_templates"]
 exclude_patterns = []
