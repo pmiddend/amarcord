@@ -24,7 +24,7 @@ import Result.Extra
 
 knownIndexingMethods : List String
 knownIndexingMethods =
-    [ "dirax", "mosflm", "asdf", "felix", "xds", "taketwo", "xgandalf", "pinkIndexer" ]
+    [ "dirax", "mosflm", "asdf", "felix", "xds", "taketwo", "xgandalf", "pinkIndexer", "smallcell" ]
 
 
 type alias IndexingMethod =
