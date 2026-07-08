@@ -383,7 +383,7 @@ def test_parse_run_spreadsheet_single_succesful_run(base_spreadsheet: Workbook) 
     started = datetime.datetime.now()
     ws["A2"] = "1337"
     ws["B2"] = "simple"
-    ws["C2"] = started  # type: ignore
+    ws["C2"] = started
     ws["E2"] = "test.h5"
     ws["F2"] = "lyso"
     ws["G2"] = "100"
@@ -416,7 +416,7 @@ def test_parse_run_spreadsheet_run_run_id_is_not_an_integer(
     # simulate a typo in the run ID
     ws["A2"] = "1337a"
     ws["B2"] = "simple"
-    ws["C2"] = started  # type: ignore
+    ws["C2"] = started
     ws["E2"] = "test.h5"
     ws["F2"] = "lyso"
     ws["G2"] = "100"
@@ -539,7 +539,7 @@ def test_parse_run_spreadsheet_extraneous_custom_cells(
     started = datetime.datetime.now()
     ws["A2"] = "1337"
     ws["B2"] = "simple"
-    ws["C2"] = started  # type: ignore
+    ws["C2"] = started
     ws["E2"] = "test.h5"
     ws["F2"] = "lyso"
     ws["G2"] = "100"

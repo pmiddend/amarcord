@@ -73,9 +73,9 @@ def id29_parse_attributo_config_file(p: Path) -> ID29AttributoConfigFile:
         for item in json_content:
             attributi.append(
                 ID29AttributoConfig(
-                    beamline_attributo_name=item["beamline-name"],  # type: ignore
+                    beamline_attributo_name=item["beamline-name"],
                     attributo_id=0,
-                    attributo_name=item["attributo-name"],  # type: ignore
+                    attributo_name=item["attributo-name"],
                     attributo_type=ID29AttributoType(item["attributo-type"]),
                 )
             )
@@ -191,7 +191,7 @@ def _oldest_and_newest_file_in_dir(
         if mintime is not None and maxtime is not None:
             return mintime, maxtime
     except Exception as e:
-        logger.error(f"couldn't read some file in directory {p}: {e}")
+        logger.error(f"couldn't read some file in directory: {e}")
     return None
 
 

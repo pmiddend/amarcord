@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import Any
 from typing import cast
+from typing import override
 
 import anyio
 import pytest
@@ -60,10 +61,12 @@ class MockHttpWrapper(SlurmHttpWrapper):
         self.get_requests: list[tuple[str, dict[str, Any]]] = []
         self.responses: list[JSONDict] = []
 
+    @override
     async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
         self.post_requests.append((url, headers, data))
         return self.responses.pop()
 
+    @override
     async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
         self.get_requests.append((url, headers))
         return self.responses.pop()

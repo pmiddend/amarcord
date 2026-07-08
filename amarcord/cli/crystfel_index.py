@@ -36,6 +36,7 @@ from typing import Iterable
 from typing import MutableSequence
 from typing import NoReturn
 from typing import TypeVar
+from typing import override
 from urllib import request
 
 _X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
@@ -128,6 +129,7 @@ class ListHandler(logging.Handler):
         # Our custom argument
         self.log_list = log_list_
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         # record.message is the log message
         self.log_list.append(self.format(record).rstrip("\n"))
@@ -187,7 +189,7 @@ _INDEXING_RE: Final = re.compile(
 # The FPS killer monitors the indexing frame rate and kills jobs if
 # they're too slow. Set to zero to disable (statically, of course).
 _FPS_KILLER_ONLINE_SECONDS = 5 * 60
-_FPS_KILLER_OFFLINE: Final = False
+_FPS_KILLER_OFFLINE: Final = os.environ.get("AMARCORD_FPS_KILLER", "False") != "False"
 _FPS_KILLER_THRESHOLD = 0.5
 
 
@@ -669,7 +671,7 @@ def initialize_db(
             "-g",
             str(geometry_path),
             "-o",
-            str(output_file_name),
+            str(output_file_name),  # ty:ignore[possibly-unresolved-reference]
         ]
         logger.info("list_events args: " + " ".join(list_events_args))
         result = subprocess.run(  # noqa: S603
@@ -690,8 +692,8 @@ def initialize_db(
             # diagnosed completely, for now it's a regular file. Which
             # is a bummer, because with a FIFO you could do parallel
             # processing, but whatever.
-        with output_file_name.open(encoding="utf-8") as fifo_file_obj:
-            logger.info(f"opened list files: {output_file_name}")
+        with output_file_name.open(encoding="utf-8") as fifo_file_obj:  # ty:ignore[possibly-unresolved-reference]
+            logger.info(f"opened list files: {output_file_name}")  # ty:ignore[possibly-unresolved-reference]
             job_array_id = 0
             indexamajig_job_id = 0
             job_array_ids: set[int] = {0}
@@ -724,7 +726,7 @@ def initialize_db(
                 ) as input_file:
                     for event_line in event_batch:
                         input_file.write(f"{event_line}\n")
-                        images_total += 1
+                        images_total += 1  # ty:ignore[possibly-unresolved-reference]
                         images_in_this_batch += 1
                 with db:
                     start_idx = indexamajig_job_id * IMAGES_PER_JOB
@@ -1755,7 +1757,7 @@ def run_secondary(args: SecondaryArgs) -> None:
             db_execute_timed(
                 db,
                 "UPDATE IndexamajigJob SET error_log=?, state=? WHERE job_id=?",
-                ("\n".join(log_list), "failed", job_id),  # type: ignore
+                ("\n".join(log_list), "failed", job_id),
             )
             db.commit()
             return
@@ -1764,7 +1766,7 @@ def run_secondary(args: SecondaryArgs) -> None:
     db_execute_timed(
         db,
         "UPDATE IndexamajigJob SET state=?, images_processed=?, hits=?, indexed_frames=?, indexed_crystals=? WHERE job_id=?",
-        ("success", images, hits, indexable, crystals, job_id),  # type: ignore
+        ("success", images, hits, indexable, crystals, job_id),
     )
     db.commit()
     logger.info(f"committed transaction, job {job_id} is success now")

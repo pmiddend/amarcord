@@ -130,7 +130,7 @@ def upgrade() -> None:
                 )
             )
 
-    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingResult") as batch_op:
         batch_op.drop_column("detector_shift_x_mm")
         batch_op.drop_column("detector_shift_y_mm")
 

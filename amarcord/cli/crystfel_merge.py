@@ -22,6 +22,7 @@ from typing import MutableSequence
 from typing import NewType
 from typing import NoReturn
 from typing import TypeVar
+from typing import override
 from urllib import request
 
 _R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
@@ -286,6 +287,7 @@ class ListHandler(logging.Handler):
         # Our custom argument
         self.log_list = log_list_
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         # record.message is the log message
         self.log_list.append(self.format(record).rstrip("\n"))
@@ -1384,7 +1386,7 @@ def generate_output(args: ParsedArgs) -> None:
                 max_chunks=args.random_cut_length,
                 # How do you type the output of NamedTemporaryFile? It's obviously a binary file object
                 # in the default mode.
-                target=random_chunks_file_obj,  # type: ignore
+                target=random_chunks_file_obj,
             )
             random_chunks_file_obj.flush()
         input_stream_files.append(random_chunks_file)

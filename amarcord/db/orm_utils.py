@@ -130,7 +130,7 @@ def update_file_with_contents(
     file_path = Path(temp_file.name)
     f.sha256 = sha256_file(file_path)
 
-    mime = magic.from_file(str(file_path), mime=True)  # type: ignore
+    mime = magic.from_file(str(file_path), mime=True)
     assert isinstance(mime, str), f"mime type is not a string: {mime}"
     f.type = mime
 
@@ -475,7 +475,7 @@ async def determine_run_indexing_metadata(
         ).one()
         for attributo_value in r.attributo_values
         if attributo_value.chemical_value is not None
-    ):
+    ):  # ty:ignore[not-iterable]
         if this_channel_chemical.type == ChemicalType.CRYSTAL:
             crystal_chemicals.append(this_channel_chemical)
         this_point_group = next(

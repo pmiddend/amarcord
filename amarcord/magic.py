@@ -6,10 +6,10 @@ try:
     import magic
 
     def from_file(p: Path, mime: bool) -> str:
-        return magic.from_file(str(p), mime=mime)  # type: ignore
+        return magic.from_file(str(p), mime=mime)
 
     def from_buffer(b: bytes, mime: bool) -> str:
-        return magic.from_buffer(b, mime=mime)  # type: ignore
+        return magic.from_buffer(b, mime=mime)
 
 except ImportError:
 

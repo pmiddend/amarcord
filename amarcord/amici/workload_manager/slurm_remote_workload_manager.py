@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import re
 from typing import Iterable
+from typing import override
 
 import structlog
 from anyio import Path
@@ -9,7 +10,6 @@ from structlog.stdlib import BoundLogger
 
 from amarcord.amici.petra3.beamline_metadata import BeamlineMetadata
 from amarcord.amici.workload_manager.job import Job
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
@@ -120,7 +120,7 @@ def decode_job_list_result(decoded: str, stderr: bytes) -> list[Job]:
             raise Exception(
                 f'line {line}: date {parts[2]} doesn\'t conform to format spec "{date_format_spec}"',
             )
-        result.append(Job(job_status, job_start, job_id, JobMetadata({})))
+        result.append(Job(job_status, job_start, job_id, {}))
     return result
 
 
@@ -218,22 +218,25 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         self._additional_ssh_options = additional_ssh_options
         self._explicit_node = explicit_node
 
+    @override
     def name(self) -> str:
         return "Slurm SSH"
 
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
+    @override
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
         return await run_remote_list_jobs(
             logger,
             self._metadata,
             self._additional_ssh_options,
         )
 
+    @override
     async def start_job(
         self,
         working_directory: Path,
         script: str,
-        name: str,  # noqa: ARG002
-        time_limit: datetime.timedelta,  # noqa: ARG002
+        name: str,
+        time_limit: datetime.timedelta,
         environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
@@ -252,6 +255,6 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
                 stderr=stderr,
                 additional_ssh_options=self._additional_ssh_options,
             )
-            return JobStartResult(job_id, JobMetadata({"id": job_id}))
+            return JobStartResult(job_id, {"id": job_id})
         except Exception as e:
             raise JobStartError(str(e))

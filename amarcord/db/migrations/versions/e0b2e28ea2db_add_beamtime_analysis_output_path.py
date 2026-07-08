@@ -22,7 +22,7 @@ BEAMTIME_TABLE_NEW = sa.sql.table(
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("Beamtime") as batch_op:  # type: ignore
+    with op.batch_alter_table("Beamtime") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "analysis_output_path",
@@ -41,7 +41,7 @@ def upgrade() -> None:
         ),
     )
 
-    with op.batch_alter_table("Beamtime") as batch_op:  # type: ignore
+    with op.batch_alter_table("Beamtime") as batch_op:
         batch_op.alter_column(
             "analysis_output_path",
             existing_type=sa.Text,

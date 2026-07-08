@@ -5,6 +5,7 @@ from abc import ABC
 from abc import abstractmethod
 from enum import Enum
 from pathlib import Path
+from typing import override
 
 import anyio
 import structlog
@@ -51,6 +52,7 @@ class RsyncInterface(ABC):
 
 
 class RealRsyncImplementation(RsyncInterface):  # pragma: no cover
+    @override
     async def run_and_wait(
         self, args: Arguments, esrf_glob: str, target: str, additional_args: list[str]
     ) -> int:
@@ -69,6 +71,7 @@ class SimulatedRsyncImplementation(RsyncInterface):
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
+    @override
     async def run_and_wait(
         self, args: Arguments, esrf_glob: str, target: str, additional_args: list[str]
     ) -> int:

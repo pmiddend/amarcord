@@ -157,7 +157,7 @@ def upgrade() -> None:
         ),
         sa.Column("replacement", sa.String(length=255), nullable=False),
     )
-    with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingParameters") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "geometry_id",
@@ -170,7 +170,7 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
-    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingResult") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "generated_geometry_id",
@@ -279,7 +279,7 @@ def upgrade() -> None:
                     "geometry_type": "crystfel_string",
                 }
             )
-        )  # type: ignore
+        )
 
         # This works, but only for certain backends. But our backends are among it, so should be fine.
         new_geometry_id = insert_result.lastrowid
@@ -310,9 +310,9 @@ def upgrade() -> None:
             + ", ".join(str(s) for s in geometry.indexing_results_generated_geometries)
         )
 
-    with op.batch_alter_table("IndexingParameters") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingParameters") as batch_op:
         batch_op.drop_column("geometry_file")
-    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingResult") as batch_op:
         # Remove geometry ID column
         batch_op.drop_column("geometry_file")
         batch_op.drop_column("geometry_hash")

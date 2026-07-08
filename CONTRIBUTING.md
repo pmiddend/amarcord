@@ -16,7 +16,7 @@ The continuous integration pipelines should take care of catching any style or c
 
 - Python
   - `ruff` to ensure proper _formatting_ and to check the code for issues
-  - `basedpyright` to catch bugs and typing issues
+  - `ty` to catch bugs and typing issues
   - (optional) `mypy` to catch even more typing issues
   - `fawltydeps` to catch dependency issues
 - Elm

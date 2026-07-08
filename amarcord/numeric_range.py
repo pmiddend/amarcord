@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass
+from typing import override
 
 
 @dataclass(frozen=True, eq=True)
@@ -9,6 +10,7 @@ class NumericRange:
     maximum: float | None
     maximum_inclusive: bool
 
+    @override
     def __repr__(self) -> str:
         s = "[" if self.minimum_inclusive else "("
         s += str(self.minimum) if self.minimum is not None else "oo"

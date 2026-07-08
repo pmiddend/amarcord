@@ -88,37 +88,36 @@ async def create_workbook(
         ),
         start=1,
     ):
-        # pyright thinks I cannot access .cell on the worksheet
-        cell = attributi_sheet.cell(  # pyright: ignore
+        cell = attributi_sheet.cell(
             row=1,
             column=attributo_column,
             value=attributo_header_name,
         )
-        new_font = copy(cell.font)  # pyright: ignore
-        cell.font = new_font  # pyright: ignore
+        new_font = copy(cell.font)
+        cell.font = new_font
 
     for attributo_row_idx, attributo in enumerate(attributi, start=2):
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(
             row=attributo_row_idx,
             column=1,
             value=attributo.associated_table.value.capitalize(),
         )
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(
             row=attributo_row_idx,
             column=2,
             value=attributo.name,
         )
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(
             row=attributo_row_idx,
             column=3,
             value=attributo.group,
         )
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(
             row=attributo_row_idx,
             column=4,
             value=attributo.description,
         )
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(
             row=attributo_row_idx,
             column=5,
             value=attributo_type_to_string(
@@ -133,13 +132,13 @@ async def create_workbook(
         ["Name"] + [a.name for a in chemical_attributi] + ["File IDs"],
         start=1,
     ):
-        cell = chemicals_sheet.cell(  # pyright: ignore
+        cell = chemicals_sheet.cell(
             row=1,
             column=chemical_column,
             value=str(chemical_header_name),
         )
-        new_font = copy(cell.font)  # pyright: ignore
-        cell.font = new_font  # pyright: ignore
+        new_font = copy(cell.font)
+        cell.font = new_font
 
     files_to_include: list[orm.File] = []
     chemicals = (
@@ -151,7 +150,7 @@ async def create_workbook(
         )
     ).all()
     for chemical_row_idx, chemical in enumerate(chemicals, start=2):
-        chemicals_sheet.cell(  # pyright: ignore
+        chemicals_sheet.cell(
             row=chemical_row_idx,
             column=1,
             value=chemical.name,
@@ -160,7 +159,7 @@ async def create_workbook(
             chemical_attributi,
             start=2,
         ):
-            chemicals_sheet.cell(  # pyright: ignore
+            chemicals_sheet.cell(
                 row=chemical_row_idx,
                 column=chemical_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
@@ -179,7 +178,7 @@ async def create_workbook(
                 ),
             )
         if chemical.files:
-            chemicals_sheet.cell(  # pyright: ignore
+            chemicals_sheet.cell(
                 row=chemical_row_idx,
                 column=2 + len(chemical_attributi),
                 value=", ".join(str(f.id) for f in chemical.files),
@@ -191,9 +190,9 @@ async def create_workbook(
         ["ID", "started", "stopped"] + [a.name for a in run_attributi],
         start=1,
     ):
-        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))  # pyright: ignore
-        new_font = copy(cell.font)  # pyright: ignore
-        cell.font = new_font  # pyright: ignore
+        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))
+        new_font = copy(cell.font)
+        cell.font = new_font  # ty:ignore[invalid-assignment]
 
     chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
     events = (

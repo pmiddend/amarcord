@@ -28,7 +28,7 @@ NEW_FILE_TABLE = sa.sql.table(
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("File") as batch_op:  # type: ignore
+    with op.batch_alter_table("File") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "size_in_bytes_compressed",

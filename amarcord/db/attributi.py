@@ -546,13 +546,13 @@ def _convert_double_to_double(
             _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m
         )
         if after_type.range is not None and not after_type.range.value_is_inside(
-            magnitude_after,  # pyright: ignore [reportUnknownArgumentType]
+            magnitude_after,
         ):
             raise Exception(
                 f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
                 f"not in the range {after_type.range} ",
             )
-        return _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m  # type: ignore
+        return _UNIT_REGISTRY.Quantity(v, before_type.suffix).to(after_type.suffix).m
 
     return v
 
@@ -701,16 +701,15 @@ _conversion_matrix.update(
         (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
         (AttributoTypeInt, AttributoTypeDecimal): _convert_int_to_double,
-        (AttributoTypeInt, AttributoTypeString): lambda _before, _after, _flags, v: str(  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-            v  # pyright: ignore[reportUnknownArgumentType]
+        (AttributoTypeInt, AttributoTypeString): lambda _before, _after, _flags, v: str(
+            v
         ),
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
         # start string
-        (AttributoTypeString, AttributoTypeString): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (AttributoTypeString, AttributoTypeString): lambda _before, _after, _flags, v: (
+            v
+        ),
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
         (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
@@ -723,16 +722,16 @@ _conversion_matrix.update(
         (
             AttributoTypeDecimal,
             AttributoTypeString,
-        ): lambda _before, _after, _flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: str(v),
         # start bool
-        (AttributoTypeBoolean, AttributoTypeBoolean): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (
+            AttributoTypeBoolean,
+            AttributoTypeBoolean,
+        ): lambda _before, _after, _flags, v: v,
         (
             AttributoTypeBoolean,
             AttributoTypeString,
-        ): lambda _before, _after, _flags, v: str(v),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: str(v),
         (
             AttributoTypeString,
             AttributoTypeBoolean,
@@ -757,24 +756,23 @@ _conversion_matrix.update(
         (
             AttributoTypeChemical,
             AttributoTypeChemical,
-        ): lambda _before, _after, _flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: v,
         # start datetime
         (
             AttributoTypeDateTime,
             AttributoTypeDateTime,
-        ): lambda _before, _after, _flags, v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        ): lambda _before, _after, _flags, v: v,
         (
             AttributoTypeDateTime,
             AttributoTypeString,
-        ): lambda _before, _after, _flags, v: datetime_to_attributo_string(  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-            v,  # type: ignore
+        ): lambda _before, _after, _flags, v: datetime_to_attributo_string(
+            v,
         ),
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
-        (AttributoTypeChoice, AttributoTypeString): lambda _before,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _after,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        _flags,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        v: v,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        (AttributoTypeChoice, AttributoTypeString): lambda _before, _after, _flags, v: (
+            v
+        ),
     },
 )
 

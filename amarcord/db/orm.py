@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 from typing import ClassVar
 from typing import Generator
+from typing import override
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey
@@ -39,7 +40,7 @@ def keyvalgen(obj: Any) -> Generator[tuple[str, Any]]:
     """Generate attr name/val pairs, filtering out SQLA attrs."""
     excl = ("_sa_adapter", "_sa_instance_state")
     for k, v in vars(obj).items():
-        if not k.startswith("_") and not any(hasattr(v, a) for a in excl):  # type: ignore
+        if not k.startswith("_") and not any(hasattr(v, a) for a in excl):
             yield k, v
 
 
@@ -47,6 +48,7 @@ class Base(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
     # see
     #
     # https://stackoverflow.com/questions/54026174/proper-autogenerate-of-str-implementation-also-for-sqlalchemy-classes
+    @override
     def __repr__(self) -> str:
         params = ", ".join(f"{k}={v}" for k, v in keyvalgen(self))
         return f"{self.__class__.__name__}({params})"
@@ -577,7 +579,6 @@ class DataSetHasAttributoValue(Base):
         primary_key=True,
     )
     integer_value: Mapped[None | int] = mapped_column(nullable=True)
-    # no idea why pyright doesn't simply infer Column[float] as the type
     float_value: Mapped[None | float] = mapped_column(nullable=True)
     string_value: Mapped[None | str] = mapped_column(sa.Text, nullable=True)
     bool_value: Mapped[None | bool] = mapped_column(nullable=True)
@@ -671,7 +672,7 @@ class IndexingParameters(Base):
 
 
 def are_indexing_parameters_equal(a: IndexingParameters, b: IndexingParameters) -> bool:
-    return (a.id is not None and a.id == b.id) or (  # type: ignore
+    return (a.id is not None and a.id == b.id) or (
         a.is_online == b.is_online
         and a.cell_description == b.cell_description
         and a.command_line == b.command_line

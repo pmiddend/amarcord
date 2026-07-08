@@ -4,12 +4,14 @@ import getpass
 import json
 import subprocess
 import time
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Final
 from typing import TypedDict
+from typing import override
 
 import aiohttp
 import structlog
@@ -19,7 +21,6 @@ from anyio import Path
 from pydantic import BaseModel
 
 from amarcord.amici.workload_manager.job import Job
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.slurm_util import parse_job_state
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
@@ -179,7 +180,7 @@ def _convert_job(job_in: JSONDict) -> None | Job:
                 job.start_time,
                 tz=datetime.UTC,
             ),
-            metadata=JobMetadata({"job_id": job.job_id}),
+            metadata={"job_id": job.job_id},
             id=job.job_id,
         )
     except:
@@ -191,7 +192,7 @@ def _convert_job(job_in: JSONDict) -> None | Job:
                     job.time.start,
                     tz=datetime.UTC,
                 ),
-                metadata=JobMetadata({"job_id": job.job_id}),
+                metadata={"job_id": job.job_id},
                 id=job.job_id,
             )
         except:
@@ -205,6 +206,7 @@ class SlurmError(TypedDict):
 
 
 class SlurmHttpWrapper:
+    @abstractmethod
     async def post(
         self,
         url: str,
@@ -212,6 +214,7 @@ class SlurmHttpWrapper:
         data: JSONDict,
     ) -> JSONDict: ...
 
+    @abstractmethod
     async def get(
         self,
         url: str,
@@ -220,19 +223,21 @@ class SlurmHttpWrapper:
 
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
+    @override
     async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
         async with (
             aiohttp.ClientSession() as session,
             session.post(url, headers=headers, json=data) as response,
         ):
-            return await response.json()  # type: ignore
+            return await response.json()
 
+    @override
     async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
         async with (
             aiohttp.ClientSession() as session,
             session.get(url, headers=headers) as response,
         ):
-            return await response.json()  # type: ignore
+            return await response.json()
 
 
 class SlurmRestWorkloadManager(WorkloadManager):
@@ -257,6 +262,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         self._request_wrapper = request_wrapper
         self.api_version = api_version
 
+    @override
     def name(self) -> str:
         return "Slurm REST"
 
@@ -270,6 +276,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
     async def get_token(self) -> str:
         return await self._token_retriever()
 
+    @override
     async def start_job(
         self,
         working_directory: Path,
@@ -360,9 +367,10 @@ class SlurmRestWorkloadManager(WorkloadManager):
             )
         return JobStartResult(
             job_id=job_id,
-            metadata=JobMetadata({"job_id": job_id}),
+            metadata={"job_id": job_id},
         )
 
+    @override
     async def list_jobs(self, job_id: None | str = None) -> list[Job]:
         # The default is to get all jobs (for the user), but this
         # might be years of job history. We artifically constrain this
@@ -393,9 +401,4 @@ class SlurmRestWorkloadManager(WorkloadManager):
             )
         jobs = response.get("jobs", [])
         assert isinstance(jobs, list)
-        # pyright rightfully complains that this doesn't have to be a JSONDict
-        return [
-            j
-            for j in (_convert_job(job) for job in jobs)  # pyright: ignore
-            if j is not None
-        ]
+        return [j for j in (_convert_job(job) for job in jobs) if j is not None]

@@ -177,17 +177,17 @@ def _encode_chemical_attributo_value(
         attributo_value_bool=d.bool_value,
         attributo_value_list_str=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)
             else None
         ),
         attributo_value_list_float=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)
             else None
         ),
         attributo_value_list_bool=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)
             else None
         ),
     )

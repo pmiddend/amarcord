@@ -1,6 +1,7 @@
 import datetime
 from dataclasses import dataclass
 from typing import Iterable
+from typing import override
 
 from anyio import Path
 
@@ -25,18 +26,20 @@ class DummyWorkloadManager(WorkloadManager):
         self.job_start_results: list[None | JobStartResult] = []
         self.jobs: list[Job] = []
 
+    @override
     def name(self) -> str:
         return "dummy"
 
+    @override
     async def start_job(
         self,
         working_directory: Path,
         script: str,
-        name: str,  # noqa: ARG002
+        name: str,
         time_limit: datetime.timedelta,
-        environment: dict[str, str],  # noqa: ARG002
-        stdout: None | Path = None,  # noqa: ARG002
-        stderr: None | Path = None,  # noqa: ARG002
+        environment: dict[str, str],
+        stdout: None | Path = None,
+        stderr: None | Path = None,
     ) -> JobStartResult:
         self.job_starts.append(JobStart(working_directory, script, time_limit))
         assert self.job_start_results, (
@@ -55,5 +58,6 @@ class DummyWorkloadManager(WorkloadManager):
             return result
         raise JobStartError("some error")
 
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
+    @override
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
         return self.jobs

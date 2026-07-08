@@ -66,8 +66,8 @@ X = TypeVar("X")
 
 
 def retupled_keys[K, V, W, X](
-    d: dict[K, dict[V, W]],  # pyright: ignore[reportInvalidTypeVarUse]
-    f: Callable[[K, V], X],  # pyright: ignore[reportInvalidTypeVarUse]
+    d: dict[K, dict[V, W]],
+    f: Callable[[K, V], X],
 ) -> list[X]:
     return [
         f(table, attributo_id)

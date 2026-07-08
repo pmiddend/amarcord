@@ -1,10 +1,10 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-25.11";
+  inputs.nixpkgs.url = "nixpkgs/nixos-26.05";
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
-    url = "github:pmiddend/mkElmDerivation?ref=fix-makefile-presence";
+    url = "github:jeslie0/mkElmDerivation";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.pyproject-nix = {
@@ -29,8 +29,17 @@
     flake = false;
   };
 
-
-  outputs = { self, nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, uglymol, mkElmDerivation, elm-review-tool-src }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      uv2nix,
+      pyproject-nix,
+      pyproject-build-systems,
+      uglymol,
+      mkElmDerivation,
+      elm-review-tool-src,
+    }:
     let
       system = "x86_64-linux";
       inherit (nixpkgs) lib;
@@ -58,7 +67,8 @@
       # See:
       # - https://pyproject-nix.github.io/uv2nix/FAQ.html
       pyprojectOverrides = final: prev: {
-        python-magic = prev.python-magic.overrideAttrs (old:
+        python-magic = prev.python-magic.overrideAttrs (
+          old:
           let
             libPath = "${lib.getLib pkgs.file}/lib/libmagic${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}";
             fixupScriptText = ''
@@ -96,7 +106,6 @@
         # });
       };
 
-
       # let
       #   inherit (final) resolveBuildSystem;
       #   inherit (builtins) mapAttrs;
@@ -127,15 +136,23 @@
           elm-ems-issue-overlay
         ];
       };
-      elm-review-tool-derivation = { elm-review-tool-src, elmPackages, pkgs }:
+      elm-review-tool-derivation =
+        {
+          elm-review-tool-src,
+          elmPackages,
+          pkgs,
+        }:
         pkgs.buildNpmPackage {
           name = "elm-review";
           src = elm-review-tool-src;
           npmDepsHash =
             # pkgs.lib.fakeHash;
-            "sha256-MviwszWO0Jv9ctdXXvPC1/Z0lhULddp31lWEs5xPxjs=";
+            "sha256-tXeQtjDR3mq+yzhP3E6v7XTqL4HQPhq4ExoFr3szZak=";
           nativeBuildInputs = with pkgs; [ coreutils ];
-          buildInputs = with elmPackages; [ elm elm-format ];
+          buildInputs = with elmPackages; [
+            elm
+            elm-format
+          ];
           buildPhase = ''
             substituteInPlace ./package.json --replace-fail '2.13.5' '2.15.0'
             substituteInPlace ./package-lock.json --replace-fail '2.13.5' '2.15.0'
@@ -195,11 +212,11 @@
                 '';
               };
               mtzJs = pkgs.fetchurl {
-                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.js";
+                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/6ccc5596f0be9a14cc832b244184bdc7cf72a969/wasm/mtz.js";
                 hash = "sha256-Ut9ZJnGu+hbJBWD+XW14mosJ1Lr3tcRx+pHOP+q+awo=";
               };
               mtzWasm = pkgs.fetchurl {
-                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.wasm";
+                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/6ccc5596f0be9a14cc832b244184bdc7cf72a969/wasm/mtz.wasm";
                 hash = "sha256-B71/bdEMs/yLMbHzmDiWeQNeoR80pUgNJmnzR/7Pabk=";
               };
 
@@ -274,7 +291,8 @@
             # This is also more or less a hack, see
             # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
             ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
-          } // lib.optionalAttrs pkgs.stdenv.isLinux {
+          }
+          // lib.optionalAttrs pkgs.stdenv.isLinux {
             # Python libraries often load native shared objects using dlopen(3).
             # Setting LD_LIBRARY_PATH makes the dynamic library loader aware of libraries without using RPATH for lookup.
             LD_LIBRARY_PATH = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
@@ -349,7 +367,6 @@
               virtualenv
               pkgs.uv
               pkgs.skopeo
-              pkgs.basedpyright
               # for docs
               pkgs.glibcLocales
               pkgs.mermaid-cli
@@ -386,48 +403,26 @@
             '';
           };
 
-        frontend =
-          let
-            elm-language-server = pkgs.buildNpmPackage (finalAttrs: {
-              pname = "elm-language-server";
-              version = "2.8.0";
-
-              src = pkgs.fetchFromGitHub {
-                owner = "elm-tooling";
-                repo = "elm-language-server";
-                tag = "${finalAttrs.version}";
-                hash = "sha256-OU6VoMu5Qnawxt02vT0B/37VipiBzlLBlZbQbnu8PEE=";
-              };
-
-              # https://discourse.nixos.org/t/error-getaddrinfo-eai-again-github-com-when-using-nix-parcel-and-elm/29605/3
-              npmFlags = [ "--ignore-scripts" ];
-
-              # There _is_ no build script.
-              npmBuildScript = "compile";
-
-              npmDepsHash = "sha256-jb59LiP2EZpTkc4o/t+9j287W01tDgbwFpAsWZCCL/k=";
-            });
-          in
-          pkgs.mkShell {
-            buildInputs = [
-              pkgs.elmPackages.elm
-              elm-review-tool
-              pkgs.elmPackages.elm-format
-              pkgs.elmPackages.elm-json
-              # elm-language-server doesn't support elm-test-rs, see
-              # https://github.com/elm-tooling/elm-language-server/issues/914
-              #
-              # So we just alias one for the other
-              (pkgs.elmPackages.elm-test-rs.overrideAttrs (oldAttrs: {
-                postInstall = ''
-                  cp $out/bin/elm-test-rs $out/bin/elm-test
-                '';
-              }))
-              elm-language-server
-              pkgs.nodejs
-              pkgs.elm2nix
-            ];
-          };
+        frontend = pkgs.mkShell {
+          buildInputs = [
+            pkgs.elmPackages.elm
+            elm-review-tool
+            pkgs.elmPackages.elm-format
+            pkgs.elmPackages.elm-json
+            # elm-language-server doesn't support elm-test-rs, see
+            # https://github.com/elm-tooling/elm-language-server/issues/914
+            #
+            # So we just alias one for the other
+            (pkgs.elmPackages.elm-test-rs.overrideAttrs (oldAttrs: {
+              postInstall = ''
+                cp $out/bin/elm-test-rs $out/bin/elm-test
+              '';
+            }))
+            pkgs.elmPackages.elm-language-server
+            pkgs.nodejs
+            pkgs.elm2nix
+          ];
+        };
       };
     };
 

@@ -5,7 +5,6 @@ import pytest
 
 from amarcord.amici.petra3.beamline_metadata import parse_beamline_metadata
 from amarcord.amici.workload_manager.job import Job
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     decode_job_list_result,
@@ -37,7 +36,7 @@ def test_parse_beamline_metadata() -> None:
                         second=31,
                     ),
                     id=12697363,
-                    metadata=JobMetadata({}),
+                    metadata={},
                 ),
             ],
         ),

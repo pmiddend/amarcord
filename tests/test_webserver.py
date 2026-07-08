@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from amarcord.amici.workload_manager.dummy_workload_manager import DummyWorkloadManager
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.cli import indexing_daemon
@@ -4557,7 +4556,7 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     args.crystfel_path = Path("/usr/bin")
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({})),
+        JobStartResult(job_id=1337, metadata={}),
     )
     # start the job
     await indexing_daemon_start_new_jobs(
@@ -4637,7 +4636,7 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
     args.crystfel_path = Path("/usr/bin")
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({})),
+        JobStartResult(job_id=1337, metadata={}),
     )
 
     # Now start jobs
@@ -4837,7 +4836,7 @@ async def test_merge_daemon(
     )
 
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=1337, metadata=JobMetadata({})),
+        JobStartResult(job_id=1337, metadata={}),
     )
 
     # One iteration, should start the job on the workload manager
@@ -4946,7 +4945,7 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     artificial_job_id = 1337
     workload_manager.job_start_results.append(
-        JobStartResult(job_id=artificial_job_id, metadata=JobMetadata({})),
+        JobStartResult(job_id=artificial_job_id, metadata={}),
     )
 
     indexing_jobs_result = JsonReadIndexingResultsOutput(

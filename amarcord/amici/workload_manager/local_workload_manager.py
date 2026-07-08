@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from time import time
 from typing import Any
 from typing import Iterable
+from typing import override
 
 from anyio import Path
 
 from amarcord.amici.workload_manager.job import Job
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
@@ -106,15 +106,17 @@ class LocalWorkloadManager(WorkloadManager):
     def __init__(self) -> None:
         self._processes: list[WrappedProcess] = []
 
+    @override
     def name(self) -> str:
         return "local processes"
 
+    @override
     async def start_job(
         self,
         working_directory: Path,
         script: str,
-        name: str,  # noqa: ARG002
-        time_limit: datetime.timedelta,  # noqa: ARG002
+        name: str,
+        time_limit: datetime.timedelta,
         environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
@@ -142,10 +144,11 @@ class LocalWorkloadManager(WorkloadManager):
         )
         return JobStartResult(
             job_id=process.pid,
-            metadata=JobMetadata({"pid": process.pid}),
+            metadata={"pid": process.pid},
         )
 
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:  # noqa: ARG002
+    @override
+    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
         result: list[Job] = []
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode
@@ -162,7 +165,7 @@ class LocalWorkloadManager(WorkloadManager):
                         else JobStatus.FAILED
                     ),
                     started=wrapped_process.started,
-                    metadata=JobMetadata({"pid": wrapped_process.process.pid}),
+                    metadata={"pid": wrapped_process.process.pid},
                 ),
             )
         return result

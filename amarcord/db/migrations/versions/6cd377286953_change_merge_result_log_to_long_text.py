@@ -18,7 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("MergeResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("MergeResult") as batch_op:
         batch_op.alter_column(
             "recent_log",
             existing_type=sa.Text,

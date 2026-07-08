@@ -2,9 +2,9 @@ default:
   tags:
     - nix
 
-pyright:
+ty:
   script:
-    - nix develop --command basedpyright
+    - nix develop --command ty check
 
 format:
   script:

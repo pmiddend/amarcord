@@ -151,7 +151,7 @@ mergeJobGetLogApiMergingMergeResultIdLogGet mergeResultId_path =
 
 {-| Read Indexing Jobs
 -}
-readIndexingJobsApiIndexingGet : Maybe DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput
+readIndexingJobsApiIndexingGet : Maybe Api.Data.DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput
 readIndexingJobsApiIndexingGet status_query beamtimeId_query withFiles_query =
     Api.request
         "GET"

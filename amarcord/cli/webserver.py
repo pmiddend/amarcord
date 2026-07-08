@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import override
 
 import structlog
 from fastapi import FastAPI
@@ -85,6 +86,7 @@ app.include_router(user_configuration_router)
 #
 # https://stackoverflow.com/a/2068407
 class CacheControlledStaticFiles(StaticFiles):
+    @override
     async def get_response(self, path: str, scope: Scope) -> Response:
         if "index.html" not in path:
             return await super().get_response(path, scope)

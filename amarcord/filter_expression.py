@@ -170,7 +170,7 @@ class MyTransformer(Transformer[Any, Any]):
 
     def string(self, items: list[Token]) -> str:
         # Remove the " at the beginning/end
-        return items[0].value[1:-1]  # type: ignore
+        return items[0].value[1:-1]
 
     def false(self, _items: list[Token]) -> bool:
         return False
@@ -184,10 +184,10 @@ class MyTransformer(Transformer[Any, Any]):
     def identifier_string(self, items: list[Token]) -> str:
         v = items[0].value
         if not v:
-            return v  # type: ignore
+            return v
         if v[0] == '"' and v[-1] == '"':
-            return v[1:-1]  # type: ignore
-        return v  # type: ignore
+            return v[1:-1]
+        return v
 
     def lop_and(self, _items: list[Token]) -> LogicalOperator:
         return lambda a, b: a and b
@@ -196,22 +196,22 @@ class MyTransformer(Transformer[Any, Any]):
         return lambda a, b: a or b
 
     def op_eq(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a == b  # type: ignore
+        return lambda a, b: a == b
 
     def op_neq(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a != b  # type: ignore
+        return lambda a, b: a != b
 
     def op_gt(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a > b if a is not None and b is not None else False  # type: ignore
+        return lambda a, b: a > b if a is not None and b is not None else False
 
     def op_lt(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a < b if a is not None and b is not None else False  # type: ignore
+        return lambda a, b: a < b if a is not None and b is not None else False
 
     def op_ge(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a >= b if a is not None and b is not None else False  # type: ignore
+        return lambda a, b: a >= b if a is not None and b is not None else False
 
     def op_le(self, _items: list[Token]) -> ComparisonOperator:
-        return lambda a, b: a <= b if a is not None and b is not None else False  # type: ignore
+        return lambda a, b: a <= b if a is not None and b is not None else False
 
     def op_in(self, _items: list[Token]) -> ComparisonOperator:
         # Here we switch syntax since the filter query syntax is "attribute ? value" but "in" is "value in attribute"
@@ -224,20 +224,21 @@ class MyTransformer(Transformer[Any, Any]):
         return partial(_comparison_filter, items[0], items[1], items[2])
 
     def comparison_or_group(self, items: list[RunFilterFunction]) -> RunFilterFunction:
-        return items[0].value  # type: ignore
+        # This is probably a bug
+        return items[0].value  # ty:ignore[unresolved-attribute]
 
     def group(self, items: list[Any]) -> RunFilterFunction:
-        return items[0]  # type: ignore
+        return items[0]
 
     def comparison_in_group(self, items: list[Any]) -> RunFilterFunction:
-        return items[0]  # type: ignore
+        return items[0]
 
     def start(self, items: list[Any]) -> RunFilterFunction:
-        return items[0]  # type: ignore
+        return items[0]
 
     def logical_expression(self, items: list[Any]) -> RunFilterFunction:
         if len(items) == 1:
-            return items[0]  # type: ignore
+            return items[0]
 
         def transformer(run: FilterInput) -> bool:
             result = items[0](run)
@@ -245,7 +246,7 @@ class MyTransformer(Transformer[Any, Any]):
                 logical_op = items[i]
                 argument = items[i + 1](run)
                 result = logical_op(result, argument)
-            return result  # type: ignore
+            return result
 
         return transformer
 
@@ -257,4 +258,4 @@ def compile_run_filter(query_string: str) -> RunFilterFunction:
         parse_result = _filter_expression_parser.parse(query_string)
     except Exception as e:
         raise FilterParseError(e)
-    return MyTransformer().transform(parse_result)  # type: ignore
+    return MyTransformer().transform(parse_result)

@@ -1224,8 +1224,6 @@ def upgrade() -> None:
                 },
             ]
         else:
-            beamtime_year = started.year
-            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}/haspp11e16m-100g/*nx5"
             values = []
         if not values:
             if beamtime_id == 119:
@@ -1233,7 +1231,7 @@ def upgrade() -> None:
             raise Exception(
                 f"{beamtime_id=}, {run_external_id=}, {started=}, {run_internal_id=} has no match",
             )
-        connection.execute(RUN_HAS_FILES_TABLE.insert().values(values))  # type: ignore
+        connection.execute(RUN_HAS_FILES_TABLE.insert().values(values))
 
     op.create_table(
         "IndexingParameters",
@@ -1265,7 +1263,7 @@ def upgrade() -> None:
         ),
     )
 
-    with op.batch_alter_table("UserConfiguration") as batch_op:  # type: ignore
+    with op.batch_alter_table("UserConfiguration") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "current_online_indexing_parameters_id",
@@ -1279,7 +1277,7 @@ def upgrade() -> None:
             ),
         )
 
-    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingResult") as batch_op:
         batch_op.add_column(
             sa.Column(
                 "indexing_parameters_id",
@@ -1385,7 +1383,7 @@ def upgrade() -> None:
                 "crystfel_version": "",
             }
 
-        prior_parameters_insert = connection.execute(  # type: ignore
+        prior_parameters_insert = connection.execute(
             PARAMETERS_TABLE.insert().values(
                 {
                     "is_online": True,
@@ -1435,7 +1433,7 @@ def upgrade() -> None:
     ).fetchall():
         assert indexing_parameters_id is not None, f"IR {ir_id} has no parameters yet"
 
-    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+    with op.batch_alter_table("IndexingResult") as batch_op:
         batch_op.alter_column(
             "indexing_parameters_id",
             existing_type=sa.Integer,

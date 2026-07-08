@@ -24,7 +24,7 @@ def run_migrations_online() -> None:
     connection = config.attributes.get("connection", None)
 
     context.configure(
-        connection=connection,  # pyright: ignore [reportUnknownArgumentType]
+        connection=connection,
         target_metadata=target_metadata,
     )
 

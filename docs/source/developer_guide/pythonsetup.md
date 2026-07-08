@@ -48,7 +48,7 @@ this is for [idiotic reasons](https://stackoverflow.com/questions/43826134/why-i
 
 For **formatting**, we use ruff. Just execute `ruff format amarcord/ tests/` to reformat the whole project.
 
-For **linting** and **type-checking** we use ruff and basedpyright. Just execute `ruff check amarcord tests`, as well as `basedpyright` (no paths), to lint the whole project.
+For **linting** and **type-checking** we use ruff and ty. Just execute `ruff check amarcord tests`, as well as `ty check` (no paths), to lint the whole project.
 
 For **editor support** we currently use basedpyright. We are aware of "ty", but that one doesn't support import completions yet, so we are not using it yet.
 

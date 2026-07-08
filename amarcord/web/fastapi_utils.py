@@ -274,17 +274,17 @@ def encode_data_set_attributo_value(
         attributo_value_bool=d.bool_value,
         attributo_value_list_str=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)
             else None
         ),
         attributo_value_list_float=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)
             else None
         ),
         attributo_value_list_bool=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)
             else None
         ),
     )
@@ -312,17 +312,17 @@ def encode_run_attributo_value(
         attributo_value_bool=d.bool_value,
         attributo_value_list_str=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], str)
             else None
         ),
         attributo_value_list_float=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], float)
             else None
         ),
         attributo_value_list_bool=(
             d.list_value
-            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)  # type: ignore
+            if isinstance(d.list_value, list) and isinstance(d.list_value[0], bool)
             else None
         ),
     )
@@ -460,7 +460,7 @@ def orm_encode_merge_result_to_json(
                     mtz_file_id=cast("int", mr.mtz_file_id),
                     ambigator_fg_graph_file_id=mr.ambigator_fg_graph_file_id,
                     fom=JsonMergeResultFom(
-                        snr=mr.fom_snr,  # type: ignore
+                        snr=mr.fom_snr,
                         wilson=mr.fom_wilson,
                         ln_k=mr.fom_ln_k,
                         discarded_reflections=mr.fom_discarded_reflections,  # type: ignore

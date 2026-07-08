@@ -72,7 +72,7 @@ queueMergeJobApiMergingPost jsonQueueMergeJobInput_body =
 
 {-| Read Merge Jobs
 -}
-readMergeJobsApiMergingGet : Maybe DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
+readMergeJobsApiMergingGet : Maybe Api.Data.DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
 readMergeJobsApiMergingGet status_query =
     Api.request
         "GET"

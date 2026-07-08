@@ -743,24 +743,24 @@ def encode_attributo_value(
             else None
         ),
         # we cannot thoroughly test the array for type-correctness (or we dont' want to, rather)
-        attributo_value_list_str=(  # pyright: ignore
+        attributo_value_list_str=(
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], str))
             else None
-        ),
-        attributo_value_list_float=(  # pyright: ignore
+        ),  # ty:ignore[invalid-argument-type]
+        attributo_value_list_float=(
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], float | int))
             else None
-        ),
-        attributo_value_list_bool=(  # pyright: ignore
+        ),  # ty:ignore[invalid-argument-type]
+        attributo_value_list_bool=(
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], bool))
             else None
-        ),
+        ),  # ty:ignore[invalid-argument-type]
     )
 
 
@@ -1399,7 +1399,7 @@ async def read_runs_overview(
         foms_for_this_data_set=(
             encode_data_set_with_fom(
                 data_set_for_latest_run,
-                summary_from_foms(foms_in_this_ds),
+                summary_from_foms(foms_in_this_ds),  # ty:ignore[possibly-unresolved-reference]
                 beamtimeId,
             )
             if data_set_for_latest_run

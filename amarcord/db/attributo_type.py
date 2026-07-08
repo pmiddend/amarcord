@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import override
 
 from amarcord.numeric_range import NumericRange
 
 
 @dataclass(frozen=True)
 class AttributoTypeInt:
+    @override
     def __str__(self) -> str:
         return "integer"
 
@@ -22,6 +24,7 @@ class AttributoTypeList:
     min_length: int | None
     max_length: int | None
 
+    @override
     def __str__(self) -> str:
         if self.min_length is None and self.max_length is None:
             return f"list of {self.sub_type}"
@@ -34,12 +37,14 @@ class AttributoTypeList:
 
 @dataclass(frozen=True)
 class AttributoTypeString:
+    @override
     def __str__(self) -> str:
         return "string"
 
 
 @dataclass(frozen=True)
 class AttributoTypeBoolean:
+    @override
     def __str__(self) -> str:
         return "boolean"
 
@@ -52,6 +57,7 @@ class AttributoTypeDecimal:
     tolerance_is_absolute: bool = False
     tolerance: float | None = None
 
+    @override
     def __str__(self) -> str:
         tolerance_string = (
             (
@@ -78,12 +84,14 @@ class AttributoTypeDecimal:
 
 @dataclass(frozen=True)
 class AttributoTypeChemical:
+    @override
     def __str__(self) -> str:
         return "chemical"
 
 
 @dataclass(frozen=True)
 class AttributoTypeDateTime:
+    @override
     def __str__(self) -> str:
         return "date and time"
 
@@ -92,6 +100,7 @@ class AttributoTypeDateTime:
 class AttributoTypeChoice:
     values: list[str]
 
+    @override
     def __str__(self) -> str:
         return "one of: " + ",".join(self.values)
 
