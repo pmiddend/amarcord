@@ -15,10 +15,16 @@ from tap import Tap
 from amarcord.cli.crystfel_index import convert_to_cell_description
 from amarcord.db.attributi import utc_datetime_to_utc_int
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.json_schema import JSONSchemaBoolean
+from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import JSONSchemaNumber
+from amarcord.json_schema import JSONSchemaString
 from amarcord.logging_util import setup_structlog
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonChemical
+from amarcord.web.json_models import JsonCreateAttributiFromSchemaInput
+from amarcord.web.json_models import JsonCreateAttributiFromSchemaSingleAttributo
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
@@ -51,6 +57,7 @@ class ID29AttributoConfig:
     attributo_id: int
     attributo_name: str
     attributo_type: ID29AttributoType
+    attributo_unit: None | str
 
 
 @dataclass
@@ -77,6 +84,7 @@ def id29_parse_attributo_config_file(p: Path) -> ID29AttributoConfigFile:
                     attributo_id=0,
                     attributo_name=item["attributo-name"],
                     attributo_type=ID29AttributoType(item["attributo-type"]),
+                    attributo_unit=item.get("attributo-unit"),
                 )
             )
         return ID29AttributoConfigFile(attributi)
@@ -93,6 +101,9 @@ class Arguments(Tap):
         Path
     )
     attributo_config_file: Path  # Where to store which attributi to send
+    create_attributi: (
+        bool  # Whether to use the config file to actually create all attributi
+    )
     amarcord_url: str
     amarcord_user: str
     amarcord_password: str
@@ -718,6 +729,57 @@ async def _main_loop_iteration(
     logger.info("<= iterating over new files")
 
 
+async def _create_attributi(
+    args: Arguments,
+    session: aiohttp.ClientSession,
+    attributo_config_file: ID29AttributoConfigFile,
+) -> None:
+    attributi_schema: list[JsonCreateAttributiFromSchemaSingleAttributo] = []
+    for a in attributo_config_file.attributi:
+        attributo_type = (
+            JSONSchemaNumber(
+                type="number",
+                format=None if a.attributo_unit is None else "standard-unit",
+                suffix=a.attributo_unit,
+            )
+            if a.attributo_type == ID29AttributoType.ATTRIBUTO_TYPE_NUMBER
+            else JSONSchemaString(type="string")
+            if a.attributo_type == ID29AttributoType.ATTRIBUTO_TYPE_STRING
+            else JSONSchemaBoolean(type="boolean")
+            if a.attributo_type == ID29AttributoType.ATTRIBUTO_TYPE_BOOLEAN
+            else JSONSchemaInteger(type="integer")
+        )
+        attributi_schema.append(
+            JsonCreateAttributiFromSchemaSingleAttributo(
+                attributo_name=a.attributo_name,
+                attributo_type=attributo_type,
+                description="",
+            )
+        )
+    attributi_schema.append(
+        JsonCreateAttributiFromSchemaSingleAttributo(
+            attributo_name=args.sample_attributo,
+            attributo_type=JSONSchemaInteger(type="integer", format="chemical-id"),
+            description="",
+        )
+    )
+    attributi_schema.append(
+        JsonCreateAttributiFromSchemaSingleAttributo(
+            attributo_name=args.tag_attributo,
+            attributo_type=JSONSchemaString(type="string"),
+            description="",
+        )
+    )
+    async with session.post(
+        f"{args.amarcord_url}/api/attributi/schema",
+        json=JsonCreateAttributiFromSchemaInput(
+            attributi_schema=attributi_schema,
+            beamtime_id=BeamtimeId(args.amarcord_beamtime_id),
+        ).model_dump(),
+    ):
+        logger.info(f"created all {len(attributo_config_file.attributi)} attributi")
+
+
 async def _main_loop(args: Arguments) -> None:
     config_file = id29_parse_attributo_config_file(args.attributo_config_file)
     async with aiohttp.ClientSession(
@@ -727,6 +789,8 @@ async def _main_loop(args: Arguments) -> None:
         ),
         raise_for_status=True,
     ) as session:
+        if args.create_attributi:
+            await _create_attributi(args, session, config_file)
         error_cache = ID29ErrorCache(unknown_chemicals=set())
         while True:
             await _main_loop_iteration(args, config_file, session, error_cache)
