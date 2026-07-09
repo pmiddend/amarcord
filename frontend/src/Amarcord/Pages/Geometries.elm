@@ -7,7 +7,7 @@ import Amarcord.GeometryMetadata exposing (GeometryId(..), geometryIdToInt)
 import Amarcord.Html exposing (code_, div_, em_, form_, h2_, h4_, input_, li_, onIntInput, small_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (deadEndToString, monthToNumericString, scrollToTop)
-import Api.Data exposing (JsonAttributoOutput, JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
+import Api.Data exposing (JsonAttributo, JsonGeometryWithoutContent, JsonReadGeometriesForAllBeamtimes, JsonReadGeometriesForSingleBeamtime, JsonReadSingleGeometryOutput)
 import Api.Request.Geometries exposing (copyToBeamtimeApiGeometryCopyToBeamtimePost, createGeometryApiGeometriesPost, deleteSingleGeometryApiGeometriesGeometryIdDelete, readGeometriesForAllBeamtimesApiAllGeometriesGet, readGeometriesForSingleBeamtimeApiGeometryForBeamtimeBeamtimeIdGet, readSingleGeometryApiGeometriesGeometryIdGet, updateGeometryApiGeometriesGeometryIdPatch)
 import Dict
 import Html exposing (..)
@@ -263,7 +263,7 @@ viewGeometryRow usages attributiById geometry =
     ]
 
 
-viewGeometryTable : List JsonAttributoOutput -> List JsonGeometryWithoutContent -> Set.Set Int -> Html Msg
+viewGeometryTable : List JsonAttributo -> List JsonGeometryWithoutContent -> Set.Set Int -> Html Msg
 viewGeometryTable attributi geometries usages =
     if isEmpty geometries then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No geometries entered yet." ] ]

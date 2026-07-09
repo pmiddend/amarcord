@@ -11,7 +11,7 @@ import Amarcord.Html exposing (div_, h2_, h5_, input_, li_, onIntInput, p_, stro
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunFilesForm as RunFilesForm
 import Amarcord.Util exposing (listContainsBy)
-import Api.Data exposing (JsonAttributoOutput, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
+import Api.Data exposing (JsonAttributo, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Runs exposing (updateRunApiRunsPatch)
 import Html exposing (Html, a, button, div, form, h4, label, option, p, select, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, href, selected, type_, value)
@@ -67,7 +67,7 @@ type Msg
 
 
 type alias InitData =
-    { attributi : List JsonAttributoOutput
+    { attributi : List JsonAttributo
     , chemicals : ChemicalList
     , experimentTypes : List JsonExperimentType
     }

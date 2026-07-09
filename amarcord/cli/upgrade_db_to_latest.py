@@ -21,6 +21,8 @@ class Arguments(Tap):
 async def _upgrade_db_to_latest(args: Arguments) -> None:
     engine = create_async_engine(args.db_connection_url)
     await migrate(engine)
+    # Important - aiosqlite will hang if this is omitted.
+    await engine.dispose()
     logger.info(
         f"database at {args.db_connection_url} updated to latest version, it's now ready to use!",
     )

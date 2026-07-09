@@ -37,6 +37,24 @@ try:
     schema["components"]["schemas"]["ValidationError"]["properties"]["loc"]["items"] = {
         "type": "string",
     }
+    # these two have no type associated to them and will be resolved
+    # to nothing in the Elm code, so we just delete them
+    del schema["components"]["schemas"]["ValidationError"]["properties"]["input"]
+    del schema["components"]["schemas"]["ValidationError"]["properties"]["ctx"]
+
+    # This used to be "format": "binary" but now is
+    # "contentMediaType": "application/octet-stream", which the Elm
+    # converter then converts into a plain "string" instead of a
+    # "File". It also complains about the spec here, so let's just add
+    # the format field and be done with it.
+    for binary in (
+        "Body_create_file_api_files_post",
+        "Body_update_live_stream_api_live_stream__beamtimeId__post",
+        "Body_bulk_import_api_run_bulk_import__beamtimeId__post",
+    ):
+        schema["components"]["schemas"][binary]["properties"]["file"]["format"] = (
+            "binary"
+        )
 except KeyError:
     # This is fine, we might not have the type in here.
     pass

@@ -15,8 +15,8 @@ from typing import override
 
 import aiohttp
 import structlog
-from aiohttp import BasicAuth
 from aiohttp import ContentTypeError
+from aiohttp import encode_basic_auth
 from anyio import Path
 from pydantic import BaseModel
 
@@ -52,7 +52,7 @@ async def retrieve_jwt_token_externally(
     try:
         async with (
             aiohttp.ClientSession(
-                auth=BasicAuth(user_name, portal_token),
+                headers={"Authorization": encode_basic_auth(user_name, portal_token)}
             ) as session,
             session.get(
                 # This currently hard-codes dynamic token retrieval to DESY's Maxwell, but it should be easy to generalize.

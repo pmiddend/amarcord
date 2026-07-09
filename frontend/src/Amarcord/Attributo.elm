@@ -35,7 +35,7 @@ module Amarcord.Attributo exposing
 
 import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableFromApi)
 import Amarcord.NumericRange as NumericRange exposing (NumericRange, emptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
-import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaBoolean, JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaNumber, JSONSchemaString, JsonAttributoOutput, JsonAttributoValue)
+import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaBoolean, JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaNumber, JSONSchemaString, JsonAttributo, JsonAttributoValue)
 import Dict exposing (Dict)
 import List exposing (filterMap)
 import Maybe.Extra as MaybeExtra
@@ -378,7 +378,7 @@ attributoExposureTime =
     "exposure_time"
 
 
-convertAttributoTypeFromApi : JsonAttributoOutput -> AttributoType
+convertAttributoTypeFromApi : JsonAttributo -> AttributoType
 convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attributoTypeString, attributoTypeArray } =
     case attributoTypeInteger of
         Just { format } ->
@@ -445,7 +445,7 @@ convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attribu
                                     Boolean
 
 
-convertAttributoFromApi : JsonAttributoOutput -> Attributo AttributoType
+convertAttributoFromApi : JsonAttributo -> Attributo AttributoType
 convertAttributoFromApi a =
     { id = a.id
     , name = a.name

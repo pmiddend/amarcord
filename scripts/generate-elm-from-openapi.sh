@@ -44,7 +44,7 @@ echo "generated openapi.json"
 # To circumvent it, we remove the fields - for now.
 sed -i -e 's/"const": "[^"]*", //g' -e 's/, "const": "[^"]*"\}/}/g' "$MY_OPENAPI_JSON_FILE"
 
-openapi-generator-cli generate --generator-name elm --input-spec "$MY_OPENAPI_JSON_FILE" --output "$MY_TEMP_DIR"
+openapi-generator-cli generate --skip-validate-spec --generator-name elm --input-spec "$MY_OPENAPI_JSON_FILE" --output "$MY_TEMP_DIR"
 echo "generated Elm code"
 
 # This warrants an explanation: the openapi-generator (at least for

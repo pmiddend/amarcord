@@ -10,42 +10,44 @@ authors = [
 license = "GPL-3.0-or-later"
 dependencies = [
     # For http requests
-    "aiohttp==3.13.2",
+    # (uses claude)
+    "aiohttp==3.14.1",
     # asynchronous db client
-    "aiosqlite==0.21.0",
+    "aiosqlite==0.22.1",
     "alembic==1.17.2",
     # asynchronous db client
     "asyncpg==0.31.0",
     # for the webserver
-    "fastapi==0.123.4",
-    "starlette==0.50.0",
-    "gunicorn==23.0.0",
-    "uvicorn==0.38.0",
+    "fastapi==0.139.0",
+    "starlette==1.3.1",
+    "gunicorn==26.0.0",
+    "uvicorn==0.50.2",
     # For parsing the filter expressions
-    "lark==1.1.9",
+    "lark==1.3.1",
     # For the Excel spreadsheet export
     "openpyxl==3.1.5",
     # For validating units
-    "pint==0.25.2",
+    "pint==0.25.3",
     # For the config file
-    "pydantic==2.12.5",
+    "pydantic==2.13.4",
     # asynchronous db client
-    "pymysql==1.1.2",
+    "pymysql==1.2.0",
     "asyncmy==0.2.11",
     # For the file upload in the web server
     # see https://fastapi.tiangolo.com/tutorial/request-files/
-    "python-multipart==0.0.20",
+    "python-multipart==0.0.32",
     # for general DB access
-    "sqlalchemy==2.0.44",
+    "sqlalchemy==2.0.51",
     "structlog-overtime==1.0.1",
-    "structlog==25.5.0",
+    "structlog==26.1.0",
     # For parsing the arguments for programs (always required basically)
-    "typed-argument-parser==1.11.0",
+    "typed-argument-parser==1.12.0",
     # needed for MySQL with certain auth methods
-    "cryptography==46.0.3",
+    "cryptography==49.0.0",
     "python-magic==0.4.27",
     # for async file opening functions
-    "anyio==4.12.1",
+    # uses claude
+    "anyio==4.14.1",
     # for the geometry templates
     "mstache==0.3.0"
 ]
@@ -56,29 +58,28 @@ dev = [
     # for FastAPI tests, see
     # https://fastapi.tiangolo.com/tutorial/testing/
     "httpx==0.28.1",
-    "hypothesis==6.148.5",
-    "myst-parser==5.0.0",
-    "pyfakefs==5.10.2",
-    "pytest-aiohttp==1.0.5",
-    "pytest-asyncio==1.3.0",
-    "pytest-bdd==7.2.0",
-    "pytest-cov==5.0.0",
-    "pytest-subprocess==1.5.0",
+    # uses claude
+    "hypothesis==6.156.3",
+    "myst-parser==5.1.0",
+    "pyfakefs==6.2.0",
+    "pytest-aiohttp==1.1.1",
+    "pytest-asyncio==1.4.0",
+    "pytest-bdd==8.1.0",
+    "pytest-cov==7.1.0",
+    "pytest-subprocess==1.6.0",
     "pytest-xdist==3.8.0",
-    "pytest==9.0.2",
+    "pytest==9.1.1",
     "ruff==0.15.20",
     "ty==0.0.56",
     # documentation
     "sphinx-autobuild==2025.08.25",
     "sphinx==9.1.0",
-    "sphinxcontrib-mermaid==2.0.0",
+    "sphinxcontrib-mermaid==2.0.3",
     "sphinxcontrib-spelling==8.0.2",
-    "types-openpyxl==3.1.5.20241126",
-    "types-python-dateutil==2.8.3",
-    "types-pytz==2024.1.0.20240417",
-    # slurm
-    "types-requests==2.32.0.20240602",
-    "vulture==2.11",
+    "types-openpyxl==3.1.5.20260518",
+    "types-python-dateutil==2.9.0.20260518",
+    "types-pytz==2026.2.0.20260518",
+    "vulture==2.16",
 ]
 
 

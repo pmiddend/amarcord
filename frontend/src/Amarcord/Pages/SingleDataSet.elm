@@ -18,7 +18,7 @@ import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParametersEdit as IndexingParametersEdit
 import Amarcord.Route exposing (MergeFilter(..), Route(..), RunRange, makeFilesLink, makeGeometryLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink, makeMergeIdLogLink)
 import Amarcord.Util exposing (HereAndNow, lineBreakFilePath, posixDiffHumanFriendly, posixDiffMinutes, withLeftNeighbor)
-import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributoOutput, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
+import Api.Data exposing (DBJobStatus(..), JsonAlignDetectorGroup, JsonAttributo, JsonChemicalIdAndName, JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, JsonRunRange, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
@@ -119,7 +119,7 @@ type alias MergeRequest =
 
 
 type alias SingleDataSetResults =
-    { attributi : List JsonAttributoOutput
+    { attributi : List JsonAttributo
     , chemicalIdToName : List JsonChemicalIdAndName
     , experimentType : JsonExperimentType
     , dataSet : DataSetWithIndexingResults
