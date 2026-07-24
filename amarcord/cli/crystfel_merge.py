@@ -87,7 +87,7 @@ def _log_program(cwd: Path, env: dict[str, str], args: list[str]) -> None:
 
 
 def ccp4_run(
-    ccp4_path: Path, cwd: Path, args: list[str], input_: None | str = None
+    ccp4_path: Path, cwd: Path, args: list[str], input_: str | None = None
 ) -> str:
     current_path = os.environ["PATH"]
     ccp4_env: dict[str, str] = {
@@ -111,7 +111,7 @@ def ccp4_run(
             check=False,
         )
         if result.returncode != 0:
-            logger.exception(
+            logger.error(
                 f"calling {args} didn't work: stderr {result.stderr}, stdout: {result.stdout}",
             )
             raise Exception
@@ -146,16 +146,16 @@ class RefinementResult:
 
 
 def parse_refmac_log(p: Path) -> RefinementFom:
-    r_work: None | float = None
-    r_free: None | float = None
-    rms_bond_length: None | float = None
-    rms_bond_angle: None | float = None
+    r_work: float | None = None
+    r_free: float | None = None
+    rms_bond_length: float | None = None
+    rms_bond_angle: float | None = None
 
     def extract_final_result(
         regex: re.Pattern[str],
         this_line: str,
-        previous_result: None | float,
-    ) -> None | float:
+        previous_result: float | None,
+    ) -> float | None:
         regex_result = regex.search(this_line)
         if regex_result is not None:
             try:
@@ -203,7 +203,7 @@ def quick_refine(
     input_mtz: Path,
     resolution_cut: float,
     input_pdb: Path,
-    input_restraints_cif: None | Path,
+    input_restraints_cif: Path | None,
 ) -> RefinementResult:
     logger.info(f"{ds}: cutting resolution...")
 
@@ -309,16 +309,16 @@ class ParsedArgs:
     merge_result_id: int
     cell_file_id: int
     point_group: str
-    ccp4_path: None | Path
-    partialator_additional: None | str
+    ccp4_path: Path | None
+    partialator_additional: str | None
     custom_split: list[Dataset]
-    get_hkl_additional: None | str
+    get_hkl_additional: str | None
     crystfel_path: Path
     gnuplot_path: Path | None
-    pdb_file_id: None | int
-    restraints_cif_file_id: None | int
-    random_cut_length: None | int
-    space_group: None | str
+    pdb_file_id: int | None
+    restraints_cif_file_id: int | None
+    random_cut_length: int | None
+    space_group: str | None
     ambigator_command_line: str
 
 
@@ -451,7 +451,7 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 def write_output_json(
     api_url: str,
     merge_result_id: int,
-    error: None | str,
+    error: str | None,
     results: list[dict[str, Any]],
 ) -> None:
     try:
@@ -500,7 +500,7 @@ def exit_with_error_minimal(
     sys.exit(1)
 
 
-def exit_with_error(args: None | ParsedArgs, message: str) -> NoReturn:
+def exit_with_error(args: ParsedArgs | None, message: str) -> NoReturn:
     logger.error(message)
     if args is not None:
         write_output_json(args.api_url, args.merge_result_id, error=message, results=[])
@@ -542,15 +542,15 @@ class CheckHklArgs:
     hkl_file: Path
     point_group: str
     unit_cell: Path
-    ltest: None | bool = None
-    wilson: None | bool = None
-    sigma_cutoff: None | float = None
-    nshells: None | int = None
-    rmin: None | float = None
-    rmax: None | float = None
-    lowres: None | float = None
-    highres: None | float = None
-    shell_file: None | Path = None
+    ltest: bool | None = None
+    wilson: bool | None = None
+    sigma_cutoff: float | None = None
+    nshells: int | None = None
+    rmin: float | None = None
+    rmax: float | None = None
+    lowres: float | None = None
+    highres: float | None = None
+    shell_file: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -560,15 +560,15 @@ class CompareHklArgs:
     hkl2: Path
     point_group: str
     unit_cell: Path
-    fom: None | str = None
-    nshells: None | int = None
-    shell_file: None | Path = None
-    scale_to_unity: None | bool = None
-    sigma_cutoff: None | float = None
-    rmin: None | float = None
-    rmax: None | float = None
-    lowres: None | float = None
-    highres: None | float = None
+    fom: str | None = None
+    nshells: int | None = None
+    shell_file: Path | None = None
+    scale_to_unity: bool | None = None
+    sigma_cutoff: float | None = None
+    rmin: float | None = None
+    rmax: float | None = None
+    lowres: float | None = None
+    highres: float | None = None
 
 
 def compare_hkl_args_to_list(args: CompareHklArgs) -> list[str]:
@@ -640,11 +640,11 @@ def run_compare_hkl_single_fom(
     unit_cell: Path,
     fom: str,
     search_term: str,
-    highres: None | float,
+    highres: float | None,
     nshells: int,
     may_fail: bool = False,  # noqa: FBT002
-    shell_file: None | Path = None,
-) -> None | float:
+    shell_file: Path | None = None,
+) -> float | None:
     compare_hkl_command_line_args = compare_hkl_args_to_list(
         CompareHklArgs(
             crystfel_path=args.crystfel_path,
@@ -866,8 +866,8 @@ _INDEXED_BY_PREFIX: Final = "indexed_by = "
 def read_chunks(files: Iterable[Path]) -> Generator[Chunk]:
     for p in files:
         with p.open("r", encoding="utf-8") as f:
-            start: None | int = None
-            indexed_by: None | str = None
+            start: int | None = None
+            indexed_by: str | None = None
             line_number = 0
             # see
             # https://stackoverflow.com/questions/29618936/how-to-solve-oserror-telling-position-disabled-by-next-call
@@ -930,9 +930,9 @@ def write_random_chunks(
     max_chunks: int,
     target: BinaryIO,
 ) -> None:
-    current_file_obj: None | BinaryIO = None
+    current_file_obj: BinaryIO | None = None
     try:
-        current_file_path: None | Path = None
+        current_file_path: Path | None = None
 
         for chunk in reservoir_sample(
             (x for x in read_chunks(file_list) if x.indexed_by != "none"),
@@ -1030,7 +1030,7 @@ def write_fg_graph(args: ParsedArgs, fg_graph_file: Path) -> Path:
 
 def run_ambigator(
     args: ParsedArgs, input_stream_files: list[Path]
-) -> tuple[Path, None | Path]:
+) -> tuple[Path, Path | None]:
     if len(input_stream_files) == 1:
         single_input_stream = input_stream_files[0]
     else:
@@ -1074,7 +1074,7 @@ def run_ambigator(
 
 
 def _process_single_dataset(
-    args: ParsedArgs, ds: Dataset, cell_file: Path, ambigator_plot_file: None | Path
+    args: ParsedArgs, ds: Dataset, cell_file: Path, ambigator_plot_file: Path | None
 ) -> dict[str, Any]:
     is_empty_ds = ds == Dataset("")
     ds_subdir = _dataset_to_path(ds)
@@ -1193,7 +1193,7 @@ def _process_single_dataset(
             + f"cannot proceed, check file {check_file_path} has no lines",
         )
 
-    refinement_result: None | RefinementResult = None
+    refinement_result: RefinementResult | None = None
     if args.pdb_file_id is not None and args.ccp4_path is not None:
         logger.info("doing a quick refine")
         try:
@@ -1449,7 +1449,7 @@ def extract_shell_resolutions(
 def calculate_highres_cut(
     args: ParsedArgs, dataset: Dataset, cell_file: Path
 ) -> tuple[float, int]:
-    def calculate_ccstar_values(nshells: int) -> None | tuple[float, int]:
+    def calculate_ccstar_values(nshells: int) -> tuple[float, int] | None:
         output_file = _dataset_to_path(dataset) / _ccstar_compare_shell_file_first_pass(
             nshells
         )
@@ -1469,7 +1469,7 @@ def calculate_highres_cut(
                 f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells",
             )
             return None
-        highres_cut_line: None | CompareShellLine = None
+        highres_cut_line: CompareShellLine | None = None
         for line in first_pass_ccstar_file:
             if math.isnan(line.fom_value):
                 continue
@@ -1497,7 +1497,7 @@ def _append_custom_split(
     logger.info(f"splitting {stream_file} into components {split_components}")
     with stream_file.open("r") as stream_file_obj:
         in_chunk = False
-        image_filename: None | Path = None
+        image_filename: Path | None = None
         for line in stream_file_obj:
             if line.startswith("----- Begin chunk"):
                 in_chunk = True

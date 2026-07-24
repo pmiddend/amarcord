@@ -89,7 +89,7 @@ class Arguments(Tap):
     # fmt: on
 
 
-def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
+def _get_indexing_job_source_code(overwrite_interpreter_str: str | None) -> str:
     with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
         "r",
         encoding="utf-8",
@@ -345,7 +345,7 @@ async def start_online_indexing_job(
 async def indexing_daemon_start_new_jobs(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
-    online_workload_manager: None | WorkloadManager,
+    online_workload_manager: WorkloadManager | None,
     args: Arguments,
 ) -> None:
     # withFiles means "also include the file path for every result". This is needed for the "offline indexing"
@@ -481,9 +481,9 @@ async def indexing_daemon_start_new_jobs(
 async def indexing_daemon_update_jobs(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
-    online_workload_manager: None | WorkloadManager,
+    online_workload_manager: WorkloadManager | None,
     amarcord_url: str,
-    beamtime_id: None | BeamtimeId,
+    beamtime_id: BeamtimeId | None,
     job_ids_for_previous_failures: set[int],
 ) -> set[int]:
     async with session.get(
@@ -580,7 +580,7 @@ async def indexing_daemon_update_jobs(
 
 async def indexing_start_loop(
     workload_manager: WorkloadManager,
-    online_workload_manager: None | WorkloadManager,
+    online_workload_manager: WorkloadManager | None,
     session: aiohttp.ClientSession,
     args: Arguments,
 ) -> None:
@@ -593,7 +593,7 @@ async def indexing_start_loop(
 
 async def indexing_update_loop(
     workload_manager: WorkloadManager,
-    online_workload_manager: None | WorkloadManager,
+    online_workload_manager: WorkloadManager | None,
     session: aiohttp.ClientSession,
     args: Arguments,
 ) -> None:

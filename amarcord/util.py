@@ -236,7 +236,7 @@ def maybe_you_meant(s: str, strs: Iterable[str]) -> str:
     return f', maybe you meant "{max_match}"?' if ratio > 0.5 else ""
 
 
-def first[T](xs: Iterable[T]) -> None | T:
+def first[T](xs: Iterable[T]) -> T | None:
     for x in xs:
         return x
     return None
@@ -248,7 +248,7 @@ def overwrite_interpreter(file_contents: str, interpreter: str) -> str:
     return "\n".join(lines)
 
 
-def check_consecutive(xs: Iterable[int]) -> None | tuple[int, int]:
+def check_consecutive(xs: Iterable[int]) -> tuple[int, int] | None:
     prev = None
     for x in xs:
         if prev is not None and prev != x - 1:

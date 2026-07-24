@@ -32,7 +32,7 @@ setup_structlog()
 logger = structlog.stdlib.get_logger(__name__)
 
 
-hardcoded_static_folder: None | str = None
+hardcoded_static_folder: str | None = None
 
 app = FastAPI(title="AMARCORD OpenAPI interface", version="1.0")
 origins = [

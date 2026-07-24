@@ -275,7 +275,7 @@ async def determine_space_group_from_indexing_results(
     session: AsyncSession,
     beamtime_id: int,
     indexing_results_matching_params: list[orm.IndexingResult],
-) -> None | str:
+) -> str | None:
     # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
     chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
         (
@@ -643,7 +643,7 @@ async def _read_files_from_indexing_in_merge_result(
 )
 async def read_merge_jobs(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
-    status: None | DBJobStatus = None,
+    status: DBJobStatus | None = None,
 ) -> JsonReadMergeResultsOutput:
     async def encode_single_merge_job(mr: orm.MergeResult) -> JsonMergeJob:
         assert mr.indexing_results

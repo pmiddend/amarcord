@@ -376,7 +376,7 @@ def orm_encode_json_merge_parameters_to_json(
 
 def orm_encode_merge_result_to_json(
     mr: orm.MergeResult,
-    run_id_formatter: None | Callable[[RunInternalId], int] = None,
+    run_id_formatter: Callable[[RunInternalId], int] | None = None,
 ) -> JsonMergeResult:
     return JsonMergeResult(
         id=mr.id,
@@ -520,7 +520,7 @@ def orm_encode_merge_result_to_json(
 
 
 async def retrieve_runs_matching_data_set(
-    session: AsyncSession, data_set_id: int, beamtime_id: int, source: None | str = None
+    session: AsyncSession, data_set_id: int, beamtime_id: int, source: str | None = None
 ) -> list[orm.Run]:
     data_set = (
         await session.scalars(select(orm.DataSet).where(orm.DataSet.id == data_set_id))
@@ -550,7 +550,7 @@ async def retrieve_runs_matching_data_set(
     }
     run_attributi_maps: dict[
         int,
-        dict[AttributoId, None | orm.RunHasAttributoValue],
+        dict[AttributoId, orm.RunHasAttributoValue | None],
     ] = {r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in all_runs}
     data_set_attributi_map = {
         dsa.attributo_id: dsa for dsa in data_set.attributo_values

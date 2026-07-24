@@ -109,10 +109,10 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 def test_parse_workload_manager_config(
     input_type_and_value: tuple[
         str,
-        None
-        | LocalWorkloadManagerConfig
+        LocalWorkloadManagerConfig
         | SlurmRestWorkloadManagerConfig
-        | RemotePetraSlurmWorkloadManagerConfig,
+        | RemotePetraSlurmWorkloadManagerConfig
+        | None,
     ],
 ) -> None:
     if input_type_and_value[1] is None:

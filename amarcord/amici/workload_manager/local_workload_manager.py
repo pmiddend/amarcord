@@ -34,8 +34,8 @@ async def start_process_locally(
     script: str,
     environment: dict[str, str],
     extra_file_paths_str: list[str],
-    stdout: None | Path = None,
-    stderr: None | Path = None,
+    stdout: Path | None = None,
+    stderr: Path | None = None,
 ) -> tuple[Process, Path, Path]:
     output_base_dir = Path(output_base_dir_str)
 
@@ -118,8 +118,8 @@ class LocalWorkloadManager(WorkloadManager):
         name: str,
         time_limit: datetime.timedelta,
         environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        stdout: Path | None = None,
+        stderr: Path | None = None,
     ) -> JobStartResult:
         try:
             await working_directory.mkdir(exist_ok=True, parents=True)
@@ -148,7 +148,7 @@ class LocalWorkloadManager(WorkloadManager):
         )
 
     @override
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
+    async def list_jobs(self, job_id: str | None = None) -> Iterable[Job]:
         result: list[Job] = []
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode

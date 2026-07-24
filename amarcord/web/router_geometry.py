@@ -416,7 +416,7 @@ async def read_geometries_for_all_beamtimes(
 async def read_single_geometry_raw(
     geometryId: int,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
-    indexingResultId: None | int = None,  # noqa: N803
+    indexingResultId: int | None = None,  # noqa: N803
 ) -> Response:
     geometry = (
         await session.scalars(select(orm.Geometry).where(orm.Geometry.id == geometryId))

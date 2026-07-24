@@ -45,7 +45,7 @@ def test_parse_beamline_metadata() -> None:
 )
 def test_decode_job_list_result(
     input_lines: str,
-    jobs_or_none: None | list[Job],
+    jobs_or_none: list[Job] | None,
 ) -> None:
     if jobs_or_none is None:
         with pytest.raises(Exception):

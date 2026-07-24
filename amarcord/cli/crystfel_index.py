@@ -211,7 +211,7 @@ class FpsKiller:
         self._fps_queue: list[FpsValue] = []
         self._duration_seconds = duration_seconds
 
-    def add_new_fps(self, fps: float, time_s: None | int = None) -> None:
+    def add_new_fps(self, fps: float, time_s: int | None = None) -> None:
         if self._duration_seconds == 0:
             return
         now = _ns_to_s(monotonic_ns()) if time_s is None else time_s
@@ -220,7 +220,7 @@ class FpsKiller:
             x for x in self._fps_queue if x.time >= now - self._duration_seconds
         ]
 
-    def avg_fps(self) -> None | float:
+    def avg_fps(self) -> float | None:
         return None if not self._fps_queue else mean(x.fps for x in self._fps_queue)
 
 
@@ -238,7 +238,7 @@ def set_directory(path: str) -> Generator[None, Any]:
 class CrystFELCellFile:
     lattice_type: str
     centering: str
-    unique_axis: None | str
+    unique_axis: str | None
 
     a: float
     b: float
@@ -254,15 +254,15 @@ _cell_description_regex = re.compile(
 
 
 def convert_to_cell_description(cell: str) -> str:
-    lattice_type: None | str = None
-    ua: None | str = None
-    centering: None | str = None
-    a: None | float = None
-    b: None | float = None
-    c: None | float = None
-    alpha: None | float = None
-    beta: None | float = None
-    gamma: None | float = None
+    lattice_type: str | None = None
+    ua: str | None = None
+    centering: str | None = None
+    a: float | None = None
+    b: float | None = None
+    c: float | None = None
+    alpha: float | None = None
+    beta: float | None = None
+    gamma: float | None = None
     for line in cell.split("\n"):
         if line.startswith("lattice_type = "):
             lattice_type = line[15:]
@@ -316,7 +316,7 @@ def coparse_cell_description(s: CrystFELCellFile) -> str:
     return f"{s.lattice_type} {s.centering} {ua} ({s.a} {s.b} {s.c}) ({s.alpha} {s.beta} {s.gamma})"
 
 
-def parse_cell_description(s: str) -> None | CrystFELCellFile:
+def parse_cell_description(s: str) -> CrystFELCellFile | None:
     match = _cell_description_regex.fullmatch(s)
     if match is None:
         return None
@@ -363,11 +363,11 @@ class PrimaryArgs:
     workload_manager_job_id: int
     # Where to store the stream file into
     stream_file: Path
-    amarcord_api_url: None | str
+    amarcord_api_url: str | None
     original_globs: list[str]
     # the file list gets extremely long sometimes, so don't include this by default
     input_files: list[Path] = field(repr=False)
-    cell_description: None | str
+    cell_description: str | None
     geometry_contents: str
     crystfel_path: Path
     amarcord_indexing_result_id: int
@@ -375,7 +375,7 @@ class PrimaryArgs:
     maxwell_headers: dict[str, str]
     indexamajig_params: str
     use_auto_geom_refinement: bool
-    gnuplot_path: None | Path
+    gnuplot_path: Path | None
 
 
 @dataclass(frozen=True)
@@ -384,9 +384,9 @@ class SecondaryArgs:
     # job array task ID to store their result into the proper sqlite
     # DB cell
     use_slurm: bool
-    amarcord_api_url: None | str
+    amarcord_api_url: str | None
     amarcord_indexing_result_id: int
-    cell_file: None | Path
+    cell_file: Path | None
     job_array_id: int
     job_id_wm: int
     crystfel_path: Path
@@ -403,18 +403,18 @@ class OnlineArgs:
     workload_manager_job_id: int
     # Where to store the stream file into
     stream_file: Path
-    amarcord_api_url: None | str
+    amarcord_api_url: str | None
     asapo_source: str
     # To tweak the -j argument, still keeping it a bit dynamic (depending on the machine used)
-    cpu_count_multiplier: None | float
+    cpu_count_multiplier: float | None
     geometry_contents: str
-    cell_description: None | str
+    cell_description: str | None
     amarcord_indexing_result_id: int
     crystfel_path: Path
     indexamajig_params: list[str]
     use_auto_geom_refinement: bool
     external_run_id: int
-    gnuplot_path: None | Path
+    gnuplot_path: Path | None
 
 
 def write_error_json(args: PrimaryArgs | OnlineArgs, error: str) -> None:
@@ -444,9 +444,9 @@ class PanelOutput:
     group: str
     x_translation_mm: float
     y_translation_mm: float
-    z_translation_mm: None | float = None
-    x_rotation_deg: None | float = None
-    y_rotation_deg: None | float = None
+    z_translation_mm: float | None = None
+    x_rotation_deg: float | None = None
+    y_rotation_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -459,7 +459,7 @@ class IndexingFom:
     # This is the "file id" in the AMARCORD DB for the unit cell file,
     # which we upload from this script and then transfer the ID in the
     # final result
-    unit_cell_histograms_id: None | int = None
+    unit_cell_histograms_id: int | None = None
 
 
 def add_indexing_fom(line: IndexingFom, r: IndexingFom) -> IndexingFom:
@@ -486,7 +486,7 @@ def write_status_still_running(
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
     status_dict: dict[
-        str, str | int | float | None | list[dict[str, None | float | str]]
+        str, str | int | float | list[dict[str, float | str | None]] | None
     ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
@@ -530,7 +530,7 @@ def write_status_success(
     # Explicit dict annotation to force string value type (otherwise
     # Path might sneak in and cannot be serialized)
     status_dict: dict[
-        str, str | int | float | None | list[dict[str, None | float | str]]
+        str, str | int | float | list[dict[str, float | str | None]] | None
     ] = {
         "workload_manager_job_id": args.workload_manager_job_id,
         "stream_file": str(args.stream_file),
@@ -577,7 +577,7 @@ def write_status_success(
 def db_execute_timed(
     db: sqlite3.Connection,
     statement: str,
-    args: None | tuple[Any, ...],
+    args: tuple[Any, ...] | None,
 ) -> Any:
     before = time()
     result = db.execute(statement) if args is None else db.execute(statement, args)
@@ -612,7 +612,7 @@ class JobArrayLocal:
     def __init__(self, proc: subprocess.Popen[bytes]) -> None:
         self.proc = proc
 
-    def wait(self) -> None | int:
+    def wait(self) -> int | None:
         self.proc.poll()
         return self.proc.returncode
 
@@ -827,7 +827,7 @@ def start_job_array_slurm(
 def start_job_array(
     args: PrimaryArgs,
     db: sqlite3.Connection,
-    cell_file: None | Path,
+    cell_file: Path | None,
     geometry_path: Path,
     script_file_contents: str,
     job_array_id: int,
@@ -870,7 +870,7 @@ def get_all_job_stati(
     job_array_id: int,
     job_array_workload_manager_id: JobArray,
 ) -> list[str]:
-    job_ids_wm: list[None | int] = [
+    job_ids_wm: list[int | None] = [
         r[0]
         for r in db_execute_timed(
             db,
@@ -888,7 +888,7 @@ def get_all_job_stati(
 
 def get_all_slurm_job_stati(
     args: PrimaryArgs,
-    job_ids_wm: list[None | int],
+    job_ids_wm: list[int | None],
 ) -> list[str]:
     result: list[str] = []
     for job_id_wm in job_ids_wm:
@@ -933,7 +933,7 @@ class JobArrayFailure:
 def run_job_array(
     args: PrimaryArgs,
     db: sqlite3.Connection,
-    cell_file: None | Path,
+    cell_file: Path | None,
     geometry_path: Path,
     script_file_contents: str,
     job_array_id: int,
@@ -956,8 +956,8 @@ def run_job_array(
         )
     )
 
-    cooldown_iterations: None | int = None
-    previous_images_processed: None | int = None
+    cooldown_iterations: int | None = None
+    previous_images_processed: int | None = None
 
     def retrieve_foms_for_this_job() -> IndexingFom:
         (
@@ -1138,13 +1138,13 @@ def parse_secondary_args() -> SecondaryArgs:
 def parse_millepede_output(stdout: str) -> str | dict[str, PanelOutput]:
     logger.info("parsing align_detector output")
     success = False
-    x_translation_mm: None | float = None
-    y_translation_mm: None | float = None
-    z_translation_mm: None | float = None
-    x_rotation_deg: None | float = None
-    y_rotation_deg: None | float = None
+    x_translation_mm: float | None = None
+    y_translation_mm: float | None = None
+    z_translation_mm: float | None = None
+    x_rotation_deg: float | None = None
+    y_rotation_deg: float | None = None
 
-    current_group: None | str = None
+    current_group: str | None = None
     groups: dict[str, PanelOutput] = {}
     for line in stdout.split("\n"):
         if not success:
@@ -1219,7 +1219,7 @@ def parse_millepede_output(stdout: str) -> str | dict[str, PanelOutput]:
 
 
 def determine_beamtime_json(args: OnlineArgs, p: Path) -> tuple[Path, dict[str, Any]]:
-    def find_metadata_json(p: Path) -> None | Path:
+    def find_metadata_json(p: Path) -> Path | None:
         all_files = list(p.glob("beamtime-metadata-*.json"))
         return None if not all_files else all_files[0]
 
@@ -1245,7 +1245,7 @@ def run_align_detector(
     mille_files_dir: Path,
     geometry_path: Path,
     geometry_file_destination: Path,
-) -> None | dict[str, PanelOutput]:
+) -> dict[str, PanelOutput] | None:
     with TemporaryDirectory() as tempdir, set_directory(tempdir):
         align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
         if not Path(align_detector_binary).is_file():
@@ -1423,7 +1423,7 @@ def run_online(args: OnlineArgs) -> None:
     # working directory anymore
     geometry_path = geometry_path_relative.resolve()
 
-    cell_file: None | Path
+    cell_file: Path | None
     if args.cell_description is not None and args.cell_description.strip():
         parsed_cell_description = parse_cell_description(args.cell_description)
         if parsed_cell_description is None:
@@ -1508,7 +1508,7 @@ def run_online(args: OnlineArgs) -> None:
         hits = 0
         indexable = 0
         crystals = 0
-        previous_time: None | float = None
+        previous_time: float | None = None
         fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
         start_time = time()
         while True:
@@ -1710,7 +1710,7 @@ def run_secondary(args: SecondaryArgs) -> None:
         hits = 0
         indexable = 0
         crystals = 0
-        previous_time: None | float = None
+        previous_time: float | None = None
         while True:
             assert proc.stdout is not None
             line = proc.stdout.readline()
@@ -1774,8 +1774,8 @@ def run_secondary(args: SecondaryArgs) -> None:
 
 def find_searching_upwards(
     f: Path,
-    finder: Callable[[Path], None | Path],
-) -> None | Path:
+    finder: Callable[[Path], Path | None],
+) -> Path | None:
     if not f.is_file() and not f.is_dir():
         logger.error(f"base path used to find a directory; path was: {f}")
         return None
@@ -1916,7 +1916,7 @@ class GraphOutput:
 
 
 def generate_graphs(
-    gnuplot_path: None | Path,
+    gnuplot_path: Path | None,
     indexing_result_id: int,
     stream_file: Path,
 ) -> GraphOutput:
@@ -1970,7 +1970,7 @@ def determine_crystfel_version(crystfel_path: Path) -> str:
     return output.split("\n", maxsplit=1)[0].replace("CrystFEL: ", "")
 
 
-def upload_file(args: PrimaryArgs | OnlineArgs, file_path: Path) -> None | int:
+def upload_file(args: PrimaryArgs | OnlineArgs, file_path: Path) -> int | None:
     with file_path.open("rb") as file_obj:
         url = f"{args.amarcord_api_url}/api/files/simple/{file_path.suffix.replace('.', '')}"
         logger.info(f"uploading file to {url}")
@@ -2056,7 +2056,7 @@ def run_primary(args: PrimaryArgs) -> None:
     # working directory anymore
     geometry_path = geometry_path_relative.resolve()
 
-    cell_file: None | Path
+    cell_file: Path | None
     if args.cell_description is not None and args.cell_description.strip():
         parsed_cell_description = parse_cell_description(args.cell_description)
         if parsed_cell_description is None:

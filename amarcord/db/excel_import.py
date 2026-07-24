@@ -37,7 +37,7 @@ class ParsedRunSpreadsheetRun:
     external_id: int
     experiment_type: str
     started: datetime.datetime
-    stopped: None | datetime.datetime
+    stopped: datetime.datetime | None
     files: list[str]
     custom_column_values: list[str]
 
@@ -75,8 +75,7 @@ class ConversionError:
 
 def excel_import_convert_cell_to_integer(
     cell_value: (
-        None
-        | ArrayFormula
+        ArrayFormula
         | CellRichText
         | DataTableFormula
         | datetime.date
@@ -85,6 +84,7 @@ def excel_import_convert_cell_to_integer(
         | Decimal
         | float
         | str
+        | None
     ),
 ) -> ConversionError | int:
     if cell_value is None:
@@ -109,8 +109,7 @@ def excel_import_convert_cell_to_integer(
 
 def excel_import_convert_cell_to_string(
     cell_value: (
-        None
-        | ArrayFormula
+        ArrayFormula
         | CellRichText
         | DataTableFormula
         | datetime.date
@@ -119,6 +118,7 @@ def excel_import_convert_cell_to_string(
         | Decimal
         | float
         | str
+        | None
     ),
 ) -> ConversionError | str:
     if cell_value is None:
@@ -180,11 +180,11 @@ _SYSTEM_COLUMNS = {
 
 @dataclass(frozen=True)
 class RunCellResult:
-    run_id: None | int = None
-    experiment_type_name: None | str = None
-    started: None | datetime.datetime = None
-    stopped: None | datetime.datetime = None
-    files: None | list[str] = None
+    run_id: int | None = None
+    experiment_type_name: str | None = None
+    started: datetime.datetime | None = None
+    stopped: datetime.datetime | None = None
+    files: list[str] | None = None
     custom_column_values: list[str] = field(default_factory=list)
 
     def combine(self, other: "RunCellResult") -> "RunCellResult":
@@ -352,7 +352,7 @@ def convert_value(
     a: orm.Attributo,
     chemicals_by_name: dict[str, orm.Chemical],
     value: str | int | float | datetime.datetime,
-) -> None | ConversionError | orm.RunHasAttributoValue:
+) -> ConversionError | orm.RunHasAttributoValue | None:
     atype = schema_dict_to_attributo_type(a.json_schema)
     if isinstance(atype, AttributoTypeInt):
         # Simple: we want an integer, but the value is empty. This is fine, return None.

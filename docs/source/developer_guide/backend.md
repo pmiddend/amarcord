@@ -211,30 +211,30 @@ Merging already indexed datasets is easier than indexing, because there is no pa
 input = "input.stream"
 
 if crystal_limit:
-  input = random_sample_from_file(input)
+    input = random_sample_from_file(input)
 
 if ambigator_parameters:
-  input = run_ambigator(input)
-  
+    input = run_ambigator(input)
+
 if custom_split_components:
-  split_file = create_split_file(custom_split_components, input)
+    split_file = create_split_file(custom_split_components, input)
 else:
-  split_file = None
-  
+    split_file = None
+
 hkl_files = run_partialator(input, split_file)
 
 for hkl_file in hkl_files:
-  create_mtz(hkl_file)
-  rescut = calculate_resolution_cut(hkl_file)
-  # check_output will contain: snr, redundancy, completeness, ...
-  check_output = run_check_hkl(hkl_file, rescut)
-  rsplit = run_compare_hkl(hkl_file, rescut, "rsplit")
-  cc = run_compare_hkl(hkl_file, rescut, "cc")
-  ccstar = run_compare_hkl(hkl_file, rescut, "ccstar")
-  if pdb_file:
-    mtz_file, pdb_file = refine(hkl_file, rescut, pdb_file)
-  else:
-    mtz_file, pdb_file = None, None
+    create_mtz(hkl_file)
+    rescut = calculate_resolution_cut(hkl_file)
+    # check_output will contain: snr, redundancy, completeness, ...
+    check_output = run_check_hkl(hkl_file, rescut)
+    rsplit = run_compare_hkl(hkl_file, rescut, "rsplit")
+    cc = run_compare_hkl(hkl_file, rescut, "cc")
+    ccstar = run_compare_hkl(hkl_file, rescut, "ccstar")
+    if pdb_file:
+        mtz_file, pdb_file = refine(hkl_file, rescut, pdb_file)
+    else:
+        mtz_file, pdb_file = None, None
 ```
 
 At the end of this pseudocode, you will have, per dataset, values like Rsplit, CC* etc., as well as an MTZ file, optionally a refined MTZ/PDB pair to display in the UI, and per-shell values for SNR etc.. These will be sent as a merge result via the REST API.
@@ -254,11 +254,11 @@ We are using the excellent [SQLAlchemy](https://www.sqlalchemy.org/) library to 
 For ID columns, sometimes we're using a [NewType](https://mypy.readthedocs.io/en/stable/more_types.html) wrapper, so different integral IDs can be better differentiated. Compare:
 
 ```python
-def f(beamtime_id: int, run_id: int) -> None:
-   ...
-   
-f(1,3)
-f(6,7)
+def f(beamtime_id: int, run_id: int) -> None: ...
+
+
+f(1, 3)
+f(6, 7)
 ```
 
 with:
@@ -267,9 +267,10 @@ with:
 BeamtimeId = NewType("BeamtimeId", int)
 RunId = NewType("RunId", int)
 
-def f(beamtime_id: BeamtimeId, run_id: RunId) -> None:
-   ...
-   
+
+def f(beamtime_id: BeamtimeId, run_id: RunId) -> None: ...
+
+
 f(BeamtimeId(1), RunId(3))
 f(BeamtimeId(6), RunId(7))
 ```

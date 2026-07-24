@@ -70,11 +70,11 @@ def schema_dict_to_attributo_type(json_schema: dict[str, Any]) -> AttributoType:
 
 
 def schema_to_attributo_type(
-    schema_number: None | JSONSchemaNumber,
-    schema_boolean: None | JSONSchemaBoolean,
-    schema_integer: None | JSONSchemaInteger,
-    schema_array: None | JSONSchemaArray,
-    schema_string: None | JSONSchemaString,
+    schema_number: JSONSchemaNumber | None,
+    schema_boolean: JSONSchemaBoolean | None,
+    schema_integer: JSONSchemaInteger | None,
+    schema_array: JSONSchemaArray | None,
+    schema_string: JSONSchemaString | None,
 ) -> AttributoType:
     if schema_number is not None:
         return AttributoTypeDecimal(
@@ -871,10 +871,10 @@ def run_matches_dataset(
     attributi: Mapping[AttributoId, AttributoType],
     run_attributi: Mapping[
         AttributoId,
-        None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
+        orm.RunHasAttributoValue | orm.DataSetHasAttributoValue | None,
     ],
     data_set_attributi: Mapping[
-        AttributoId, None | orm.DataSetHasAttributoValue | orm.RunHasAttributoValue
+        AttributoId, orm.DataSetHasAttributoValue | orm.RunHasAttributoValue | None
     ],
 ) -> bool:
     for _ in nonmatching_run_dataset_attributi(
@@ -888,10 +888,10 @@ def nonmatching_run_dataset_attributi(
     attributi: Mapping[AttributoId, AttributoType],
     run_attributi: Mapping[
         AttributoId,
-        None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
+        orm.RunHasAttributoValue | orm.DataSetHasAttributoValue | None,
     ],
     data_set_attributi: Mapping[
-        AttributoId, None | orm.DataSetHasAttributoValue | orm.RunHasAttributoValue
+        AttributoId, orm.DataSetHasAttributoValue | orm.RunHasAttributoValue | None
     ],
 ) -> Generator[AttributoId]:
     for attributo_id, data_set_value in data_set_attributi.items():

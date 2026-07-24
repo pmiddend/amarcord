@@ -15,7 +15,7 @@ def ingest_run_attributi_schema(
     session: AsyncSession,
     beamtime_id: BeamtimeId,
     preexisting_attributi_by_name: dict[str, AttributoType],
-    attributi_schema: dict[str, tuple[None | str, JSONSchemaUnion]],
+    attributi_schema: dict[str, tuple[str | None, JSONSchemaUnion]],
     group: str,
 ) -> None:
     for attributo_name, (

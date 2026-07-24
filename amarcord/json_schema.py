@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class JSONSchemaInteger(BaseModel):
     type: Literal["integer"]
-    format: None | Literal["date-time", "chemical-id"] = None
+    format: Literal["date-time", "chemical-id"] | None = None
 
 
 class JSONSchemaNumber(BaseModel):
@@ -17,7 +17,7 @@ class JSONSchemaNumber(BaseModel):
     exclusiveMinimum: float | None = None  # noqa: N815
     exclusiveMaximum: float | None = None  # noqa: N815
     suffix: str | None = None
-    format: None | Literal["standard-unit"] = None
+    format: Literal["standard-unit"] | None = None
     tolerance: float | None = None
     toleranceIsAbsolute: bool = False  # noqa: N815
 

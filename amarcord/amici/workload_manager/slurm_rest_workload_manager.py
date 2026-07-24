@@ -126,7 +126,7 @@ class DynamicTokenRetriever:
     ) -> None:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
-        self._token: None | str = None
+        self._token: str | None = None
         self._last_retrieval = datetime.datetime.now(datetime.UTC)
 
     async def __call__(self) -> str:
@@ -171,7 +171,7 @@ class JsonSlurmJob(BaseModel):
     job_id: int
 
 
-def _convert_job(job_in: JSONDict) -> None | Job:
+def _convert_job(job_in: JSONDict) -> Job | None:
     try:
         job = JsonSlurmJobPre40(**job_in)  # type: ignore
         return Job(
@@ -244,14 +244,14 @@ class SlurmRestWorkloadManager(WorkloadManager):
     # Super class is Protocol which gives an error (protocols aren't instantiated)
     def __init__(
         self,
-        partition: None | str,
-        reservation: None | str,
-        explicit_node: None | str,
+        partition: str | None,
+        reservation: str | None,
+        explicit_node: str | None,
         token_retriever: TokenRetriever,
         request_wrapper: SlurmHttpWrapper,
         api_version: str,
         rest_url: str,
-        rest_user: None | str = None,
+        rest_user: str | None = None,
     ) -> None:
         self.partition = partition
         self._reservation = reservation
@@ -284,8 +284,8 @@ class SlurmRestWorkloadManager(WorkloadManager):
         name: str,
         time_limit: datetime.timedelta,
         environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        stdout: Path | None = None,
+        stderr: Path | None = None,
     ) -> JobStartResult:
         url = f"{self.rest_url}/sapi/slurm/{self.api_version}/job/submit"
         headers_output = json.dumps(await self._headers())
@@ -349,7 +349,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         logger.info(f"response was {json.dumps(response)}")
         response_json = response
         # We should use pydantic here instead of this "type error"
-        errors: None | list[SlurmError] = response_json.get("errors")  # type: ignore
+        errors: list[SlurmError] | None = response_json.get("errors")  # type: ignore
         if errors is not None and errors:
             raise JobStartError(
                 "there were workload_manager errors: "
@@ -371,7 +371,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         )
 
     @override
-    async def list_jobs(self, job_id: None | str = None) -> list[Job]:
+    async def list_jobs(self, job_id: str | None = None) -> list[Job]:
         # The default is to get all jobs (for the user), but this
         # might be years of job history. We artifically constrain this
         # to "the last month" for now. Let's see if we get more

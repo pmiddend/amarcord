@@ -137,7 +137,7 @@ async def read_beamtime_geometry_details(
 async def read_run_analysis(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
     beamtimeId: BeamtimeId,  # noqa: N803
-    run_id: None | RunInternalId = None,
+    run_id: RunInternalId | None = None,
 ) -> JsonReadRunAnalysis:
     def extract_summary(o: orm.IndexingResult) -> IndexingResultSummary:
         if o.job_error is not None:
@@ -156,8 +156,8 @@ async def read_run_analysis(
     runs = (
         await session.scalars(select(orm.Run).where(orm.Run.beamtime_id == beamtimeId))
     ).all()
-    run: None | orm.Run = None
-    data_set: None | orm.DataSet = None
+    run: orm.Run | None = None
+    data_set: orm.DataSet | None = None
     if run_id is not None:
         for r in runs:
             if r.id == run_id:
@@ -294,11 +294,11 @@ async def read_single_data_set_results(
     }
     run_attributi_maps: dict[
         RunInternalId,
-        dict[AttributoId, None | orm.RunHasAttributoValue],
+        dict[AttributoId, orm.RunHasAttributoValue | None],
     ] = {
         r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in runs.values()
     }
-    ds_attributi_map: dict[AttributoId, None | orm.DataSetHasAttributoValue] = {
+    ds_attributi_map: dict[AttributoId, orm.DataSetHasAttributoValue | None] = {
         dsa.attributo_id: dsa for dsa in data_set.attributo_values
     }
     attributo_types: dict[AttributoId, AttributoType] = {
@@ -416,7 +416,7 @@ async def read_single_data_set_results(
         # We either have a new indexing parameter object, or this one
         # is equivalent to one of the previously selected "main" ones.
         # We don't know yet.
-        main_parameter_id: None | int = None
+        main_parameter_id: int | None = None
         for existing_ip in main_ips.values():
             if orm.are_indexing_parameters_equal(existing_ip, new_ip):
                 # Okay, we have seen this parameter object before.

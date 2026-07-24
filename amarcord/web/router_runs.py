@@ -210,7 +210,7 @@ async def _create_data_set_for_run(
     session: AsyncSession,
     latest_config: orm.UserConfiguration,
     run: orm.Run,
-) -> None | int:
+) -> int | None:
     current_experiment_type = (
         await latest_config.awaitable_attrs.current_experiment_type
     )
@@ -261,9 +261,9 @@ async def _create_data_set_for_run(
 
 @dataclass
 class RunData:
-    files: None | list[orm.RunHasFiles]
-    started: None | int
-    stopped: None | int
+    files: list[orm.RunHasFiles] | None
+    started: int | None
+    stopped: int | None
     is_utc: bool
     attributi_by_id: dict[AttributoId, orm.Attributo]
     attributo_values: list[orm.RunHasAttributoValue]
@@ -273,9 +273,9 @@ class RunData:
 async def _convert_run_from_json(
     run_logger: structlog.stdlib.BoundLogger,
     session: AsyncSession,
-    files: None | list[JsonRunFile],
-    started: None | int,
-    stopped: None | int,
+    files: list[JsonRunFile] | None,
+    started: int | None,
+    stopped: int | None,
     is_utc: bool,
     input_attributi: list[JsonAttributoValue],
 ) -> ErrorMessage | RunData:
@@ -766,13 +766,13 @@ def encode_attributo_value(
 
 @dataclass(frozen=True)
 class _RunHasAttributoValueToBeUsedInSet:
-    integer_value: None | int
-    float_value: None | float
-    string_value: None | str
-    bool_value: None | bool
-    datetime_value: None | datetime.datetime
-    list_value: None | list[Any]
-    chemical_value: None | int
+    integer_value: int | None
+    float_value: float | None
+    string_value: str | None
+    bool_value: bool | None
+    datetime_value: datetime.datetime | None
+    list_value: list[Any] | None
+    chemical_value: int | None
 
 
 def _to_dataclass(o: orm.RunHasAttributoValue) -> _RunHasAttributoValueToBeUsedInSet:
@@ -972,7 +972,7 @@ async def update_runs_bulk(
 async def _find_schedule_entry(
     session: AsyncSession,
     beamtime_id: BeamtimeId,
-) -> None | orm.BeamtimeSchedule:
+) -> orm.BeamtimeSchedule | None:
     now = datetime.datetime.now(get_local_tz())
     minutes_since_midnight_now = now.hour * 60 + now.minute
     for schedule_entry in await session.scalars(
@@ -1000,7 +1000,7 @@ async def _find_schedule_entry(
 
 def encode_data_set_with_fom(
     ds: orm.DataSet,
-    fom: None | IndexingResultSummary,
+    fom: IndexingResultSummary | None,
     beamtime_id: BeamtimeId,
 ) -> JsonDataSetWithFom:
     return JsonDataSetWithFom(
@@ -1017,9 +1017,9 @@ def encode_data_set_with_fom(
 async def read_runs(
     beamtimeId: BeamtimeId,  # noqa: N803
     session: Annotated[AsyncSession, Depends(get_orm_db)],
-    date: None | str = None,
-    filter: None | str = None,  # noqa: A002
-    runRanges: None | str = None,  # noqa: N803
+    date: str | None = None,
+    filter: str | None = None,  # noqa: A002
+    runRanges: str | None = None,  # noqa: N803
 ) -> JsonReadRuns:
     attributi = list(
         (
@@ -1225,18 +1225,18 @@ async def read_runs_overview(
         AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
         for a in attributi
     }
-    run_attributi_map: dict[AttributoId, None | orm.RunHasAttributoValue] = {
+    run_attributi_map: dict[AttributoId, orm.RunHasAttributoValue | None] = {
         ra.attributo_id: ra
         for ra in (latest_run.attributo_values if latest_run is not None else [])
     }
     data_set_attributi_maps: dict[
         int,
-        dict[AttributoId, None | orm.DataSetHasAttributoValue],
+        dict[AttributoId, orm.DataSetHasAttributoValue | None],
     ] = {
         ds.id: {dsa.attributo_id: dsa for dsa in ds.attributo_values}
         for ds in data_sets
     }
-    data_set_for_latest_run: None | orm.DataSet = next(
+    data_set_for_latest_run: orm.DataSet | None = next(
         iter(
             ds
             for ds in data_sets

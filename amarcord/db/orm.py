@@ -285,8 +285,8 @@ class File(Base):
     type: Mapped[str] = mapped_column(sa.String(length=255))
     file_name: Mapped[str] = mapped_column(sa.String(length=255))
     size_in_bytes: Mapped[int] = mapped_column()
-    size_in_bytes_compressed: Mapped[None | int] = mapped_column()
-    original_path: Mapped[None | str] = mapped_column(sa.Text)
+    size_in_bytes_compressed: Mapped[int | None] = mapped_column()
+    original_path: Mapped[str | None] = mapped_column(sa.Text)
     sha256: Mapped[str] = mapped_column(sa.String(length=64))
     modified: Mapped[datetime] = mapped_column()
     # See https://stackoverflow.com/questions/43791725/sqlalchemy-how-to-make-a-longblob-column-in-mysql
@@ -398,12 +398,12 @@ class ChemicalHasAttributoValue(Base):
         ForeignKey("Attributo.id", ondelete="cascade"),
         primary_key=True,
     )
-    integer_value: Mapped[None | int] = mapped_column(nullable=True)
-    float_value: Mapped[None | float] = mapped_column(nullable=True)
-    string_value: Mapped[None | str] = mapped_column(sa.Text, nullable=True)
-    bool_value: Mapped[None | bool] = mapped_column(nullable=True)
-    datetime_value: Mapped[None | datetime] = mapped_column(nullable=True)
-    list_value: Mapped[None | list[Any]] = mapped_column(sa.JSON, nullable=True)
+    integer_value: Mapped[int | None] = mapped_column(nullable=True)
+    float_value: Mapped[float | None] = mapped_column(nullable=True)
+    string_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    bool_value: Mapped[bool | None] = mapped_column(nullable=True)
+    datetime_value: Mapped[datetime | None] = mapped_column(nullable=True)
+    list_value: Mapped[list[Any] | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships
     chemical: Mapped[Chemical] = relationship(
@@ -446,7 +446,7 @@ class Run(Base):
     )
     modified: Mapped[datetime] = mapped_column()
     started: Mapped[datetime] = mapped_column()
-    stopped: Mapped[None | datetime] = mapped_column()
+    stopped: Mapped[datetime | None] = mapped_column()
     experiment_type_id: Mapped[int] = mapped_column(
         ForeignKey("ExperimentType.id", name="run_has_experiment_type_fk"),
     )
@@ -502,20 +502,20 @@ class RunHasAttributoValue(Base):
         ForeignKey("Attributo.id", ondelete="cascade"),
         primary_key=True,
     )
-    integer_value: Mapped[None | int] = mapped_column(nullable=True)
-    float_value: Mapped[None | float] = mapped_column(nullable=True)
-    string_value: Mapped[None | str] = mapped_column(sa.Text, nullable=True)
-    bool_value: Mapped[None | bool] = mapped_column(nullable=True)
-    datetime_value: Mapped[None | datetime] = mapped_column(nullable=True)
-    list_value: Mapped[None | list[Any]] = mapped_column(sa.JSON, nullable=True)
-    chemical_value: Mapped[None | int] = mapped_column(
+    integer_value: Mapped[int | None] = mapped_column(nullable=True)
+    float_value: Mapped[float | None] = mapped_column(nullable=True)
+    string_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    bool_value: Mapped[bool | None] = mapped_column(nullable=True)
+    datetime_value: Mapped[datetime | None] = mapped_column(nullable=True)
+    list_value: Mapped[list[Any] | None] = mapped_column(sa.JSON, nullable=True)
+    chemical_value: Mapped[int | None] = mapped_column(
         ForeignKey("Chemical.id", ondelete="cascade"),
     )
 
     # Relationships
     run: Mapped[Run] = relationship(back_populates="attributo_values", init=False)
     attributo: Mapped[Attributo] = relationship(back_populates="run_values", init=False)
-    chemical: Mapped[None | Chemical] = relationship(init=False)
+    chemical: Mapped[Chemical | None] = relationship(init=False)
 
 
 class ExperimentHasAttributo(Base):
@@ -578,13 +578,13 @@ class DataSetHasAttributoValue(Base):
         ForeignKey("Attributo.id", ondelete="cascade"),
         primary_key=True,
     )
-    integer_value: Mapped[None | int] = mapped_column(nullable=True)
-    float_value: Mapped[None | float] = mapped_column(nullable=True)
-    string_value: Mapped[None | str] = mapped_column(sa.Text, nullable=True)
-    bool_value: Mapped[None | bool] = mapped_column(nullable=True)
-    datetime_value: Mapped[None | datetime] = mapped_column(nullable=True)
-    list_value: Mapped[None | list[Any]] = mapped_column(sa.JSON, nullable=True)
-    chemical_value: Mapped[None | int] = mapped_column(
+    integer_value: Mapped[int | None] = mapped_column(nullable=True)
+    float_value: Mapped[float | None] = mapped_column(nullable=True)
+    string_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    bool_value: Mapped[bool | None] = mapped_column(nullable=True)
+    datetime_value: Mapped[datetime | None] = mapped_column(nullable=True)
+    list_value: Mapped[list[Any] | None] = mapped_column(sa.JSON, nullable=True)
+    chemical_value: Mapped[int | None] = mapped_column(
         ForeignKey("Chemical.id", ondelete="cascade"),
     )
 
@@ -608,7 +608,7 @@ class DataSetHasAttributoValue(Base):
         back_populates="data_set_values",
         init=False,
     )
-    chemical: Mapped[None | Chemical] = relationship(init=False)
+    chemical: Mapped[Chemical | None] = relationship(init=False)
 
 
 class EventLog(Base):
@@ -650,8 +650,8 @@ class IndexingParameters(Base):
     # Real attributes
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     is_online: Mapped[bool] = mapped_column()
-    cell_description: Mapped[None | str] = mapped_column(sa.String(length=255))
-    geometry_id: Mapped[None | int] = mapped_column(
+    cell_description: Mapped[str | None] = mapped_column(sa.String(length=255))
+    geometry_id: Mapped[int | None] = mapped_column(
         ForeignKey("Geometry.id", ondelete="cascade"),
     )
     command_line: Mapped[str] = mapped_column(sa.Text)
@@ -666,7 +666,7 @@ class IndexingParameters(Base):
         back_populates="current_online_indexing_parameters",
         default_factory=list,
     )
-    geometry: Mapped[None | Geometry] = relationship(
+    geometry: Mapped[Geometry | None] = relationship(
         back_populates="indexing_parameters", init=False
     )
 
@@ -692,15 +692,15 @@ class UserConfiguration(Base):
     created: Mapped[datetime] = mapped_column()
     auto_pilot: Mapped[bool] = mapped_column()
     use_online_crystfel: Mapped[bool] = mapped_column()
-    current_experiment_type_id: Mapped[None | int] = mapped_column(
+    current_experiment_type_id: Mapped[int | None] = mapped_column(
         ForeignKey("ExperimentType.id", ondelete="cascade"),
     )
-    current_online_indexing_parameters_id: Mapped[None | int] = mapped_column(
+    current_online_indexing_parameters_id: Mapped[int | None] = mapped_column(
         ForeignKey("IndexingParameters.id", ondelete="cascade"),
     )
 
     # Relationships
-    current_experiment_type: Mapped[None | ExperimentType] = relationship(
+    current_experiment_type: Mapped[ExperimentType | None] = relationship(
         back_populates="configurations",
         init=False,
     )
@@ -708,7 +708,7 @@ class UserConfiguration(Base):
         back_populates="configurations",
         init=False,
     )
-    current_online_indexing_parameters: Mapped[None | IndexingParameters] = (
+    current_online_indexing_parameters: Mapped[IndexingParameters | None] = (
         relationship(back_populates="configurations", init=False)
     )
 
@@ -724,9 +724,9 @@ class AlignDetectorGroup(Base):
     group: Mapped[str] = mapped_column()
     x_translation_mm: Mapped[float] = mapped_column()
     y_translation_mm: Mapped[float] = mapped_column()
-    z_translation_mm: Mapped[None | float] = mapped_column()
-    x_rotation_deg: Mapped[None | float] = mapped_column()
-    y_rotation_deg: Mapped[None | float] = mapped_column()
+    z_translation_mm: Mapped[float | None] = mapped_column()
+    x_rotation_deg: Mapped[float | None] = mapped_column()
+    y_rotation_deg: Mapped[float | None] = mapped_column()
 
     # Relationships
     indexing_result: Mapped["IndexingResult"] = relationship(
@@ -743,28 +743,28 @@ class IndexingResult(Base):
     run_id: Mapped[RunInternalId] = mapped_column(
         ForeignKey("Run.id", ondelete="cascade"),
     )
-    stream_file: Mapped[None | str] = mapped_column(sa.Text)
-    program_version: Mapped[None | str] = mapped_column(sa.String(length=255))
-    frames: Mapped[None | int] = mapped_column()
-    hits: Mapped[None | int] = mapped_column()
+    stream_file: Mapped[str | None] = mapped_column(sa.Text)
+    program_version: Mapped[str | None] = mapped_column(sa.String(length=255))
+    frames: Mapped[int | None] = mapped_column()
+    hits: Mapped[int | None] = mapped_column()
     indexed_frames: Mapped[int] = mapped_column()
-    generated_geometry_id: Mapped[None | int] = mapped_column(
+    generated_geometry_id: Mapped[int | None] = mapped_column(
         ForeignKey("Geometry.id", ondelete="cascade")
     )
     # In some of AMARCORD's code, this will be called "workload
     # manager job ID" (see workload managers in the docs)
-    job_id: Mapped[None | int] = mapped_column()
+    job_id: Mapped[int | None] = mapped_column()
     job_status: Mapped[DBJobStatus] = mapped_column(sa.Enum(DBJobStatus))
-    job_error: Mapped[None | str] = mapped_column(
+    job_error: Mapped[str | None] = mapped_column(
         sa.Text().with_variant(LONGTEXT, "mysql"),
     )
-    job_latest_log: Mapped[None | str] = mapped_column(sa.Text)
-    job_started: Mapped[None | datetime] = mapped_column()
-    job_stopped: Mapped[None | datetime] = mapped_column()
+    job_latest_log: Mapped[str | None] = mapped_column(sa.Text)
+    job_started: Mapped[datetime | None] = mapped_column()
+    job_stopped: Mapped[datetime | None] = mapped_column()
     indexing_parameters_id: Mapped[int] = mapped_column(
         ForeignKey("IndexingParameters.id", ondelete="cascade"),
     )
-    unit_cell_histograms_file_id: Mapped[None | int] = mapped_column(
+    unit_cell_histograms_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("File.id", ondelete="cascade"),
     )
 
@@ -791,7 +791,7 @@ class IndexingResult(Base):
         back_populates="indexing_results",
         init=False,
     )
-    generated_geometry: Mapped[None | Geometry] = relationship(
+    generated_geometry: Mapped[Geometry | None] = relationship(
         init=False, back_populates="generated_indexing_results", cascade="all, delete"
     )
     template_replacements: Mapped[list["GeometryTemplateReplacement"]] = relationship(
@@ -829,20 +829,20 @@ class MergeResult(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     created: Mapped[datetime] = mapped_column()
     recent_log: Mapped[str] = mapped_column(sa.Text)
-    negative_handling: Mapped[None | MergeNegativeHandling] = mapped_column(
+    negative_handling: Mapped[MergeNegativeHandling | None] = mapped_column(
         sa.Enum(MergeNegativeHandling),
     )
     job_status: Mapped[DBJobStatus] = mapped_column(sa.Enum(DBJobStatus))
-    started: Mapped[None | datetime] = mapped_column()
-    stopped: Mapped[None | datetime] = mapped_column()
+    started: Mapped[datetime | None] = mapped_column()
+    stopped: Mapped[datetime | None] = mapped_column()
     point_group: Mapped[str] = mapped_column(sa.String(length=32))
-    space_group: Mapped[None | str] = mapped_column(sa.String(length=32))
+    space_group: Mapped[str | None] = mapped_column(sa.String(length=32))
     cell_description: Mapped[str] = mapped_column(sa.String(length=255))
-    custom_split: Mapped[None | str] = mapped_column(sa.Text)
-    dataset: Mapped[None | str] = mapped_column(sa.String(length=255))
-    job_id: Mapped[None | int] = mapped_column()
-    job_error: Mapped[None | str] = mapped_column(sa.Text)
-    mtz_file_id: Mapped[None | int] = mapped_column(
+    custom_split: Mapped[str | None] = mapped_column(sa.Text)
+    dataset: Mapped[str | None] = mapped_column(sa.String(length=255))
+    job_id: Mapped[int | None] = mapped_column()
+    job_error: Mapped[str | None] = mapped_column(sa.Text)
+    mtz_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("File.id", ondelete="cascade"),
     )
     input_merge_model: Mapped[MergeModel] = mapped_column(sa.Enum(MergeModel))
@@ -851,63 +851,63 @@ class MergeResult(Base):
     )
     input_post_refinement: Mapped[bool] = mapped_column()
     input_iterations: Mapped[int] = mapped_column()
-    input_polarisation_angle: Mapped[None | int] = mapped_column()
-    input_polarisation_percent: Mapped[None | int] = mapped_column()
-    input_start_after: Mapped[None | int] = mapped_column()
-    input_stop_after: Mapped[None | int] = mapped_column()
+    input_polarisation_angle: Mapped[int | None] = mapped_column()
+    input_polarisation_percent: Mapped[int | None] = mapped_column()
+    input_start_after: Mapped[int | None] = mapped_column()
+    input_stop_after: Mapped[int | None] = mapped_column()
     input_rel_b: Mapped[float] = mapped_column()
-    input_no_pr: Mapped[None | bool] = mapped_column()
-    input_force_bandwidth: Mapped[None | float] = mapped_column()
-    input_force_radius: Mapped[None | float] = mapped_column()
-    input_force_lambda: Mapped[None | float] = mapped_column()
+    input_no_pr: Mapped[bool | None] = mapped_column()
+    input_force_bandwidth: Mapped[float | None] = mapped_column()
+    input_force_radius: Mapped[float | None] = mapped_column()
+    input_force_lambda: Mapped[float | None] = mapped_column()
     input_no_delta_cc_half: Mapped[bool] = mapped_column()
-    input_max_adu: Mapped[None | float] = mapped_column()
+    input_max_adu: Mapped[float | None] = mapped_column()
     input_min_measurements: Mapped[int] = mapped_column()
     input_logs: Mapped[bool] = mapped_column()
-    input_min_res: Mapped[None | float] = mapped_column()
-    input_push_res: Mapped[None | float] = mapped_column()
-    input_w: Mapped[None | str] = mapped_column(sa.String(length=255))
-    fom_snr: Mapped[None | float] = mapped_column(init=False)
-    fom_wilson: Mapped[None | float] = mapped_column(init=False)
-    fom_ln_k: Mapped[None | float] = mapped_column(init=False)
-    fom_discarded_reflections: Mapped[None | int] = mapped_column(init=False)
-    fom_one_over_d_from: Mapped[None | float] = mapped_column(init=False)
-    fom_one_over_d_to: Mapped[None | float] = mapped_column(init=False)
-    fom_redundancy: Mapped[None | float] = mapped_column(init=False)
-    fom_completeness: Mapped[None | float] = mapped_column(init=False)
-    fom_measurements_total: Mapped[None | int] = mapped_column(init=False)
-    fom_reflections_total: Mapped[None | int] = mapped_column(init=False)
-    fom_reflections_possible: Mapped[None | int] = mapped_column(init=False)
-    fom_r_split: Mapped[None | float] = mapped_column(init=False)
-    fom_r1i: Mapped[None | float] = mapped_column(init=False)
-    fom_2: Mapped[None | float] = mapped_column(init=False)
-    fom_cc: Mapped[None | float] = mapped_column(init=False)
-    fom_ccstar: Mapped[None | float] = mapped_column(init=False)
-    fom_ccano: Mapped[None | float] = mapped_column(init=False)
-    fom_crdano: Mapped[None | float] = mapped_column(init=False)
-    fom_rano: Mapped[None | float] = mapped_column(init=False)
-    fom_rano_over_r_split: Mapped[None | float] = mapped_column(init=False)
-    fom_d1sig: Mapped[None | float] = mapped_column(init=False)
-    fom_d2sig: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_resolution: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_ccstar: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_r_split: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_cc: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_unique_reflections: Mapped[None | int] = mapped_column(init=False)
-    fom_outer_completeness: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_redundancy: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_snr: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_min_res: Mapped[None | float] = mapped_column(init=False)
-    fom_outer_max_res: Mapped[None | float] = mapped_column(init=False)
-    ambigator_command_line: Mapped[None | str] = mapped_column()
-    ambigator_fg_graph_file_id: Mapped[None | int] = mapped_column(
+    input_min_res: Mapped[float | None] = mapped_column()
+    input_push_res: Mapped[float | None] = mapped_column()
+    input_w: Mapped[str | None] = mapped_column(sa.String(length=255))
+    fom_snr: Mapped[float | None] = mapped_column(init=False)
+    fom_wilson: Mapped[float | None] = mapped_column(init=False)
+    fom_ln_k: Mapped[float | None] = mapped_column(init=False)
+    fom_discarded_reflections: Mapped[int | None] = mapped_column(init=False)
+    fom_one_over_d_from: Mapped[float | None] = mapped_column(init=False)
+    fom_one_over_d_to: Mapped[float | None] = mapped_column(init=False)
+    fom_redundancy: Mapped[float | None] = mapped_column(init=False)
+    fom_completeness: Mapped[float | None] = mapped_column(init=False)
+    fom_measurements_total: Mapped[int | None] = mapped_column(init=False)
+    fom_reflections_total: Mapped[int | None] = mapped_column(init=False)
+    fom_reflections_possible: Mapped[int | None] = mapped_column(init=False)
+    fom_r_split: Mapped[float | None] = mapped_column(init=False)
+    fom_r1i: Mapped[float | None] = mapped_column(init=False)
+    fom_2: Mapped[float | None] = mapped_column(init=False)
+    fom_cc: Mapped[float | None] = mapped_column(init=False)
+    fom_ccstar: Mapped[float | None] = mapped_column(init=False)
+    fom_ccano: Mapped[float | None] = mapped_column(init=False)
+    fom_crdano: Mapped[float | None] = mapped_column(init=False)
+    fom_rano: Mapped[float | None] = mapped_column(init=False)
+    fom_rano_over_r_split: Mapped[float | None] = mapped_column(init=False)
+    fom_d1sig: Mapped[float | None] = mapped_column(init=False)
+    fom_d2sig: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_resolution: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_ccstar: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_r_split: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_cc: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_unique_reflections: Mapped[int | None] = mapped_column(init=False)
+    fom_outer_completeness: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_redundancy: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_snr: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_min_res: Mapped[float | None] = mapped_column(init=False)
+    fom_outer_max_res: Mapped[float | None] = mapped_column(init=False)
+    ambigator_command_line: Mapped[str | None] = mapped_column()
+    ambigator_fg_graph_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("File.id", ondelete="cascade"),
     )
-    cutoff_lowres: Mapped[None | float] = mapped_column()
-    cutoff_highres: Mapped[None | str] = mapped_column()
+    cutoff_lowres: Mapped[float | None] = mapped_column()
+    cutoff_highres: Mapped[str | None] = mapped_column()
 
     # Relationships
-    mtz_file: Mapped[None | File] = relationship(init=False, foreign_keys=[mtz_file_id])
+    mtz_file: Mapped[File | None] = relationship(init=False, foreign_keys=[mtz_file_id])
     refinement_results: Mapped[list["RefinementResult"]] = relationship(
         back_populates="merge_result",
         cascade="all, delete, delete-orphan",

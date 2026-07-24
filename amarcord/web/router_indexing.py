@@ -147,7 +147,7 @@ async def _locate_or_create_geometry(
     session: AsyncSession, beamtime_id: BeamtimeId, name: str, contents: str
 ) -> orm.Geometry:
     geometry_hash = sha256_bytes(contents.encode("utf-8"))
-    geometry: None | orm.Geometry = (
+    geometry: orm.Geometry | None = (
         await session.scalars(
             select(orm.Geometry).where(orm.Geometry.hash == geometry_hash)
         )
@@ -200,7 +200,7 @@ async def import_finished_indexing_job(
     something for a whole dataset and then finish something with a concrete indexing
     job ID.
     """
-    run: None | orm.Run = (
+    run: orm.Run | None = (
         await session.scalars(
             select(orm.Run).where(orm.Run.id == input_.run_internal_id)
         )
@@ -281,7 +281,7 @@ async def indexing_job_queue_for_data_set(
     # Then we create jobs for each run separately.
 
     # First, get the actual data set (it contains the beamtime ID)
-    data_set: None | orm.DataSet = (
+    data_set: orm.DataSet | None = (
         await session.scalars(
             select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id),
         )
@@ -688,8 +688,8 @@ async def read_indexing_parameters(
 )
 async def read_indexing_jobs(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
-    status: None | DBJobStatus = None,
-    beamtimeId: None | int = None,  # noqa: N803
+    status: DBJobStatus | None = None,
+    beamtimeId: int | None = None,  # noqa: N803
     withFiles: bool = False,  # noqa: N803, FBT002
 ) -> JsonReadIndexingResultsOutput:
     return JsonReadIndexingResultsOutput(

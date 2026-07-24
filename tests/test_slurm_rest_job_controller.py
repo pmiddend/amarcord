@@ -43,8 +43,8 @@ _REST_USER = "pmidden"
 class MockResponse:
     def __init__(
         self,
-        json_data: None | JSONDict,
-        text: None | str,
+        json_data: JSONDict | None,
+        text: str | None,
         status_code: int,
     ) -> None:
         self.json_data = json_data

@@ -56,10 +56,10 @@ def _ssh_command(
 def _sbatch_command_prefix(
     bt_info: BeamlineMetadata,
     working_directory: Path,
-    explicit_node: None | str,
+    explicit_node: str | None,
     time: str,
-    stdout: None | Path,
-    stderr: None | Path,
+    stdout: Path | None,
+    stderr: Path | None,
 ) -> list[str]:
     options = [
         "/usr/bin/sbatch",
@@ -158,9 +158,9 @@ async def run_remote_sbatch(
     parent_logger: BoundLogger,
     beamline_metadata: BeamlineMetadata,
     working_directory: Path,
-    explicit_node: None | str,
-    stdout: None | Path,
-    stderr: None | Path,
+    explicit_node: str | None,
+    stdout: Path | None,
+    stderr: Path | None,
     script: str,
     additional_ssh_options: bool,
 ) -> int:
@@ -211,7 +211,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
     def __init__(
         self,
         metadata: BeamlineMetadata,
-        explicit_node: None | str,
+        explicit_node: str | None,
         additional_ssh_options: bool,
     ) -> None:
         self._metadata = metadata
@@ -223,7 +223,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         return "Slurm SSH"
 
     @override
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
+    async def list_jobs(self, job_id: str | None = None) -> Iterable[Job]:
         return await run_remote_list_jobs(
             logger,
             self._metadata,
@@ -238,8 +238,8 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         name: str,
         time_limit: datetime.timedelta,
         environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        stdout: Path | None = None,
+        stderr: Path | None = None,
     ) -> JobStartResult:
         assert not environment, (
             f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"

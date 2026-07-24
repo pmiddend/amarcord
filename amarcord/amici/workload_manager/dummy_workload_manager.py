@@ -23,7 +23,7 @@ class DummyWorkloadManager(WorkloadManager):
     def __init__(self) -> None:
         super().__init__()
         self.job_starts: list[JobStart] = []
-        self.job_start_results: list[None | JobStartResult] = []
+        self.job_start_results: list[JobStartResult | None] = []
         self.jobs: list[Job] = []
 
     @override
@@ -38,8 +38,8 @@ class DummyWorkloadManager(WorkloadManager):
         name: str,
         time_limit: datetime.timedelta,
         environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        stdout: Path | None = None,
+        stderr: Path | None = None,
     ) -> JobStartResult:
         self.job_starts.append(JobStart(working_directory, script, time_limit))
         assert self.job_start_results, (
@@ -59,5 +59,5 @@ class DummyWorkloadManager(WorkloadManager):
         raise JobStartError("some error")
 
     @override
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]:
+    async def list_jobs(self, job_id: str | None = None) -> Iterable[Job]:
         return self.jobs

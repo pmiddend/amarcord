@@ -108,7 +108,7 @@ def duplicate_run_attributo(a: orm.RunHasAttributoValue) -> orm.RunHasAttributoV
 async def retrieve_latest_run(
     session: AsyncSession,
     beamtime_id: BeamtimeId,
-) -> None | orm.Run:
+) -> orm.Run | None:
     return (
         await session.scalars(
             select(orm.Run)
@@ -294,7 +294,7 @@ async def migrate(engine: AsyncEngine) -> None:
 def validate_json_attributo_return_error(
     a: JsonAttributoValue,
     atype_raw: orm.Attributo,
-) -> None | str:
+) -> str | None:
     atype = schema_dict_to_attributo_type(atype_raw.json_schema)
 
     if isinstance(atype, AttributoTypeInt):
@@ -443,8 +443,8 @@ def validate_json_attributo_return_error(
 
 @dataclass(frozen=True)
 class RunIndexingMetadata:
-    point_group: None | str
-    cell_description: None | CrystFELCellFile
+    point_group: str | None
+    cell_description: CrystFELCellFile | None
     chemical: orm.Chemical
     log_messages: list[str]
 
@@ -453,9 +453,9 @@ async def determine_run_indexing_metadata(
     session: AsyncSession,
     r: orm.Run,
 ) -> str | RunIndexingMetadata:
-    point_group: None | str = None
-    cell_description_str: None | str = None
-    channel_chemical: None | orm.Chemical = None
+    point_group: str | None = None
+    cell_description_str: str | None = None
+    channel_chemical: orm.Chemical | None = None
     # For indexing, we need to provide one chemical ID that serves as _the_ chemical ID for the indexing job
     # (kind of a bug right now). So, if we don't find any chemicals with cell information, we just use the first
     # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
@@ -510,7 +510,7 @@ async def determine_run_indexing_metadata(
             f' "crystal": {channel_chemical.name} (id {channel_chemical.id})',
         )
 
-    cell_description: None | CrystFELCellFile
+    cell_description: CrystFELCellFile | None
     if cell_description_str is not None and cell_description_str:
         cell_description = parse_cell_description(cell_description_str)
         if cell_description is None:

@@ -57,7 +57,7 @@ class ID29AttributoConfig:
     attributo_id: int
     attributo_name: str
     attributo_type: ID29AttributoType
-    attributo_unit: None | str
+    attributo_unit: str | None
 
 
 @dataclass
@@ -187,9 +187,9 @@ def _retrieve_new_stream_files(args: Arguments) -> list[Path]:
 
 def _oldest_and_newest_file_in_dir(
     dir_to_search: Path,
-) -> None | tuple[datetime.datetime, datetime.datetime]:
-    mintime: None | datetime.datetime = None
-    maxtime: None | datetime.datetime = None
+) -> tuple[datetime.datetime, datetime.datetime] | None:
+    mintime: datetime.datetime | None = None
+    maxtime: datetime.datetime | None = None
     try:
         for p in dir_to_search.iterdir():
             if not p.is_file():
@@ -372,13 +372,13 @@ async def _ingest_new_metadata_file(
 @dataclass(frozen=True)
 class _StreamFileData:
     command_line: str
-    cell: None | str
+    cell: str | None
     geometry: str
     program_version: str
     frames: int
     hits: int
     indexed: int
-    first_image_filename: None | Path
+    first_image_filename: Path | None
 
 
 def _parse_crystfel_cli(s: str) -> str:
@@ -411,16 +411,16 @@ def _parse_crystfel_cli(s: str) -> str:
 
 def _read_stream_file_data(p: Path) -> _StreamFileData:
     with p.open("r", encoding="utf-8") as f:
-        crystfel_version: None | str = None
-        indexamajig_cli: None | str = None
+        crystfel_version: str | None = None
+        indexamajig_cli: str | None = None
         in_geometry = False
         in_cell = False
-        geometry: None | str = None
-        cell: None | str = None
+        geometry: str | None = None
+        cell: str | None = None
         frames = 0
         hits = 0
         indexed = 0
-        first_image_filename: None | Path = None
+        first_image_filename: Path | None = None
         for line_with_nl in f:
             line = line_with_nl.strip()
 
@@ -583,7 +583,7 @@ async def _ingest_new_stream_file(
             f"have no attributo named `{ID29_MAGIC_DIRECTORY_ATTRIBUTO}` in beamtime, cannot ingest stream files",
         )
         return
-    found_run: None | JsonRun = None
+    found_run: JsonRun | None = None
     for run in runs.runs:
         run_directory_attributo = next(
             iter(

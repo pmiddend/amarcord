@@ -257,7 +257,7 @@ def _do_content_disposition(mime_type: str, extension: str) -> bool:
 async def read_file(
     session: Annotated[AsyncSession, Depends(get_orm_db)],
     fileId: int,  # noqa: N803
-    suggested_name: None | str = None,
+    suggested_name: str | None = None,
 ) -> StreamingResponse:
     file_ = (
         await session.scalars(select(orm.File).where(orm.File.id == fileId))

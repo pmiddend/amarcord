@@ -164,7 +164,7 @@ async def start_merge_job(
         # The stream file could be None due to an error - skip this then
         if ir.stream_file is not None:
             stream_files.append(ir.stream_file)
-    pdb_file_id: None | int = next(
+    pdb_file_id: int | None = next(
         iter(
             f.id
             for f in merge_result.files_from_indexing
@@ -172,7 +172,7 @@ async def start_merge_job(
         ),
         None,
     )
-    restraints_cif_file_id: None | int = next(
+    restraints_cif_file_id: int | None = next(
         iter(
             f.id
             for f in merge_result.files_from_indexing

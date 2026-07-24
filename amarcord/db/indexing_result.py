@@ -29,5 +29,5 @@ class DBIndexingResultRunning:
 @dataclass(frozen=True, eq=True)
 class DBIndexingResultDone:
     stream_file: Path
-    job_error: None | str
+    job_error: str | None
     fom: IndexingResultSummary

@@ -7,16 +7,16 @@ class SimpleURI:
     scheme: str
     parameters: dict[str, str]
 
-    def string_parameter(self, key: str) -> None | str:
+    def string_parameter(self, key: str) -> str | None:
         return self.parameters.get(key)
 
-    def path_parameter(self, key: str) -> None | Path:
+    def path_parameter(self, key: str) -> Path | None:
         result = self.parameters.get(key)
         if result is not None:
             return Path(result)
         return None
 
-    def bool_parameter(self, key: str) -> None | bool:
+    def bool_parameter(self, key: str) -> bool | None:
         result = self.parameters.get(key)
         if result is None:
             return None

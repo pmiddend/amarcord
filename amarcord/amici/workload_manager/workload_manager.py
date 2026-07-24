@@ -35,9 +35,9 @@ class WorkloadManager(ABC):
         name: str,
         time_limit: datetime.timedelta,
         environment: dict[str, str],
-        stdout: None | Path = None,
-        stderr: None | Path = None,
+        stdout: Path | None = None,
+        stderr: Path | None = None,
     ) -> JobStartResult: ...
 
     @abstractmethod
-    async def list_jobs(self, job_id: None | str = None) -> Iterable[Job]: ...
+    async def list_jobs(self, job_id: str | None = None) -> Iterable[Job]: ...

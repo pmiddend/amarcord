@@ -41,11 +41,11 @@ class LocalWorkloadManagerConfig:
 
 @dataclass(frozen=True, eq=True)
 class SlurmRestWorkloadManagerConfig:
-    partition: None | str
-    reservation: None | str
-    explicit_node: None | str
-    token: None | str
-    portal_token: None | str
+    partition: str | None
+    reservation: str | None
+    explicit_node: str | None
+    token: str | None
+    portal_token: str | None
     api_version: str
     user: str
     url: str
@@ -54,7 +54,7 @@ class SlurmRestWorkloadManagerConfig:
 @dataclass(frozen=True, eq=True)
 class RemotePetraSlurmWorkloadManagerConfig:
     beamtime_id_or_metadata_file: str | Path
-    explicit_node: None | str
+    explicit_node: str | None
     additional_ssh_options: bool
 
 
