@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import Scope
 
 from amarcord.logging_util import setup_structlog
+from amarcord.web.fastapi_utils import get_db_url
 from amarcord.web.router_analysis import router as analysis_router
 from amarcord.web.router_attributi import router as attributi_router
 from amarcord.web.router_beamtimes import router as beamtimes_router
@@ -31,6 +32,19 @@ setup_structlog()
 
 logger = structlog.stdlib.get_logger(__name__)
 
+
+def _check_db() -> None:
+    url = get_db_url()
+
+    if url.startswith("sqlite+aiosqlite:////"):
+        suffix = url[len("sqlite+aiosqlite:///") :]
+        if not Path(suffix).is_file():
+            logger.warning(
+                f'The database file "{suffix}" specified does not seem to exist! It could be that our check for this is broken, so we are not terminating, but expect trouble with the DB.'
+            )
+
+
+_check_db()
 
 hardcoded_static_folder: str | None = None
 

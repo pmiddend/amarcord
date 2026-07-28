@@ -87,8 +87,12 @@ def get_orm_sessionmaker_with_url(db_url: str) -> async_sessionmaker[AsyncSessio
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
+def get_db_url() -> str:
+    return os.environ.get("DB_URL", "")
+
+
 async def get_orm_db() -> AsyncGenerator[AsyncSession]:
-    async_session = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+    async_session = get_orm_sessionmaker_with_url(get_db_url())
 
     async with async_session() as session:
         yield session
