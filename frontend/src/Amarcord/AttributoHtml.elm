@@ -341,7 +341,7 @@ viewAttributoForm chemicals chemicalType a =
                         }
             in
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
+                [ label [ class "form-label" ] [ text a.name ]
                 , Html.map mapMsg (CellDescriptionEdit.view cellEditModel)
                 , if a.description /= "" then
                     div [ class "form-text" ] [ markupWithoutErrors a.description ]

@@ -517,6 +517,7 @@ chemicalDropdown model mode =
             input
                 [ class "form-check-input"
                 , type_ "checkbox"
+                , id chemical.name
                 , value <| String.fromInt chemical.id
                 , checked <| List.member chemical.id chemicalsAlreadySelected
                 , for chemical.name
@@ -528,6 +529,7 @@ chemicalDropdown model mode =
             input
                 [ class "form-check-input"
                 , type_ "checkbox"
+                , id chemical.name
                 , value <| String.fromInt chemical.id
                 , for chemical.name
                 , onInput UpdateNewShiftChemical

@@ -347,6 +347,7 @@ viewRunControls model =
                 [ input_
                     [ type_ "number"
                     , class "form-control"
+                    , id "run-id"
                     , value (runExternalIdToString model.nextRunId)
                     , onInput (RunIdChanged << String.toInt)
                     , disabled (model.isRunning || isLoading model.startOrStopRequest)
@@ -400,11 +401,12 @@ viewDeleteRun model =
             [ input_
                 [ type_ "text"
                 , class "form-control"
+                , id "run-id-delete-run"
                 , value (runExternalIdToString model.deleteRunId)
                 , onInput (DeleteRunIdChanged << String.toInt)
                 , disabled (isLoading model.deleteRunRequest)
                 ]
-            , label [ for "run-id", class "form-label" ] [ text "Run ID" ]
+            , label [ for "run-id-delete-run", class "form-label" ] [ text "Run ID" ]
             ]
         , button [ type_ "button", class "btn btn-danger", onClick StartDeleteRun ]
             [ icon { name = "send" }, text " Delete this run" ]

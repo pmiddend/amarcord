@@ -201,7 +201,7 @@ viewFiles fileUploadError newFile files =
                                             ""
                                        )
                                 )
-                            , id "name"
+                            , id "file-description"
                             , value newFile.description
                             , onInput EditNewFileDescription
                             ]

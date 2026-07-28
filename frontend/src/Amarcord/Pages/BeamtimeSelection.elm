@@ -286,7 +286,7 @@ viewEditForm bt =
             ]
         , div [ class "form-floating mb-3" ]
             [ input
-                [ id "beamtime-edit-analyis-output-path"
+                [ id "beamtime-edit-analysis-output-path"
                 , type_ "text"
                 , class "form-control"
                 , value bt.analysisOutputPath

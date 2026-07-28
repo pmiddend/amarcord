@@ -934,7 +934,7 @@ viewEditForm model attributiList attributo =
                 ]
             ]
         , div [ class "mb-3" ]
-            [ label [ for "type", class "form-label" ] [ text "Type" ]
+            [ label [ class "form-label" ] [ text "Type" ]
             , viewTypeForm model.toleranceChecker attributo.associatedTable attributo.type_
             ]
         , if isNothing model.editAttributoOriginalName then
@@ -1232,7 +1232,7 @@ update msg model =
             )
 
         ChangeTab newTab ->
-            ( { model | tab = newTab }, Cmd.none )
+            ( { model | tab = newTab, editAttributo = Nothing, editAttributoOriginalName = Nothing }, Cmd.none )
 
         -- Some of the conversion flags changed
         EditConversionFlags newConversionFlags ->
