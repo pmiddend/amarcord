@@ -84,7 +84,9 @@ You won't see much when you point your browser to http://localhost:5000 though, 
 
 ## How to build and start the frontend
 
-The frontend is written in [Elm](https://elm-lang.org/). Download the `elm` binary at the [Install Elm](https://guide.elm-lang.org/install/elm.html) web site.
+The frontend is written in [Elm](https://elm-lang.org/). You can download the `elm` compiler binary at the [Install Elm](https://guide.elm-lang.org/install/elm.html) web site.
+
+If you just want to build the necessary files for the frontend, without being an active developer, you can simply navigate to the `frontend/` directory and execute the `./build-elm-manually.sh` script. It will put all the assets into `frontend/output/build`, which is the default search path for the web server, which you can run,  described above. Then go to http://localhost:5000/index.html in your browser.
 
 To run a *live development environment*, you need [elm-live](https://github.com/wking-io/elm-live) which, unfortunately, needs [node.js](https://nodejs.org/en/). But you can install that really easily on different platforms.
 
@@ -102,17 +104,6 @@ To install the dependencies (you can also use [Yarn](https://yarnpkg.com/), whic
 
 And point your browser to http://localhost:8000.
 
-You can also just build the latest version without any node.js shenenigans by executing:
-
-```
-cd frontend
-mkdir output
-elm make src/Main.elm --optimize --output output/main.js
-cp -R assets/* src/index.html output
-```
-
-Then run `amarcord-webserver` (as described above) and go to http://localhost:5000/index.html
-in your browser.
 
 ## Nix
 

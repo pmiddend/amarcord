@@ -47,16 +47,9 @@ Let's do that now, starting with...
 
 ### Frontend
 
-The frontend is written in [Elm](https://elm-lang.org/). Download the `elm` binary at the [Install Elm](https://guide.elm-lang.org/install/elm.html) web site.
+The frontend is written in [Elm](https://elm-lang.org/). You can download the `elm` compiler binary at the [Install Elm](https://guide.elm-lang.org/install/elm.html) web site.
 
-Having done that, you can build the latest version of the front-end into the `frontend/output` directory (where the web server expects it to be) without any NodeJS shenenigans by executing:
-
-```
-cd frontend
-mkdir output
-elm make src/Main.elm --optimize --output output/main.js
-cp -R assets/* src/index.html output/
-```
+If you just want to build the necessary files for the frontend, without being an active developer, you can simply navigate to the `frontend/` directory and execute the `./build-elm-manually.sh` script. It will put all the assets into `frontend/output/build`, which is the default search path for the web server, which you can run,  described above. Then go to http://localhost:5000/index.html in your browser.
 
 ### Backend
 
