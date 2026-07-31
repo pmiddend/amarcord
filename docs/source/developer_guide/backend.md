@@ -27,7 +27,7 @@ If you're wondering about this `sqlite+aiosqlite` syntax: it's a sqlalchemy data
 ## Slurm
 AMARCORD can start and observe jobs using the [Slurm Workload Manager](https://slurm.schedmd.com/documentation.html). The corresponding code is inside the `amarcord.amici.workload_manager` Python package. There is a (flat) hierarchy of classes in place:
 
-```{mermaid}
+```mermaid
 classDiagram
 	WorkloadManager <|-- DummyWorkloadManager
     WorkloadManager <|-- LocalWorkloadManager

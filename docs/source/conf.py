@@ -31,9 +31,10 @@ spelling_lang = "en_US"
 
 html_logo = "./amarcord-logo-smaller.png"
 
-html_js_files = ["js/mermaid.min.js"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "alabaster"
 html_static_path = ["_static"]
+
+mermaid_config = {"theme": "base", "mermaid_d3_zoom": True}
