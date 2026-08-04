@@ -122,7 +122,7 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId { result } ref
                 [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
                 , div [ class "hstack gap-3 mt-2" ]
                     [ span_ [ text "Refinement files:" ]
-                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId (Just ("merge-result-" ++ String.fromInt id ++ "-refined.pdb"))) ] [ text "PDB" ] ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId (Just ("merge-result-" ++ String.fromInt mergeResultId ++ "-refined.pdb"))) ] [ text "PDB" ] ]
                     , div [ class "vr" ] []
                     , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt mergeResultId ++ "-refined.mtz"))) ] [ text "MTZ" ] ]
                     ]
