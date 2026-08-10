@@ -101,6 +101,7 @@ type Route
     | RunOverview BeamtimeId
     | Geometry BeamtimeId
     | Import BeamtimeId ImportStep
+    | Export BeamtimeId
     | Attributi BeamtimeId (Maybe AssociatedTable)
     | AdvancedControls BeamtimeId
     | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool MergeFilter
@@ -147,6 +148,9 @@ beamtimeIdInRoute x =
             Just btid
 
         Import btid _ ->
+            Just btid
+
+        Export btid ->
             Just btid
 
         Attributi btid _ ->
@@ -263,6 +267,9 @@ makeLink x =
 
         Import beamtimeId step ->
             routePrefix ++ "/import/" ++ beamtimeIdToString beamtimeId ++ "/" ++ importStepToString step
+
+        Export beamtimeId ->
+            routePrefix ++ "/export/" ++ beamtimeIdToString beamtimeId
 
         AdvancedControls beamtimeId ->
             routePrefix ++ "/advancedcontrols/" ++ beamtimeIdToString beamtimeId
@@ -489,6 +496,7 @@ matchRoute =
         , map RunOverview (s "runoverview" </> int)
         , map Geometry (s "geometry" </> int)
         , map Import (s "import" </> int </> custom "IMPORT_STEP" importStepFromString)
+        , map Export (s "export" </> int)
         , map Runs (s "runs" </> int <?> Query.custom "runs" runRangesFromString)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)

@@ -475,7 +475,7 @@ async def determine_run_indexing_metadata(
         ).one()
         for attributo_value in r.attributo_values
         if attributo_value.chemical_value is not None
-    ):  # ty:ignore[not-iterable]
+    ):
         if this_channel_chemical.type == ChemicalType.CRYSTAL:
             crystal_chemicals.append(this_channel_chemical)
         this_point_group = next(

@@ -94,6 +94,9 @@ module Api.Data exposing
     , JsonExperimentType
     , JsonExperimentTypeAndRuns
     , JsonExperimentTypeWithBeamtimeInformation
+    , JsonExportJob
+    , JsonExportJobInput
+    , JsonExportJobOutput
     , JsonFileOutput
     , JsonGeometryCopyToBeamtime
     , JsonGeometryCreate
@@ -142,6 +145,7 @@ module Api.Data exposing
     , JsonReadDataSets
     , JsonReadEvents
     , JsonReadExperimentTypes
+    , JsonReadExportJobs
     , JsonReadGeometriesForAllBeamtimes
     , JsonReadGeometriesForSingleBeamtime
     , JsonReadIndexingParametersOutput
@@ -267,6 +271,9 @@ module Api.Data exposing
     , encodeJsonExperimentType
     , encodeJsonExperimentTypeAndRuns
     , encodeJsonExperimentTypeWithBeamtimeInformation
+    , encodeJsonExportJob
+    , encodeJsonExportJobInput
+    , encodeJsonExportJobOutput
     , encodeJsonFileOutput
     , encodeJsonGeometryCopyToBeamtime
     , encodeJsonGeometryCreate
@@ -315,6 +322,7 @@ module Api.Data exposing
     , encodeJsonReadDataSets
     , encodeJsonReadEvents
     , encodeJsonReadExperimentTypes
+    , encodeJsonReadExportJobs
     , encodeJsonReadGeometriesForAllBeamtimes
     , encodeJsonReadGeometriesForSingleBeamtime
     , encodeJsonReadIndexingParametersOutput
@@ -449,6 +457,9 @@ module Api.Data exposing
     , jsonExperimentTypeDecoder
     , jsonExperimentTypeAndRunsDecoder
     , jsonExperimentTypeWithBeamtimeInformationDecoder
+    , jsonExportJobDecoder
+    , jsonExportJobInputDecoder
+    , jsonExportJobOutputDecoder
     , jsonFileOutputDecoder
     , jsonGeometryCopyToBeamtimeDecoder
     , jsonGeometryCreateDecoder
@@ -497,6 +508,7 @@ module Api.Data exposing
     , jsonReadDataSetsDecoder
     , jsonReadEventsDecoder
     , jsonReadExperimentTypesDecoder
+    , jsonReadExportJobsDecoder
     , jsonReadGeometriesForAllBeamtimesDecoder
     , jsonReadGeometriesForSingleBeamtimeDecoder
     , jsonReadIndexingParametersOutputDecoder
@@ -1196,6 +1208,31 @@ type alias JsonExperimentTypeWithBeamtimeInformation =
     }
 
 
+type alias JsonExportJob =
+    { id : Int
+    , beamtimeId : Int
+    , created : Int
+    , createdLocal : Int
+    , started : Maybe Int
+    , startedLocal : Maybe Int
+    , stopped : Maybe Int
+    , stoppedLocal : Maybe Int
+    , sizeInMebibytes : Int
+    , outputPath : String
+    , statusMessage : String
+    }
+
+
+type alias JsonExportJobInput =
+    { withStreamFiles : Bool
+    }
+
+
+type alias JsonExportJobOutput =
+    { exportJobId : Int
+    }
+
+
 type alias JsonFileOutput =
     { id : Int
     , description : String
@@ -1671,6 +1708,12 @@ type alias JsonReadExperimentTypes =
     , attributi : List JsonAttributo
     , experimentTypeIdToRun : List JsonExperimentTypeAndRuns
     , currentExperimentTypeId : Maybe Int
+    }
+
+
+type alias JsonReadExportJobs =
+    { exportBasePath : Maybe String
+    , exportJobs : List JsonExportJob
     }
 
 
@@ -3825,6 +3868,76 @@ encodeJsonExperimentTypeWithBeamtimeInformationPairs model =
     pairs
 
 
+encodeJsonExportJob : JsonExportJob -> Json.Encode.Value
+encodeJsonExportJob =
+    encodeObject << encodeJsonExportJobPairs
+
+
+encodeJsonExportJobWithTag : ( String, String ) -> JsonExportJob -> Json.Encode.Value
+encodeJsonExportJobWithTag (tagField, tag) model =
+    encodeObject (encodeJsonExportJobPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonExportJobPairs : JsonExportJob -> List EncodedField
+encodeJsonExportJobPairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , encode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "created" Json.Encode.int model.created
+            , encode "created_local" Json.Encode.int model.createdLocal
+            , encodeNullable "started" Json.Encode.int model.started
+            , encodeNullable "started_local" Json.Encode.int model.startedLocal
+            , encodeNullable "stopped" Json.Encode.int model.stopped
+            , encodeNullable "stopped_local" Json.Encode.int model.stoppedLocal
+            , encode "size_in_mebibytes" Json.Encode.int model.sizeInMebibytes
+            , encode "output_path" Json.Encode.string model.outputPath
+            , encode "status_message" Json.Encode.string model.statusMessage
+            ]
+    in
+    pairs
+
+
+encodeJsonExportJobInput : JsonExportJobInput -> Json.Encode.Value
+encodeJsonExportJobInput =
+    encodeObject << encodeJsonExportJobInputPairs
+
+
+encodeJsonExportJobInputWithTag : ( String, String ) -> JsonExportJobInput -> Json.Encode.Value
+encodeJsonExportJobInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonExportJobInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonExportJobInputPairs : JsonExportJobInput -> List EncodedField
+encodeJsonExportJobInputPairs model =
+    let
+        pairs =
+            [ encode "with_stream_files" Json.Encode.bool model.withStreamFiles
+            ]
+    in
+    pairs
+
+
+encodeJsonExportJobOutput : JsonExportJobOutput -> Json.Encode.Value
+encodeJsonExportJobOutput =
+    encodeObject << encodeJsonExportJobOutputPairs
+
+
+encodeJsonExportJobOutputWithTag : ( String, String ) -> JsonExportJobOutput -> Json.Encode.Value
+encodeJsonExportJobOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonExportJobOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonExportJobOutputPairs : JsonExportJobOutput -> List EncodedField
+encodeJsonExportJobOutputPairs model =
+    let
+        pairs =
+            [ encode "export_job_id" Json.Encode.int model.exportJobId
+            ]
+    in
+    pairs
+
+
 encodeJsonFileOutput : JsonFileOutput -> Json.Encode.Value
 encodeJsonFileOutput =
     encodeObject << encodeJsonFileOutputPairs
@@ -5007,6 +5120,27 @@ encodeJsonReadExperimentTypesPairs model =
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
             , encode "experiment_type_id_to_run" (Json.Encode.list encodeJsonExperimentTypeAndRuns) model.experimentTypeIdToRun
             , maybeEncodeNullable "current_experiment_type_id" Json.Encode.int model.currentExperimentTypeId
+            ]
+    in
+    pairs
+
+
+encodeJsonReadExportJobs : JsonReadExportJobs -> Json.Encode.Value
+encodeJsonReadExportJobs =
+    encodeObject << encodeJsonReadExportJobsPairs
+
+
+encodeJsonReadExportJobsWithTag : ( String, String ) -> JsonReadExportJobs -> Json.Encode.Value
+encodeJsonReadExportJobsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadExportJobsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadExportJobsPairs : JsonReadExportJobs -> List EncodedField
+encodeJsonReadExportJobsPairs model =
+    let
+        pairs =
+            [ encodeNullable "export_base_path" Json.Encode.string model.exportBasePath
+            , encode "export_jobs" (Json.Encode.list encodeJsonExportJob) model.exportJobs
             ]
     in
     pairs
@@ -6790,6 +6924,34 @@ jsonExperimentTypeWithBeamtimeInformationDecoder =
         |> decode "beamtime" jsonBeamtimeOutputDecoder 
 
 
+jsonExportJobDecoder : Json.Decode.Decoder JsonExportJob
+jsonExportJobDecoder =
+    Json.Decode.succeed JsonExportJob
+        |> decode "id" Json.Decode.int 
+        |> decode "beamtime_id" Json.Decode.int 
+        |> decode "created" Json.Decode.int 
+        |> decode "created_local" Json.Decode.int 
+        |> decodeNullable "started" Json.Decode.int 
+        |> decodeNullable "started_local" Json.Decode.int 
+        |> decodeNullable "stopped" Json.Decode.int 
+        |> decodeNullable "stopped_local" Json.Decode.int 
+        |> decode "size_in_mebibytes" Json.Decode.int 
+        |> decode "output_path" Json.Decode.string 
+        |> decode "status_message" Json.Decode.string 
+
+
+jsonExportJobInputDecoder : Json.Decode.Decoder JsonExportJobInput
+jsonExportJobInputDecoder =
+    Json.Decode.succeed JsonExportJobInput
+        |> decode "with_stream_files" Json.Decode.bool 
+
+
+jsonExportJobOutputDecoder : Json.Decode.Decoder JsonExportJobOutput
+jsonExportJobOutputDecoder =
+    Json.Decode.succeed JsonExportJobOutput
+        |> decode "export_job_id" Json.Decode.int 
+
+
 jsonFileOutputDecoder : Json.Decode.Decoder JsonFileOutput
 jsonFileOutputDecoder =
     Json.Decode.succeed JsonFileOutput
@@ -7319,6 +7481,13 @@ jsonReadExperimentTypesDecoder =
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> decode "experiment_type_id_to_run" (Json.Decode.list jsonExperimentTypeAndRunsDecoder) 
         |> maybeDecodeNullable "current_experiment_type_id" Json.Decode.int Nothing
+
+
+jsonReadExportJobsDecoder : Json.Decode.Decoder JsonReadExportJobs
+jsonReadExportJobsDecoder =
+    Json.Decode.succeed JsonReadExportJobs
+        |> decodeNullable "export_base_path" Json.Decode.string 
+        |> decode "export_jobs" (Json.Decode.list jsonExportJobDecoder) 
 
 
 jsonReadGeometriesForAllBeamtimesDecoder : Json.Decode.Decoder JsonReadGeometriesForAllBeamtimes

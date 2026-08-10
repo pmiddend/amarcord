@@ -1,7 +1,7 @@
 If this document renders weirdly, it’s because it uses [GitLab flavored markdown](https://docs.gitlab.com/user/markdown/#table-of-contents) and some elements might not be supported by your viewer.
 
 [TOC]
-# 🚧 v1.5 - Q2 2026
+# 🚧 v1.5 - Q3 2026
 
 ## Features
 
@@ -18,6 +18,54 @@ CrystFEL's `partialator` has the ability to split a processed `.stream` file int
 <figure>
 ![Merge input](changelog-assets/486-merge-output.png){width=697 height=115px}
 <figcaption>Three merged datasets for the given input.</figcaption>
+</figure>
+
+### Import/export from beamline workflow
+This is a feature that spans the following issues: [\#511](https://gitlab.desy.de/amarcord/amarcord/-/issues/511)), [\#512](https://gitlab.desy.de/amarcord/amarcord/-/issues/512)), [\#513](https://gitlab.desy.de/amarcord/amarcord/-/issues/513)), [\#514](https://gitlab.desy.de/amarcord/amarcord/-/issues/514)).
+
+What AMARCORD now provides is a way to run it directly at beam lines, then export the results to a `.zip` file to download at the end of the beam time, and then import the database either locally or at a central instance. Here is a little diagram from the documentation to illustrate:
+
+```mermaid
+flowchart TB
+    subgraph BL
+    User[User at Beamline]
+    User -- Controls --- Beamline
+    User -- Triggers processing --- BLAM
+    User -- Checks metadata --- BLAM
+    Zip[.zip file at Beamline]
+    BLAM[AMARCORD at Beamline]
+    Beamline[Beamline]
+    Beamline -- Syncs metadata --- BLAM
+    BLAM --> Zip
+    User -- Exports --- Zip
+    end
+  
+    subgraph Home
+    UserHome[User at Home]
+    Import{Import}
+    HAM[AMARCORD at Home]
+    ZipHome[.zip file at Home]
+    ZipHome --- Import
+    Import --- UserHome
+    Import --- HAM
+    UserHome -- does further processing --> HAM
+    end
+
+    Zip -- Data Transfer --- ZipHome
+```
+
+There are both GUI solutions (under "Advanced") for this, as well as command-line programs available (these might be preferable since the processes are so long-running).
+
+#### Screenshot of export
+<figure>
+![Export](changelog-assets/516-export.png){width=768 height=874px}
+<figcaption>Exporting takes a long time if you're doing it with big `.stream` files, so the "Advanced -> Export" menu point offers a handy table with a status report on the exports running.</figcaption>
+</figure>
+
+#### Screenshot of import
+<figure>
+![Export](changelog-assets/516-import.png){width=729 height=517px}
+<figcaption>Importing a beamtime from a zip file can be done from the beamtime overview (next to "New beamtime").</figcaption>
 </figure>
 
 ## Miscellaneous things

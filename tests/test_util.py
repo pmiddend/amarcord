@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import anyio
 import pytest
 
 from amarcord.util import check_consecutive
@@ -10,6 +11,7 @@ from amarcord.util import maybe_you_meant
 from amarcord.util import read_file_to_string
 from amarcord.util import remove_duplicates_stable
 from amarcord.util import replace_illegal_path_characters
+from amarcord.util import rmdir_async
 from amarcord.util import sha256_file
 from amarcord.util import sha256_file_bytes
 from amarcord.util import sha256_files
@@ -82,3 +84,18 @@ def test_maybe_you_meant(
 def test_check_consecutive() -> None:
     assert check_consecutive([1, 2, 3, 4]) is None
     assert check_consecutive([1, 2, 4, 4]) == (2, 4)
+
+
+async def test_rmdir_async(tmp_path: Path) -> None:
+    base = tmp_path / "base"
+    (base / "subdir" / "subsubdir").mkdir(parents=True)
+    with (base / "subfile").open("wb") as f:
+        f.write(b"test")
+    with (base / "subdir" / "subdirfile").open("wb") as f:
+        f.write(b"test")
+    with (base / "subdir" / "subsubdir" / "subsubdirfile").open("wb") as f:
+        f.write(b"test")
+
+    await rmdir_async(anyio.Path(base))
+
+    assert not base.is_dir()

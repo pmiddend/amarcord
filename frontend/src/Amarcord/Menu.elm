@@ -79,6 +79,7 @@ menu bt =
         , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
         , { route = Route.EventLog bt, description = "Events", iconName = "book" }
         , { route = Route.Import bt Route.ImportAttributi, description = "Import", iconName = "upload" }
+        , { route = Route.Export bt, description = "Export", iconName = "download" }
         ]
     , VerticalRule
     , Leaf { route = Route.Root bt, description = "All Beamtimes", iconName = "globe" }

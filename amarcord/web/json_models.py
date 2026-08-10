@@ -1167,3 +1167,36 @@ class JsonCopyExperimentTypesOutput(BaseModel):
 
 class JsonDeleteRunOutput(BaseModel):
     result: bool
+
+
+class JsonExportJobInput(BaseModel):
+    with_stream_files: bool
+
+
+class JsonExportJobOutput(BaseModel):
+    # For creating beamtimes, we set id=0. For updates, the actual ID.
+    export_job_id: int
+
+
+class JsonImportJobOutput(BaseModel):
+    status_message: str
+
+
+class JsonExportJob(BaseModel):
+    id: int
+    beamtime_id: int
+    created: int
+    created_local: int
+    started: int | None
+    started_local: int | None
+    stopped: int | None
+    stopped_local: int | None
+    size_in_mebibytes: int
+    output_path: str
+    status_message: str
+
+
+class JsonReadExportJobs(BaseModel):
+    export_base_path: str | None
+
+    export_jobs: list[JsonExportJob]

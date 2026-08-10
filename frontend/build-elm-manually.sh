@@ -2,8 +2,12 @@
 
 set -euo pipefail
 
+log() {
+    echo "$(date --iso-8601=seconds): $1"
+}
+
 die() {
-    echo "$1"
+    log "$1"
     exit 1
 }
 
@@ -20,13 +24,19 @@ download_elm() {
 ELM_EXECUTABLE="elm"
 
 if ! command -v "$ELM_EXECUTABLE" > /dev/null; then
-    download_elm
+    if [ ! -x "./elm" ]; then
+	download_elm
+    fi
     ELM_EXECUTABLE="./elm"
 fi
 
 command -v "$ELM_EXECUTABLE" || die "Could not find or install \"elm\" - quitting."
 
 mkdir -p output
+
+echo "Downloading uglymol dependencies"
+./download-uglymol-dependencies.sh
+
 "$ELM_EXECUTABLE" make src/Main.elm --optimize --output output/main.js
 cp -R ./src/index.html ./assets/* output
 

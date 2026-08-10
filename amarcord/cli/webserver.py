@@ -1,16 +1,21 @@
+import asyncio
 import os
 from pathlib import Path
+from typing import AsyncIterator
 from typing import override
 
 import structlog
 from fastapi import FastAPI
 from fastapi import Response
+from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Scope
 
 from amarcord.logging_util import setup_structlog
 from amarcord.web.fastapi_utils import get_db_url
+from amarcord.web.import_export_settings import daemon
+from amarcord.web.import_export_settings import parse_import_export_settings
 from amarcord.web.router_analysis import router as analysis_router
 from amarcord.web.router_attributi import router as attributi_router
 from amarcord.web.router_beamtimes import router as beamtimes_router
@@ -18,6 +23,7 @@ from amarcord.web.router_chemicals import router as chemicals_router
 from amarcord.web.router_data_sets import router as data_sets_router
 from amarcord.web.router_events import router as events_router
 from amarcord.web.router_experiment_types import router as experiment_types_router
+from amarcord.web.router_exports import router as exports_router
 from amarcord.web.router_files import router as files_router
 from amarcord.web.router_geometry import router as geometry_router
 from amarcord.web.router_indexing import router as indexing_router
@@ -31,6 +37,20 @@ from amarcord.web.router_user_configuration import router as user_configuration_
 setup_structlog()
 
 logger = structlog.stdlib.get_logger(__name__)
+
+# To keep a strong reference for background tasks which could
+# otherwise be terminated mid-execution (see documentation of
+# "create_task").
+background_tasks: list[asyncio.Task[None]] = []
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    import_export_settings = parse_import_export_settings()
+
+    if import_export_settings.export_directory is not None:
+        background_tasks.append(asyncio.create_task(daemon(get_db_url())))
+    yield
 
 
 def _check_db() -> None:
@@ -48,7 +68,9 @@ _check_db()
 
 hardcoded_static_folder: str | None = None
 
-app = FastAPI(title="AMARCORD OpenAPI interface", version="1.0")
+app = FastAPI(title="AMARCORD OpenAPI interface", version="1.0", lifespan=lifespan)
+
+
 origins = [
     "http://localhost:5001",
     "http://localhost:8001",
@@ -68,6 +90,7 @@ app.include_router(chemicals_router)
 app.include_router(data_sets_router)
 app.include_router(events_router)
 app.include_router(experiment_types_router)
+app.include_router(exports_router)
 app.include_router(files_router)
 app.include_router(geometry_router)
 app.include_router(indexing_router)

@@ -5,7 +5,6 @@ import Amarcord.API.Requests
     exposing
         ( BeamtimeId
         , RunExternalId(..)
-        , beamtimeIdToString
         , firstRunId
         , increaseRunExternalId
         , runExternalIdFromInt
@@ -23,8 +22,8 @@ import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
 import Api.Data exposing (JsonDeleteRunOutput, JsonReadOnlineIndexingParametersOutput, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Runs exposing (deleteRunApiRunsBeamtimeIdRunIdDelete, readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
-import Html exposing (Html, a, button, div, form, label, li, option, p, select, text, ul)
-import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
+import Html exposing (Html, button, div, form, label, li, option, p, select, text, ul)
+import Html.Attributes exposing (class, disabled, for, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -37,7 +36,6 @@ type AdvancedTab
     | TabOnlineIndexing
     | TabDelete
     | TabBulkUpdate
-    | TabExport
 
 
 type alias Model =
@@ -433,7 +431,6 @@ view model =
         tabHeaders =
             [ ( TabOnlineIndexing, "Online Indexing" )
             , ( TabBulkUpdate, "Bulk update" )
-            , ( TabExport, "Export" )
             , ( TabRunControls, "Run Controls" )
             , ( TabChangeExperimentType, "Experiment Type" )
             , ( TabDelete, "Delete runs" )
@@ -472,11 +469,6 @@ view model =
                     [ class "mt-3" ]
                     [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ]
                 , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
-                ]
-            , div [ class (paneActive TabExport) ]
-                [ p [ class "mt-3" ] [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ]
-                , a [ href ("api/" ++ beamtimeIdToString model.beamtimeId ++ "/spreadsheet.zip"), class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
-                , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
                 ]
             ]
         ]

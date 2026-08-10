@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
 
@@ -68,9 +69,11 @@ async def _get_current_schedule(
         schedule=[
             convert_row(shift_dict)
             for shift_dict in await session.scalars(
-                select(orm.BeamtimeSchedule).where(
+                select(orm.BeamtimeSchedule)
+                .where(
                     orm.BeamtimeSchedule.beamtime_id == beamtime_id,
-                ),
+                )
+                .options(selectinload(orm.BeamtimeSchedule.chemicals)),
             )
         ],
     )

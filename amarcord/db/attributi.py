@@ -48,7 +48,7 @@ class SchemaPydanticWrapper(BaseModel):
 
 
 def parse_schema_type(json_schema: dict[str, Any]) -> JSONSchemaUnion:
-    return SchemaPydanticWrapper(content=json_schema).content  # type: ignore
+    return SchemaPydanticWrapper(content=json_schema).content
 
 
 def coparse_schema_type(s: JSONSchemaUnion) -> dict[str, Any]:
@@ -766,7 +766,7 @@ _conversion_matrix.update(
             AttributoTypeDateTime,
             AttributoTypeString,
         ): lambda _before, _after, _flags, v: datetime_to_attributo_string(
-            v,
+            v,  # ty:ignore[invalid-argument-type]
         ),
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,

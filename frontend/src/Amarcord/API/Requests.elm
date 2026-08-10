@@ -5,6 +5,7 @@ module Amarcord.API.Requests exposing
     , IndexingParametersId(..)
     , IndexingParametersIdSet(..)
     , IndexingResultId(..)
+    , JsonImportJobOutput
     , MergeResultId
     , RunEventDate(..)
     , RunEventDateFilter(..)
@@ -12,6 +13,7 @@ module Amarcord.API.Requests exposing
     , RunFilter(..)
     , RunInternalId(..)
     , beamtimeIdToString
+    , createImportJobApiExportsImportPost
     , emptyIndexingParametersIdSet
     , emptyRunEventDateFilter
     , emptyRunFilter
@@ -34,6 +36,10 @@ module Amarcord.API.Requests exposing
     , specificRunEventDateFilter
     )
 
+import Api
+import File exposing (File)
+import Http
+import Json.Decode
 import Set
 
 
@@ -200,3 +206,25 @@ runEventDateFilter (RunEventDateFilter rdf) =
 runEventDateToString : RunEventDate -> String
 runEventDateToString (RunEventDate s) =
     s
+
+
+type alias JsonImportJobOutput =
+    { statusMessage : String
+    }
+
+
+jsonImportJobOutputDecoder : Json.Decode.Decoder JsonImportJobOutput
+jsonImportJobOutputDecoder =
+    Json.Decode.map JsonImportJobOutput (Json.Decode.field "status_message" Json.Decode.string)
+
+
+createImportJobApiExportsImportPost : File -> String -> String -> Api.Request JsonImportJobOutput
+createImportJobApiExportsImportPost file newTitle newOutputPath =
+    Api.request
+        "POST"
+        "/api/exports/import"
+        []
+        []
+        []
+        (Just <| Http.multipartBody <| [ Http.filePart "file" file, Http.stringPart "new_title" newTitle, Http.stringPart "new_output_path" newOutputPath ])
+        jsonImportJobOutputDecoder

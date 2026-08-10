@@ -516,7 +516,9 @@ async def indexing_job_still_running(
     async with session.begin():
         current_indexing_result = (
             await session.scalars(
-                select(orm.IndexingResult).where(
+                select(orm.IndexingResult)
+                .options(selectinload(orm.IndexingResult.statistics))
+                .where(
                     orm.IndexingResult.id == indexingResultId,
                 ),
             )
@@ -538,15 +540,14 @@ async def indexing_job_still_running(
             )
         if json_result.latest_log is not None:
             current_indexing_result.job_latest_log = json_result.latest_log
-        session.add(
+        current_indexing_result.statistics.append(
             orm.IndexingResultHasStatistic(
-                indexing_result_id=current_indexing_result.id,
                 time=datetime.datetime.now(datetime.UTC),
                 frames=jr.frames,
                 hits=jr.hits,
                 indexed_frames=jr.indexed_frames,
                 indexed_crystals=jr.indexed_crystals,
-            ),
+            )
         )
 
         await session.commit()

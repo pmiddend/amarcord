@@ -754,13 +754,13 @@ def encode_attributo_value(
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], float | int))
             else None
-        ),  # ty:ignore[invalid-argument-type]
+        ),
         attributo_value_list_bool=(
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], bool))
             else None
-        ),  # ty:ignore[invalid-argument-type]
+        ),
     )
 
 

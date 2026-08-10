@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Export as Export
 import Amarcord.Pages.Geometries as Geometries
 import Amarcord.Pages.Geometry as Geometry
 import Amarcord.Pages.Help as Help
@@ -67,6 +68,9 @@ pageSubscriptions rootModel =
         EventLogPage _ ->
             List.map (Sub.map EventLogPageMsg) EventLog.subscriptions
 
+        ExportPage _ ->
+            List.map (Sub.map ExportPageMsg) Export.subscriptions
+
         _ ->
             []
 
@@ -91,6 +95,7 @@ type Msg
     | RunOverviewPageMsg RunOverview.Msg
     | GeometryPageMsg Geometry.Msg
     | ImportPageMsg Import.Msg
+    | ExportPageMsg Export.Msg
     | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
@@ -117,6 +122,7 @@ type Page
     | GeometryPage Geometry.Model
     | RunsPage Runs.Model
     | ImportPage Import.Model
+    | ExportPage Export.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
@@ -210,6 +216,9 @@ buildTitleForPage page =
 
         ImportPage _ ->
             Import.pageTitle
+
+        ExportPage _ ->
+            Export.pageTitle
 
         RunsPage _ ->
             Runs.pageTitle
@@ -386,6 +395,12 @@ currentView model =
             div []
                 [ Import.view pageModel
                     |> Html.map ImportPageMsg
+                ]
+
+        ExportPage pageModel ->
+            div []
+                [ Export.view pageModel
+                    |> Html.map ExportPageMsg
                 ]
 
         AnalysisOverviewPage pageModel ->
@@ -584,6 +599,15 @@ updateInner hereAndNow msg model =
             , Cmd.map ImportPageMsg updatedCmd
             )
 
+        ( ExportPageMsg subMsg, ExportPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Export.update subMsg pageModel
+            in
+            ( { model | page = ExportPage updatedPageModel }
+            , Cmd.map ExportPageMsg updatedCmd
+            )
+
         ( BeamtimeSelectionPageMsg subMsg, BeamtimeSelectionPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -657,7 +681,7 @@ updateInner hereAndNow msg model =
                             || contains "api/geometries/" url.path
                             || endsWith "/log" url.path
                             || endsWith "/errorlog" url.path
-                            || contains "spreadsheet.zip" url.path
+                            || endsWith ".zip" url.path
                             || contains "run-bulk-import-template" url.path
                     then
                         ( model, Nav.load (URL.toString url) )
@@ -804,6 +828,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             Import.init hereAndNow beamtimeId step
                     in
                     ( ImportPage pageModel, Cmd.map ImportPageMsg pageCmds )
+
+                Route.Export beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Export.init hereAndNow beamtimeId
+                    in
+                    ( ExportPage pageModel, Cmd.map ExportPageMsg pageCmds )
 
                 Route.AnalysisOverview beamtimeId filters across mergeFilter ->
                     let

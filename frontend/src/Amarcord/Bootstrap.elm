@@ -34,6 +34,7 @@ icon { name } =
 type AlertProperty
     = AlertSuccess
     | AlertDanger
+    | AlertInfo
     | AlertWarning
 
 
@@ -45,6 +46,9 @@ alertPropToCss x =
 
         AlertDanger ->
             "alert-danger"
+
+        AlertInfo ->
+            "alert-info"
 
         AlertWarning ->
             "alert-warning"

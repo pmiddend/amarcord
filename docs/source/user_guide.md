@@ -5,6 +5,75 @@
 
 This document will assume you're not a programmer, but a regular user of AMARCORD.
 
+(UserImport)=
+## Import and Export
+
+### Rationale
+There are two ways to import and export beamtimes in AMARCORD: via an Excel spreadsheet, and via a zip file. For administrative notes on this, go do [the admin guide section on this](AdminImport). For developer's notes no this, go to [the developer guide section on this](DeveloperImport).
+
+The Excel spreadsheet *export* is easy to explain: The use case is to export a beam time so you can look at the data a later point in time with standard tools, such as LibreOffice. It's not meant to be processed further.
+
+The Excel spreadsheet *import* is also easy to explain: You had a beamtime somewhere else and want to now make AMARCORD aware of the metadata, and possibly use it to start jobs to process the data. Note that the Excel import is in a "pre-deprecated" state, meaning it will be replaced by something much more flexible and powerful in the future. This is why we will not explain it further.
+
+The other way to import and export beamtimes is into and from .zip files. Here, the goal is a different one. The idea with this is really to use AMARCORD at the beamline, ingesting beamline data either in the end or even while it is still going on (this is currently implemented for the ID29 beamline, see [](ID29) for more information). Then, after completion of the beamtime, you export your data to a .zip file, take this home with you (or transfer it via the internet to your home institution or a hard drive) and *import* this .zip file into *your* AMARCORD.
+
+The following diagram explains this:
+
+```mermaid
+flowchart TB
+    subgraph BL
+    User[User at Beamline]
+    User -- Controls --- Beamline
+    User -- Triggers processing --- BLAM
+    User -- Checks metadata --- BLAM
+    Zip[.zip file at Beamline]
+    BLAM[AMARCORD at Beamline]
+    Beamline[Beamline]
+    Beamline -- Syncs metadata --- BLAM
+    BLAM --> Zip
+    User -- Exports --- Zip
+    end
+  
+    subgraph Home
+    UserHome[User at Home]
+    Import{Import}
+    HAM[AMARCORD at Home]
+    ZipHome[.zip file at Home]
+    ZipHome --- Import
+    Import --- UserHome
+    Import --- HAM
+    UserHome -- does further processing --> HAM
+    end
+
+    Zip -- Data Transfer --- ZipHome
+```
+
+### Export
+
+Exporting a single beamtime can be done in the top-right menu when you click on "Advanced" and then "Export". The site should be self-explanatory, but note that since exporting takes a long time, this is broken down into three steps:
+
+1. Queueing an export job
+2. Waiting
+3. Downloading the resulting .zip file
+
+You can also decide whether you want to export with CrystFEL .stream files or without. This depends on your available storage space on the one hand, and what you want to do with the resulting data. .stream files can get extraordinarily large (in the order of TiB), and although they are stored in a (bzip2) compressed form, they will still be in the same order of magnitude. If you have the space, and you have the patience to transfer the data, you can choose to do an export with stream files included. The advantage: you can merge your data after the fact, with different parameters.
+
+If you choose against .stream files, you will still get *some* data: the MTZ and PDB files are stored in the database itself, so these will be preserved.
+
+Exporting can also be done from the **command-line**. There is the `amarcord-export-db` executable with options that mirror the options in the GUI. The advantage is that you do not need a browser and can do this from an SSH session to the foreign institute, for example.
+
+### Import
+
+Importing can be found outside of a beamtime, since it is precisely *creating* a new beam time, from a .zip file. In the beamtime overview, on the top, you can see a button "Import beamtime". Pressing this leads you to the import form, which should be mostly self-explanatory. Note that in contrast to exporting, importing is done in a single step. This is for technical reasons, and it means that you have to **keep your browser open** during the whole process — unfortunately.
+
+Select your zip file, and decide whether you want to change the title of the beamtime after you import, or whether to keep it. You can also change the analysis output path.
+
+Import can also be done from the **command-line**. There is the `amarcord-import-db` executable with options that mirror the options in the GUI. There are actually two ways to call this program: 
+
+1. With an existing .zip file, as in the GUI case (in which case you need to specify the stream file output directory and the database URL of the target database).
+2. With an existing *database*. This is meant for copying from one database into another, and is the basis for the zip export as well: We copy the source database into an SQLite database, and put the resulting database file along with the stream files into a .zip file. Note that in this mode, currently, stream files are not exported.
+
+In both cases you need to specify at least one database (the source) with a DB url. The syntax of which is described [here](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls). Typically this will be something like `sqlite+aiosqlite:////path/to/file` (yes, that's *four* slashes).
 ## Analysis
 ### Merging
 

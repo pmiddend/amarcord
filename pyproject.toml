@@ -42,6 +42,8 @@ dependencies = [
     "structlog==26.1.0",
     # For parsing the arguments for programs (always required basically)
     "typed-argument-parser==1.12.0",
+    # New way for argument parsing (needs full migration from "tap" at some point)
+    "typed-argparse==0.3.1",
     # needed for MySQL with certain auth methods
     "cryptography==49.0.0",
     "python-magic==0.4.27",
@@ -70,7 +72,7 @@ dev = [
     "pytest-xdist==3.8.0",
     "pytest==9.1.1",
     "ruff==0.16.0",
-    "ty==0.0.56",
+    "ty==0.0.60",
     # documentation
     "sphinx-autobuild==2025.08.25",
     "sphinx==9.1.0",
@@ -89,7 +91,10 @@ amarcord-mjpeg-daemon = "amarcord.cli.mjpeg_daemon:main"
 amarcord-indexing-daemon = "amarcord.cli.indexing_daemon:main"
 amarcord-merge-daemon = "amarcord.cli.merge_daemon:main"
 amarcord-upgrade-db-to-latest = "amarcord.cli.upgrade_db_to_latest:main"
+amarcord-generate-openapi-schema = "amarcord.cli.generate_openapi_schema:main"
 amarcord-slurm-runner = "amarcord.cli.slurm_runner:main"
+amarcord-import-db = "amarcord.cli.import_db:main"
+amarcord-export-db = "amarcord.cli.export_db:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -141,6 +146,7 @@ omit = [
   "amarcord/db/tables_old.py",
   "amarcord/cli/daemon.py",
   "amarcord/cli/crystfel_index.py",
+  "amarcord/cli/import_db.py",
   "amarcord/cli/crystfel_merge.py",
   "amarcord/cli/experiment_simulator.py",
   # The camera daemon needs no test coverage, it's so unimportant
@@ -149,7 +155,9 @@ omit = [
   "amarcord/cli/migrate.py",
   "amarcord/cli/slurm_runner.py",
   "amarcord/cli/upgrade_db_to_latest.py",
-  "amarcord/cli/offline_index_test_scenario.py"
+  "amarcord/cli/offline_index_test_scenario.py",
+  "amarcord/cli/import_db.py",
+  "amarcord/cli/export_db.py",
   ]
 # tbh, I don't completely know why we need this. However, if we omit this, or use either just "thread" or "greenlet", then the coverage report
 # for the web server will not work correctly. There will be lines shown as "not covered" which have clearly been covered. See also this

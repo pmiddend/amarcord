@@ -3638,7 +3638,7 @@ def test_read_and_update_runs_bulk(
                         [
                             JsonAttributoValue(
                                 attributo_id=run_int_attributo_id,
-                                attributo_value_int=run_definition["int-attributo"],  # type: ignore
+                                attributo_value_int=run_definition["int-attributo"],
                             ),
                         ]
                         if run_definition["int-attributo"] is not None

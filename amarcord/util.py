@@ -2,15 +2,24 @@ import datetime
 import hashlib
 import os
 import re
+import zipfile
+from bz2 import BZ2Compressor
+from bz2 import BZ2Decompressor
+from contextlib import contextmanager
 from difflib import SequenceMatcher
 from pathlib import Path
 from statistics import variance
+from typing import BinaryIO
 from typing import Callable
+from typing import Final
 from typing import Generator
 from typing import Iterable
+from typing import Iterator
 from typing import Sequence
 from typing import TypeVar
 from zoneinfo import ZoneInfo
+
+import anyio
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -259,3 +268,112 @@ def check_consecutive(xs: Iterable[int]) -> tuple[int, int] | None:
 
 def get_local_tz() -> ZoneInfo:
     return ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))
+
+
+async def bz2_compress_async(
+    original_path: anyio.Path, bz2_file_path: anyio.Path
+) -> None:
+    copy_bufsize: Final = 64 * 1024
+
+    async with (
+        await original_path.open("rb") as original_obj,
+        await bz2_file_path.open("wb") as bz2_file_obj,
+    ):
+        compressor = BZ2Compressor()
+        # This is almost a carbon-copy of "shutil.copyfileobj", but
+        # with more async sprinkled in
+        while buf := await original_obj.read(copy_bufsize):
+            await bz2_file_obj.write(compressor.compress(buf))
+        await bz2_file_obj.write(compressor.flush())
+
+
+async def bz2_decompress_async(
+    bz2_file_path: anyio.Path, target_path: anyio.Path
+) -> None:
+    copy_bufsize: Final = 64 * 1024
+
+    async with (
+        await target_path.open("wb") as target_obj,
+        await bz2_file_path.open("rb") as bz2_file_obj,
+    ):
+        decompressor = BZ2Decompressor()
+        # This is almost a carbon-copy of "shutil.copyfileobj", but
+        # with more async sprinkled in
+        while buf := await bz2_file_obj.read(copy_bufsize):
+            await target_obj.write(decompressor.decompress(buf))
+
+
+async def zip_compress_async(
+    zip_filename: anyio.Path,
+    base_dir_relative: str,
+    root_dir: anyio.Path,
+) -> anyio.Path:
+    archive_dir = zip_filename.parent
+
+    await archive_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(zip_filename, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        arcname = base_dir_relative
+        base_dir_absolute = root_dir / base_dir_relative
+        if arcname != Path.cwd():
+            zf.write(base_dir_absolute, base_dir_relative)
+        async for dirpath, dirnames, filenames in base_dir_absolute.walk():
+            arcdirpath = dirpath
+            arcdirpath = arcdirpath.relative_to(root_dir)
+            for name in sorted(dirnames):
+                path = dirpath / name
+                arcname = arcdirpath / name
+                zf.write(path, arcname)
+            for name in filenames:
+                path = dirpath / name
+                if await path.is_file():
+                    arcname = arcdirpath / name
+                    zf.write(path, arcname)
+
+    return await zip_filename.absolute()
+
+
+async def zip_decompress_async(file_obj: BinaryIO, extract_dir: anyio.Path) -> None:
+    copy_bufsize: Final = 64 * 1024
+
+    with zipfile.ZipFile(file_obj) as zip_obj:
+        for info in zip_obj.infolist():
+            name = info.filename
+
+            # don't extract absolute paths or ones with .. in them
+            if name.startswith("/") or ".." in name:
+                continue
+
+            targetpath = extract_dir / anyio.Path(name)
+
+            await targetpath.parent.mkdir(parents=True, exist_ok=True)
+
+            if not name.endswith("/"):
+                # file
+                with zip_obj.open(name, "r") as source_sync_obj:
+                    async with await targetpath.open("wb") as target_obj:
+                        while buf := source_sync_obj.read(copy_bufsize):
+                            await target_obj.write(buf)
+
+
+@contextmanager
+def temporary_env(name: str, new_value: str) -> Iterator[None]:
+    old_value = os.environ.get(name)
+
+    os.environ[name] = new_value
+    try:
+        yield
+    finally:
+        if old_value is not None:
+            os.environ[name] = old_value
+        else:
+            os.environ.pop(name, None)
+
+
+async def rmdir_async(p: anyio.Path) -> None:
+    async for root, dirs, files in p.walk(top_down=False):
+        for file in files:
+            await (root / file).unlink()
+        for directory in dirs:
+            await (root / directory).rmdir()
+    await p.rmdir()

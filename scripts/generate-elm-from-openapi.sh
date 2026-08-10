@@ -34,6 +34,9 @@ MY_OPENAPI_JSON_FILE="${MY_TEMP_DIR}/openapi.json"
 # present. This isn't the case, because that's only relevant for
 # development builds. So we create it here.
 mkdir -p frontend/output
+
+[ -z ${AMARCORD_IMPORT_EXPORT_SETTINGS+x} ] || die "AMARCORD_IMPORT_EXPORT_SETTINGS is set, cannot generate schema"
+
 PYTHONPATH=. python amarcord/cli/generate_openapi_schema.py  > "$MY_OPENAPI_JSON_FILE"
 echo "generated openapi.json"
 

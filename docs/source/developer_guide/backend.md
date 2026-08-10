@@ -286,6 +286,28 @@ The web server is located below `amarcord/cli/webserver.py` and uses [FastAPI](h
 (BackendTests)=
 ### Tests
 
+(DeveloperImport)=
+### Import and Export
+For a user-perspective on this feature, go to [the user guide section on this](UserImport). For administrative notes on this, go do [the admin guide section on this](AdminImport). We advise reading the user's guide on this topic first, if you don't know what import/export is about. Here, we will only cover the technicalities. This feature was introduced in [MR 516 on GitLab](https://gitlab.desy.de/amarcord/amarcord/-/merge_requests/516).
+
+In order to enable the export of even big files from the web interface, a background daemon is started if the export feature is enabled. This is done with a background task that's started using the [lifespan events](https://fastapi.tiangolo.com/advanced/events/) in FastAPI, see `webserver.py` for the code.
+
+Whether export and import are enabled depends on the `AMARCORD_IMPORT_EXPORT_SETTINGS` environment variable, which needs to start with `export:` and can then contain `|` separated `key=value` pairs. Currently, there are two keys that you can specify: `export-path` and `import-path`. A sample settings string would look like:
+
+```
+export:import-path=/opt/imports|export-path=/opt/exports
+```
+
+The `import-path` is used to extract the .zip file contents into. If it's a huge zip file, the directory has to hold that amount of data, too. The `export-path` is used to store the resulting .zip files of export jobs.
+
+The main code for the import and export is in `import_export_db.py`. The idea for the export is:
+
+- Create a whole new SQLite database file and migrate it to the latest AMARCORD DB version.
+- Read entities from the original database and insert them into the new SQLite DB. While doing that, remember the indexing result stream files in memory.
+
+This logic is implemented in the `export_db` function.
+
+The import code looks very repetitive and tedious, any attempt to use DB reflection and automation for this failed, so there was no way out.
 ### Unused libraries: `fawltydeps`
 
 To check for unused libraries, or *used* libraries that are not declared (and are brought in transitively), we use [fawltydeps](https://github.com/tweag/FawltyDeps) in a CI step of the same name.

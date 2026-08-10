@@ -175,6 +175,11 @@ class Beamtime(Base):
         cascade="all, delete, delete-orphan",
         default_factory=list,
     )
+    export_jobs: Mapped[list["ExportJob"]] = relationship(
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
+    )
 
 
 class ExperimentType(Base):
@@ -347,7 +352,6 @@ class BeamtimeSchedule(Base):
     chemicals: Mapped[list["Chemical"]] = relationship(
         secondary=beamtime_schedule_has_chemical,
         back_populates="schedule_items",
-        lazy="selectin",
         default_factory=list,
     )
     beamtime: Mapped[Beamtime] = relationship(back_populates="schedules", init=False)
@@ -808,6 +812,7 @@ class IndexingResultHasStatistic(Base):
     indexing_result_id: Mapped[int] = mapped_column(
         ForeignKey("IndexingResult.id", ondelete="cascade"),
         primary_key=True,
+        init=False,
     )
     time: Mapped[datetime] = mapped_column(primary_key=True)
     frames: Mapped[int] = mapped_column()
@@ -980,3 +985,25 @@ class RefinementResult(Base):
     )
     pdb_file: Mapped[File] = relationship(foreign_keys=[pdb_file_id], init=False)
     mtz_file: Mapped[File] = relationship(foreign_keys=[mtz_file_id], init=False)
+
+
+class ExportJob(Base):
+    __tablename__ = "ExportJob"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    beamtime_id: Mapped[BeamtimeId] = mapped_column(
+        ForeignKey("Beamtime.id", ondelete="cascade"),
+    )
+    created: Mapped[datetime] = mapped_column()
+    started: Mapped[datetime | None] = mapped_column()
+    stopped: Mapped[datetime | None] = mapped_column()
+    contains_stream_files: Mapped[bool] = mapped_column()
+    size_in_mebibytes: Mapped[int] = mapped_column()
+    output_path: Mapped[str] = mapped_column(sa.Text)
+    status_message: Mapped[str] = mapped_column(sa.Text)
+
+    # Relationship
+    beamtime: Mapped[Beamtime] = relationship(
+        back_populates="export_jobs",
+        init=False,
+    )
