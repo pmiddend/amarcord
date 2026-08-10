@@ -2,12 +2,38 @@
 name = "amarcord"
 version = "1.5"
 description = "A ModulAR CollectOR of metaData - serial edition"
+Homepage = "https://gitlab.desy.de/amarcord/amarcord"
+Documentation = "https://amarcord.pages.desy.de/amarcord/"
+Repository = "https://gitlab.desy.de/amarcord/amarcord"
+Issues = "https://gitlab.desy.de/amarcord/amarcord/-/work_items"
+Changelog = "https://gitlab.desy.de/amarcord/amarcord/-/blob/next-beamtime/CHANGELOG.md"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [
   {name = "Philipp Middendorf", email = "philipp.middendorf@desy.de"}
 ]
+maintainers = [
+  {name = "Philipp Middendorf", email = "philipp.middendorf@desy.de"}
+]
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+keywords = ["crystallography", "webserver", "crystfel"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Physics",
+
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+
+  "Typing :: Typed",
+
+  "Framework :: FastAPI",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13"
+]
 dependencies = [
     # For http requests
     # (uses claude)
