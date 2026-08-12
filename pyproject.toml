@@ -1,6 +1,6 @@
 [project]
 name = "amarcord"
-version = "1.5"
+version = "1.5.2"
 description = "A ModulAR CollectOR of metaData - serial edition"
 Homepage = "https://gitlab.desy.de/amarcord/amarcord"
 Documentation = "https://amarcord.pages.desy.de/amarcord/"
