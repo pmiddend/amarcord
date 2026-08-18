@@ -12,7 +12,9 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
-from tap import Tap
+from typed_argparse import Parser
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.db import orm
 from amarcord.db.attributo_id import AttributoId
@@ -26,21 +28,39 @@ setup_structlog()
 logger = structlog.stdlib.get_logger(__name__)
 
 
-class Arguments(Tap):
-    db_connection_url: str
-    amarcord_beamtime_id: int
-    sshpass_path: str
-    esrf_ssh_host: str
-    esrf_user: str
-    esrf_password: str
-    directory_attributo_name: str
-    dont_copy_attributo_name: str
-    path_prefix: str
-    path_prefix_replacement: str
-    copy_raw_data: bool = False
-    simulate: bool = False
-    rsync_path: str = "rsync"
-    temp_dir: Path | None = None
+class Arguments(TypedArgs):
+    db_connection_url: str = arg(
+        help="Connection URL for the database to import to (e.g. sqlite+aiosqlite://foo/bar)"
+    )
+    amarcord_beamtime_id: int = arg(
+        help="ID of the beamtime pull indexing results from"
+    )
+    sshpass_path: str = arg(help='Path to the "sshpass" binary')
+    esrf_ssh_host: str = arg(help="ESRF data pull host (possibly data.esrf.fr)")
+    esrf_user: str = arg(help="User name to use for the sshpass connection")
+    esrf_password: str = arg(help="Password for the sshpass connection")
+    directory_attributo_name: str = arg(
+        help="Name of the (string) Attributo that specifies the raw data directory of a run"
+    )
+    dont_copy_attributo_name: str = arg(
+        help="Name of the (boolean) Attributo that specifies whether to copy raw data of a run"
+    )
+    path_prefix: str = arg(help="Prefix of the path to replace for the data files")
+    path_prefix_replacement: str = arg(help="Replacement of the path prefix")
+    copy_raw_data: bool = arg(
+        help="Whether to globally enable raw data copying or not", default=False
+    )
+    simulate: bool = arg(
+        help="Simulate actions, don't actually copy anything", default=False
+    )
+    rsync_path: str = arg(
+        help='Path to the "rsync" binary (can be omitted, in which case it will be searched in PATH)',
+        default="rsync",
+    )
+    temp_dir: Path | None = arg(
+        help="Temporary directory to use (can be omitted, in which case the system tempdir is used)",
+        default=None,
+    )
 
 
 class RsyncInterface(ABC):
@@ -381,7 +401,10 @@ async def _async_main(args: Arguments) -> None:
 
 
 def main() -> None:
-    asyncio.run(_async_main(Arguments(underscores_to_dashes=True).parse_args()))
+    def runner(args: Arguments) -> None:
+        asyncio.run(_async_main(args))
+
+    Parser(Arguments).bind(runner).run()
 
 
 if __name__ == "__main__":  # pragma: no cover

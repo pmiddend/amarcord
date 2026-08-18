@@ -4549,11 +4549,20 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     )
 
     workload_manager = DummyWorkloadManager()
-    args = indexing_daemon.Arguments()
-    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
-    args.amarcord_url = ""
-    # Also not really important, we don't actually start CrystFEL
-    args.crystfel_path = Path("/usr/bin")
+    args = indexing_daemon.Arguments(
+        # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+        amarcord_url="",
+        # Also not really important, we don't actually start CrystFEL
+        crystfel_path=Path("/usr/bin"),
+        overwrite_interpreter=None,
+        amarcord_url_for_spawned_job=None,
+        gnuplot_path=None,
+        beamtime_id=None,
+        workload_manager_uri="",
+        online_workload_manager_uri=None,
+        asapo_source="",
+        cpu_count_multiplier=None,
+    )
 
     workload_manager.job_start_results.append(
         JobStartResult(job_id=1337, metadata={}),
@@ -4629,11 +4638,20 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
     )
 
     workload_manager = DummyWorkloadManager()
-    args = indexing_daemon.Arguments()
-    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
-    args.amarcord_url = ""
-    # Also not really important, we don't actually start CrystFEL
-    args.crystfel_path = Path("/usr/bin")
+    args = indexing_daemon.Arguments(
+        # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+        amarcord_url="",
+        # Also not really important, we don't actually start CrystFEL
+        crystfel_path=Path("/usr/bin"),
+        overwrite_interpreter=None,
+        amarcord_url_for_spawned_job=None,
+        gnuplot_path=None,
+        beamtime_id=None,
+        workload_manager_uri="",
+        online_workload_manager_uri=None,
+        asapo_source="",
+        cpu_count_multiplier=None,
+    )
 
     workload_manager.job_start_results.append(
         JobStartResult(job_id=1337, metadata={}),
@@ -4789,12 +4807,14 @@ async def test_merge_daemon(
     os.environ[MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     os.environ[MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
     workload_manager = DummyWorkloadManager()
-    args = merge_daemon.Arguments()
-    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
-    args.amarcord_url = ""
-    # Also not really important, we don't actually start CrystFEL
-    args.crystfel_path = Path("/usr/bin")
-    args.ccp4_path = ""
+    args = merge_daemon.Arguments(
+        # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+        amarcord_url="",
+        # Also not really important, we don't actually start CrystFEL
+        crystfel_path=Path("/usr/bin"),
+        workload_manager_uri="",
+        ccp4_path="",
+    )
 
     queue_merge_job_response = JsonQueueMergeJobOutput(
         **client.post(
@@ -4921,11 +4941,20 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     assert create_response.indexing_parameters_id > 0
 
     workload_manager = DummyWorkloadManager()
-    args = indexing_daemon.Arguments()
-    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
-    args.amarcord_url = ""
-    # Also not really important, we don't actually start CrystFEL
-    args.crystfel_path = Path("/usr/bin")
+    args = indexing_daemon.Arguments(
+        # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+        amarcord_url="",
+        # Also not really important, we don't actually start CrystFEL
+        crystfel_path=Path("/usr/bin"),
+        overwrite_interpreter=None,
+        amarcord_url_for_spawned_job=None,
+        gnuplot_path=None,
+        beamtime_id=None,
+        workload_manager_uri="",
+        online_workload_manager_uri=None,
+        asapo_source="",
+        cpu_count_multiplier=None,
+    )
 
     # One iteration without starting jobs => shouldn't start jobs!
     await indexing_daemon_update_jobs(

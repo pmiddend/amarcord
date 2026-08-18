@@ -235,21 +235,26 @@ async def setup_test_scenario(
         response_json = JsonUserConfigurationSingleOutput(**await response.json())
         assert response_json.value_int == experiment_type_id
 
-    args = push_daemon.Arguments()
-    args.amarcord_beamtime_id = _BEAMTIME_ID
-    # we don't compare file age since we don't want to wait a minute for the file to be old enough
-    args.compare_stream_file_age = False
     base_path = tmp_path / "source"
-    args.raw_data_path = base_path / "raw"
-    args.raw_data_path.mkdir(parents=True, exist_ok=True)
-    args.run_id_file = base_path / "run-id.txt"
-    args.metadata_visited_file = base_path / "metadata-visited.txt"
-    args.stream_visited_file = base_path / "stream-visited.txt"
-    # This doesn't actually matter, we pass the parsed config file to the main loop iteration function
-    args.attributo_config_file = Path("/attributo-config.json")
-    args.amarcord_url = f"http://localhost:{server_port}"
-    args.sample_attributo = _SAMPLE_ATTRIBUTO_NAME
-    args.tag_attributo = _TAG_ATTRIBUTO_NAME
+    raw_data_path = base_path / "raw"
+    raw_data_path.mkdir(parents=True, exist_ok=True)
+    args = push_daemon.Arguments(
+        amarcord_beamtime_id=_BEAMTIME_ID,
+        # we don't compare file age since we don't want to wait a minute for the file to be old enough
+        compare_stream_file_age=False,
+        raw_data_path=base_path / "raw",
+        run_id_file=base_path / "run-id.txt",
+        metadata_visited_file=base_path / "metadata-visited.txt",
+        stream_visited_file=base_path / "stream-visited.txt",
+        # This doesn't actually matter, we pass the parsed config file to the main loop iteration function
+        attributo_config_file=Path("/attributo-config.json"),
+        amarcord_url=f"http://localhost:{server_port}",
+        sample_attributo=_SAMPLE_ATTRIBUTO_NAME,
+        tag_attributo=_TAG_ATTRIBUTO_NAME,
+        amarcord_user="",
+        amarcord_password="",
+        create_attributi=True,
+    )
 
     # This is not necessarily where the metadata.json resides
     files_dir = base_path / "actual-files"
@@ -389,25 +394,26 @@ async def test_push_and_pull(
         test_scenario.args, test_scenario.config_file, http_client, empty_error_cache
     )
 
-    args = pull_daemon.Arguments()
-    args.db_connection_url = db_url
-    args.amarcord_beamtime_id = test_scenario.beamtime_id
-    args.path_prefix = str(test_scenario.first_stream_file.parent)
     target_path = tmp_path / "target"
     streams_path = target_path / "streams"
     streams_path.mkdir(parents=True)
-    args.path_prefix_replacement = str(streams_path)
+    args = pull_daemon.Arguments(
+        db_connection_url=db_url,
+        amarcord_beamtime_id=test_scenario.beamtime_id,
+        path_prefix=str(test_scenario.first_stream_file.parent),
+        path_prefix_replacement=str(streams_path),
+        simulate=True,
+        sshpass_path="/usr/bin/sshpass",
+        esrf_ssh_host="esrf-hostname",
+        esrf_user="esrfuser",
+        esrf_password="esrfpassword",  # noqa: S106
+        directory_attributo_name=push_daemon.ID29_MAGIC_DIRECTORY_ATTRIBUTO,
+        dont_copy_attributo_name="dontcopy",
+        # False for now, later on write a test for this, too
+        copy_raw_data=False,
+        rsync_path="/usr/bin/rsync",
+    )
     print(f"will replace {test_scenario.first_stream_file.parent} with {streams_path}")  # noqa: T201
-    args.simulate = True
-    args.sshpass_path = "/usr/bin/sshpass"
-    args.esrf_ssh_host = "esrf-hostname"
-    args.esrf_user = "esrfuser"
-    args.esrf_password = "esrfpassword"  # noqa: S105
-    args.directory_attributo_name = push_daemon.ID29_MAGIC_DIRECTORY_ATTRIBUTO
-    args.dont_copy_attributo_name = "dontcopy"
-    # False for now, later on write a test for this, too
-    args.copy_raw_data = False
-    args.rsync_path = "/usr/bin/rsync"
 
     print("starting pull daemon loop")  # noqa: T201
     await pull_daemon._async_main(args)  # noqa: SLF001

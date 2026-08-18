@@ -3,7 +3,9 @@ import datetime
 
 import structlog
 from sqlalchemy.ext.asyncio import create_async_engine
-from tap import Tap
+from typed_argparse import Parser
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.cli.crystfel_index import sha256_bytes
 from amarcord.db.associated_table import AssociatedTable
@@ -30,11 +32,11 @@ from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
 logger = structlog.stdlib.get_logger(__name__)
 
 
-class Arguments(Tap):
-    db_connection_url: (
-        str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+class Arguments(TypedArgs):
+    db_connection_url: str = arg(
+        help="Connection URL for the database to export from (e.g. mysql+pymysql://foo/bar"
     )
-    h5_glob: str
+    h5_glob: str = arg("Glob to specify for the run raw data")
 
 
 async def _main(args: Arguments) -> None:
@@ -197,7 +199,10 @@ group_all = panel0
 
 
 def main() -> None:
-    asyncio.run(_main(Arguments(underscores_to_dashes=True).parse_args()))
+    def run(args: Arguments) -> None:
+        asyncio.run(_main(args))
+
+    Parser(Arguments).bind(run).run()
 
 
 if __name__ == "__main__":

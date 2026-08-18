@@ -5,7 +5,8 @@ from datetime import timedelta
 
 import structlog
 from anyio import Path
-from tap import Tap
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager_factory import (
@@ -18,16 +19,20 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 logger = structlog.stdlib.get_logger(__name__)
 
 
-class Arguments(Tap):
-    workload_manager_uri: str
-    working_directory: Path
-    executable: Path
-    command_line: str
-    name: str
-    time_limit_minutes: int
-    stdout: Path | None = None
-    stderr: Path | None = None
-    explicit_node: str | None = None
+class Arguments(TypedArgs):
+    workload_manager_uri: str = arg(
+        help="Determines how and where jobs are started; refer to the manual on how this URL should look like"
+    )
+    working_directory: Path = arg(help="Working directory for the started job")
+    executable: Path = arg(help="Which program to start")
+    command_line: str = arg(
+        help="Command line (one single string) to give to the program"
+    )
+    name: str = arg(help="Name of the job to start on the workload manager")
+    time_limit_minutes: int = arg(help="Time limit of the job")
+    stdout: Path | None = arg(default=None)
+    stderr: Path | None = arg(default=None)
+    explicit_node: str | None = arg(default=None)
 
 
 async def _main_loop(args: Arguments) -> None:
@@ -75,9 +80,10 @@ set -o pipefail
         await asyncio.sleep(3.0)
 
 
-def main() -> None:
-    asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))
+def main() -> None:  # pragma: no cover
+    def runner(args: Arguments) -> None:
+        asyncio.run(_main_loop(args))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

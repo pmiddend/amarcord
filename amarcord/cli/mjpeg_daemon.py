@@ -3,7 +3,8 @@ import datetime
 
 import aiohttp
 import structlog
-from tap import Tap
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.amici.p11.grab_mjpeg_frame import mjpeg_stream_loop
 from amarcord.db.attributi import utc_int_to_utc_datetime
@@ -12,11 +13,15 @@ from amarcord.web.json_models import JsonReadBeamtime
 logger = structlog.stdlib.get_logger(__name__)
 
 
-class Arguments(Tap):
-    amarcord_url: str
-    stream_url: str
-    beamline_filter: str
-    delay_seconds: float = 5.0
+class Arguments(TypedArgs):
+    amarcord_url: str = arg(
+        help="URL the daemon uses to look up indexing jobs in the DB"
+    )
+    stream_url: str = arg(help="URL to the mjpeg stream to grab frames from")
+    beamline_filter: str = arg(help="Can be used to filter by beamline")
+    delay_seconds: float = arg(
+        default=5.0, help="How often (in seconds delay) to shoot a picture"
+    )
 
 
 async def _mjpeg_stream_loop(args: Arguments) -> None:
@@ -77,8 +82,9 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
             await asyncio.sleep(5)
 
 
-def main() -> None:
-    asyncio.run(_mjpeg_stream_loop(Arguments(underscores_to_dashes=True).parse_args()))
+def main() -> None:  # pragma: no cover
+    def runner(args: Arguments) -> None:
+        asyncio.run(_mjpeg_stream_loop(args))
 
 
 if __name__ == "__main__":

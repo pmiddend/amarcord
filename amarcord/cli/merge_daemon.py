@@ -13,7 +13,8 @@ import aiohttp
 import anyio
 import structlog
 from structlog.stdlib import BoundLogger
-from tap import Tap
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 import amarcord.cli.crystfel_merge
 from amarcord.amici.crystfel.util import determine_output_directory
@@ -64,16 +65,32 @@ def _short_break_duration_seconds() -> float:
 _ZOMBIE_TIME_SECONDS = 10
 
 
-class Arguments(Tap):
-    workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
-    amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
-    crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
-        Path
+class Arguments(TypedArgs):
+    workload_manager_uri: str = arg(
+        help="Determines how and where jobs are started; refer to the manual on how this URL should look like"
     )
-    ccp4_path: str | None = None
-    overwrite_interpreter: str | None = None
-    amarcord_url_for_spawned_job: str | None = None
-    gnuplot_path: Path | None = None
+    amarcord_url: str = arg(
+        help="URL the daemon uses to look up indexing jobs in the DB"
+    )
+    crystfel_path: Path = arg(
+        help="Where the CrystFEL binaries are located (without the /bin suffix!)"
+    )
+    ccp4_path: str | None = arg(
+        help="Path to the CCP4 installation (base path, not /bin) to locate dimple",
+        default=None,
+    )
+    overwrite_interpreter: str | None = arg(
+        help="Override first line in Python script to use a different Python interpreter on the target system",
+        default=None,
+    )
+    amarcord_url_for_spawned_job: str | None = arg(
+        default=None,
+        help="Like --amarcord-url, but this will be passed to the jobs from the workload manager (in case you want to call back to AMARCORD on the internal network)",
+    )
+    gnuplot_path: Path | None = arg(
+        default=None,
+        help="Location of the gnuplot executable to generate fg-graph plots for ambigator",
+    )
 
 
 def merge_parameters_to_crystfel_parameters(p: JsonMergeParameters) -> list[str]:
@@ -495,7 +512,8 @@ async def _merging_loop(args: Arguments) -> None:  # pragma: no cover
 
 
 def main() -> None:  # pragma: no cover
-    asyncio.run(_merging_loop(Arguments(underscores_to_dashes=True).parse_args()))
+    def runner(args: Arguments) -> None:
+        asyncio.run(_merging_loop(args))
 
 
 if __name__ == "__main__":  # pragma: no cover

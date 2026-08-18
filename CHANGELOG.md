@@ -1,7 +1,13 @@
 If this document renders weirdly, it’s because it uses [GitLab flavored markdown](https://docs.gitlab.com/user/markdown/#table-of-contents) and some elements might not be supported by your viewer.
 
 [TOC]
-# 🚧 v1.5 - Q3 2026
+# v1.6 - Q4 2026
+
+## Development changes
+
+- Removed `typed-argument-parser` as a dependency, instead use `typed-argparse`.
+
+# v1.5 - Q3 2026
 
 ## Features
 

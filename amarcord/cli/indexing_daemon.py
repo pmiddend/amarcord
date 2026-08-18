@@ -11,7 +11,8 @@ import aiohttp
 import anyio
 import structlog
 from structlog.stdlib import BoundLogger
-from tap import Tap
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 import amarcord.cli.crystfel_index
 from amarcord.amici.crystfel.util import determine_output_directory
@@ -67,26 +68,44 @@ def _minimum_job_age_seconds() -> float:
 _GLOBAL_JOB_TIME_LIMIT = timedelta(days=1)
 
 
-class Arguments(Tap):
-    amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
-    overwrite_interpreter: str | None = None
-    amarcord_url_for_spawned_job: str | None = None
-    crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
-        Path
+class Arguments(TypedArgs):
+    amarcord_url: str = arg(
+        help="URL the daemon uses to look up indexing jobs in the DB"
     )
-    gnuplot_path: Path | None = None
-    beamtime_id: int | None = None  # Can be used to filter indexing jobs by beamtime
-    workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
-    online_workload_manager_uri: str | None = None
-    asapo_source: str  # The default source given to online indexing jobs
-    # fmt: off
-    cpu_count_multiplier: float | None = (  # Constant to give a multiplier to the number of CPUs in started jobs
-        None
+    overwrite_interpreter: str | None = arg(
+        help="Override first line in Python script to use a different Python interpreter on the target system",
+        default=None,
     )
-    # fmt: on
-    # fmt: off
-    max_parallel_offline_jobs: int = 3  # Maximum number of offline jobs started in parallel (to not deadlock yourself when the primary jobs are all started and none of the secondary jobs)
-    # fmt: on
+    amarcord_url_for_spawned_job: str | None = arg(
+        default=None,
+        help="Like --amarcord-url, but this will be passed to the jobs from the workload manager (in case you want to call back to AMARCORD on the internal network)",
+    )
+    crystfel_path: Path = arg(
+        help="Where the CrystFEL binaries are located (without the /bin suffix!)"
+    )
+    gnuplot_path: Path | None = arg(
+        default=None,
+        help="Location of the gnuplot executable to generate the cell histograms",
+    )
+    beamtime_id: int | None = arg(
+        help="Can be used to filter indexing jobs by beamtime", default=None
+    )
+    workload_manager_uri: str = arg(
+        help="Determines how and where jobs are started; refer to the manual on how this URL should look like"
+    )
+    online_workload_manager_uri: str | None = arg(
+        default=None,
+        help="Determines how and where online jobs are started; refer to the manual on how this URL should look like. Will fall back to --workload-manager-uri if omitted",
+    )
+    asapo_source: str = arg(help="The default source given to online indexing jobs")
+    cpu_count_multiplier: float | None = arg(
+        help="Constant to give a multiplier to the number of CPUs in started jobs",
+        default=None,
+    )
+    max_parallel_offline_jobs: int = arg(
+        help="Maximum number of offline jobs started in parallel (to not deadlock yourself when the primary jobs are all started and none of the secondary jobs",
+        default=3,
+    )
 
 
 def _get_indexing_job_source_code(overwrite_interpreter_str: str | None) -> str:
@@ -652,7 +671,8 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
 
 
 def main() -> None:  # pragma: no cover
-    asyncio.run(_indexing_loop(Arguments(underscores_to_dashes=True).parse_args()))
+    def runner(args: Arguments) -> None:
+        asyncio.run(_indexing_loop(args))
 
 
 if __name__ == "__main__":  # pragma: no cover

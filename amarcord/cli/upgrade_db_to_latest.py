@@ -2,7 +2,9 @@ import asyncio
 
 import structlog
 from sqlalchemy.ext.asyncio import create_async_engine
-from tap import Tap
+from typed_argparse import Parser
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.db.orm_utils import migrate
 from amarcord.logging_util import setup_structlog
@@ -12,9 +14,9 @@ setup_structlog()
 logger = structlog.stdlib.get_logger(__name__)
 
 
-class Arguments(Tap):
-    db_connection_url: (
-        str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+class Arguments(TypedArgs):
+    db_connection_url: str = arg(
+        help="Connection URL for the database to export from (e.g. mysql+pymysql://foo/bar"
     )
 
 
@@ -29,9 +31,10 @@ async def _upgrade_db_to_latest(args: Arguments) -> None:
 
 
 def main() -> None:
-    asyncio.run(
-        _upgrade_db_to_latest(Arguments(underscores_to_dashes=True).parse_args()),
-    )
+    def run(args: Arguments) -> None:
+        asyncio.run(_upgrade_db_to_latest(args))
+
+    Parser(Arguments).bind(run).run()
 
 
 if __name__ == "__main__":

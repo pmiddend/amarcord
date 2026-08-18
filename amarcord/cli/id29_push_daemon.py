@@ -10,7 +10,9 @@ from pathlib import Path
 
 import aiohttp
 import structlog
-from tap import Tap
+from typed_argparse import Parser
+from typed_argparse import TypedArgs
+from typed_argparse import arg
 
 from amarcord.cli.crystfel_index import convert_to_cell_description
 from amarcord.db.attributi import utc_datetime_to_utc_int
@@ -90,29 +92,41 @@ def id29_parse_attributo_config_file(p: Path) -> ID29AttributoConfigFile:
         return ID29AttributoConfigFile(attributi)
 
 
-class Arguments(Tap):
-    amarcord_beamtime_id: int  # Which beamtime to push the runs to
-    raw_data_path: Path  # Where to start looking for metadata.json files
-    run_id_file: Path  # Where to store the last chosen run ID (to generate a new one)
-    metadata_visited_file: (  # Where to store which metadata.json was already processed
-        Path
+class Arguments(TypedArgs):
+    amarcord_beamtime_id: int = arg(help="Which beamtime to push the runs to")
+    raw_data_path: Path = arg(help="here to start looking for metadata.json files")
+    run_id_file: Path = arg(
+        help="here to store the last chosen run ID (to generate a new one)"
     )
-    stream_visited_file: (  # Where to store which stream file was already processed
-        Path
+    metadata_visited_file: Path = arg(
+        help="here to store which metadata.json was already processed"
     )
-    attributo_config_file: Path  # Where to store which attributi to send
-    create_attributi: (
-        bool  # Whether to use the config file to actually create all attributi
+    stream_visited_file: Path = arg(
+        help="Where to store which stream file was already processed"
     )
-    amarcord_url: str
-    amarcord_user: str
-    amarcord_password: str
-    sample_attributo: str  # Name of the sample attributo to use
-    tag_attributo: str  # Name of the tag attributo to use
-    compare_stream_file_age: bool = True
-    simulate: bool = False
-    raw_data_prefix: str | None = None
-    raw_data_prefix_replacement: str | None = None
+    attributo_config_file: Path = arg(help="Where to store which attributi to send")
+    create_attributi: bool = arg(
+        help="hether to use the config file to actually create all attributi"
+    )
+    amarcord_url: str = arg(help="URL to the AMARCORD API (without /api suffix)")
+    amarcord_user: str = arg(help="HTTP user name to access the AMARCORD API")
+    amarcord_password: str = arg(help="HTTP password to access the AMARCORD API")
+    sample_attributo: str = arg(help="Name of the sample attributo to use")
+    tag_attributo: str = arg(help="Name of the tag attributo to use")
+    compare_stream_file_age: bool = arg(
+        help="Do not ingest new stream files immediately, but test for their age and give some grace time",
+        default=True,
+    )
+    simulate: bool = arg(
+        "Do not modify the file system or database, only simulate what would be done",
+        default=False,
+    )
+    raw_data_prefix: str | None = arg(
+        "Prefix to replace for the raw data paths", default=None
+    )
+    raw_data_prefix_replacement: str | None = arg(
+        "Replacement for the prefix in --raw-data-prefix", default=None
+    )
 
 
 def _retrieve_next_run_id(args: Arguments) -> int:
@@ -798,7 +812,10 @@ async def _main_loop(args: Arguments) -> None:
 
 
 def main() -> None:
-    asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))
+    def runner(args: Arguments) -> None:
+        asyncio.run(_main_loop(args))
+
+    Parser(Arguments).bind(runner).run()
 
 
 if __name__ == "__main__":  # pragma: no cover
