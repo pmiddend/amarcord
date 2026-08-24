@@ -1,3 +1,5 @@
+**This project is only hosted on GitLab now, see the link below!**
+
 <div align="center">
   <p>
 	<a href="https://amarcord.pages.desy.de/amarcord/"><img src="/docs/source/amarcord-logo-with-title.png" alt="AMARCORD Logo with Title Text"></a>
